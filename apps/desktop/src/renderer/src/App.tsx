@@ -21,7 +21,6 @@ const NAV: { group: string | null; items: { id: Page; label: string; icon: IconN
   {
     group: "작성",
     items: [
-      { id: "workspace", label: "워크스페이스", icon: "folder" },
       { id: "testcases", label: "TC", icon: "doc" },
       { id: "author", label: "플로우 만들기", icon: "sparkle" },
     ],
@@ -43,6 +42,8 @@ const NAV: { group: string | null; items: { id: Page; label: string; icon: IconN
   {
     group: "앱",
     items: [
+      // TC·플로우 저장소의 연결·브랜치 상태를 보는 설정 성격의 화면이라 앱 구역에 둔다
+      { id: "workspace", label: "워크스페이스", icon: "folder" },
       { id: "setup", label: "설정 마법사", icon: "wand" },
       { id: "settings", label: "설정", icon: "gear" },
     ],
