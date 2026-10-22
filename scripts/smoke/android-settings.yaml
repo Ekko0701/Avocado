@@ -1,0 +1,13 @@
+# T-000 스모크: Maestro가 Android 에뮬레이터를 조작하고 증적을 남기는지 확인한다.
+# 화면이 실제로 그려졌는지 확인한 뒤 캡처한다(빈 화면 캡처 방지).
+# 선택자는 언어와 무관한 resource-id를 쓴다. AOSP 설정 앱 홈의 검색 바 툴바 id.
+# 2026-10-21 Android 15(google_apis arm64) 에뮬레이터에서 일치와 정상 캡처를 확인했다.
+appId: com.android.settings
+name: bootstrap smoke - Android Settings
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: ".*search_action_bar"
+    timeout: 30000
+- takeScreenshot: 01_settings_home

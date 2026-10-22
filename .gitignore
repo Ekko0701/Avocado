@@ -1,0 +1,29 @@
+# dependencies / build
+node_modules/
+dist/
+.next/
+.turbo/
+coverage/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# local runtime output
+out/
+*.log
+# 증적 파서 테스트용 Maestro 실제 산출물(가짜 값만, packages/evidence/fixtures/README.md)
+!packages/evidence/fixtures/**/*.log
+.maestro/
+poc/out/
+docs/poc/raw/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# test reports
+playwright-report/
+test-results/

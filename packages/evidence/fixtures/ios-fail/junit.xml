@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="Test Suite" device="QA Tool iPhone 17 - iOS 27.0 - 38D33774-E504-44EC-BE68-2E8FFB4E5D81" tests="1" failures="1" time="87.202" timestamp="2026-10-21T23:24:37">
+    <testcase id="fixture iOS 설정 검색 실패" name="fixture iOS 설정 검색 실패" classname="fixture iOS 설정 검색 실패" file="fixtures/flows/ios-fail.yaml" time="87.174" timestamp="2026-10-21T23:24:37" status="ERROR">
+      <failure>Element not found: Text matching regex: qa-fixture-id-7f3a 없음</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

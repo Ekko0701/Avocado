@@ -1,0 +1,24 @@
+# TC-0101 이메일로 회원가입하면 홈 화면이 열린다 (부록 B 규약)
+# 테스트 서버와 시뮬레이터 빌드가 필요하다(예시용 가상 앱이라 실제로 재생하지 않는다).
+appId: ${APP_ID}
+name: TC-0101 이메일 회원가입
+tags: [TC-0101, smoke, auth]
+---
+- runFlow: common/launch-clean.yaml
+- tapOn: "이메일로 계속하기"
+- extendedWaitUntil:
+    visible: "가입하기"
+    timeout: 10000
+- takeScreenshot: 01_signup_form
+- tapOn: "이메일"
+- inputRandomEmail
+- tapOn: "비밀번호 (8자 이상)"
+- inputText: ${DEMO_TEST_PASSWORD}
+- tapOn: "닉네임 (2~12자)"
+- inputText: "QA봇"
+- tapOn: "가입하기"
+- extendedWaitUntil:
+    visible: "새 메모 작성"
+    timeout: 20000
+- assertVisible: "설정 열기"
+- takeScreenshot: 02_home

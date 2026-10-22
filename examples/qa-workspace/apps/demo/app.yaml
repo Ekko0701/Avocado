@@ -1,0 +1,6 @@
+name: Demo
+locale: ko_KR
+note: 예시용 가상 앱(메모 앱). 실제로 빌드·실행할 수 있는 앱이 아니다. 워크스페이스 구조와 TC·플로우 작성 예를 보이려고 둔다.
+targets:
+  ios:
+    appId: com.example.demo

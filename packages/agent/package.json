@@ -1,0 +1,25 @@
+{
+  "name": "@qa/agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@qa/evidence": "workspace:*",
+    "@qa/workspace": "workspace:*"
+  },
+  "devDependencies": {
+    "zod": "4.6.5"
+  },
+  "peerDependencies": {
+    "zod": "4.6.5"
+  }
+}

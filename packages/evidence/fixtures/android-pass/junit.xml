@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="Test Suite" device="emulator-5554" tests="1" failures="0" time="14.965" timestamp="2026-10-21T23:28:09">
+    <testcase id="fixture Android 설정 검색" name="fixture Android 설정 검색" classname="fixture Android 설정 검색" file="fixtures/flows/android-pass.yaml" time="14.955" timestamp="2026-10-21T23:28:09" status="SUCCESS"/>
+  </testsuite>
+</testsuites>

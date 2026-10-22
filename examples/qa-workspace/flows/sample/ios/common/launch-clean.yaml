@@ -1,0 +1,21 @@
+# 상태를 지우고 앱을 띄운 뒤 첫 실행 알림 권한 팝업과 온보딩을 닫는다.
+# launchApp 의 permissions 로는 알림 팝업이 사라지지 않았다.
+appId: ${APP_ID}
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "허용"
+    timeout: 20000
+    optional: true
+- tapOn:
+    text: "허용"
+    optional: true
+# 온보딩의 "닫기"까지 기다린다(서버에 닿지 못하면 여기서 실패한다).
+- extendedWaitUntil:
+    visible: "닫기"
+    timeout: 20000
+- tapOn: "닫기"
+- extendedWaitUntil:
+    visible: "\\s*로그인"
+    timeout: 15000

@@ -1,0 +1,4 @@
+# 계정 역할 → 키 이름(PLAN 4.1). 값은 두지 않는다. 각자 앱 설정 화면에서 account:sample:<KEY> 로 저장한다.
+student:
+  description: 학생 계정(개발 서버)
+  keys: [SAMPLE_TEST_STUDENT_ID, SAMPLE_TEST_STUDENT_PW]

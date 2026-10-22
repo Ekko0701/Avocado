@@ -1,0 +1,6 @@
+# qa-workspace 설정 (PLAN 4.1). 앱 목록과 기본값.
+schemaVersion: 1
+name: qa-workspace
+apps: [demo, sample]
+defaults:
+  locale: ko_KR

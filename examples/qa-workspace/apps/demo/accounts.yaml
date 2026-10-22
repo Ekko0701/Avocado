@@ -1,0 +1,5 @@
+# 계정 역할 → 키 이름(PLAN 4.1). 값은 두지 않는다. 각자 앱 설정 화면에서 account:demo:<KEY> 로 저장한다.
+# 이메일은 플로우가 무작위로 만든다(실행마다 새로 가입).
+signup:
+  description: 가입·로그인에 쓰는 비밀번호(8자 이상). 테스트 서버 전용 값
+  keys: [DEMO_TEST_PASSWORD]

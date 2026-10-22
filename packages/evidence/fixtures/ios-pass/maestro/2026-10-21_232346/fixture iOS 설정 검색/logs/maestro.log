@@ -1,0 +1,25 @@
+23:24:02.999 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Define variables RUNNING
+23:24:03.002 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Define variables COMPLETED
+23:24:03.003 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Apply configuration RUNNING
+23:24:03.003 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Apply configuration COMPLETED
+23:24:03.004 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Launch app "com.apple.Preferences" RUNNING
+23:24:03.646 [ INFO] maestro.Maestro.launchApp$lambda$5: Launching app com.apple.Preferences
+23:24:03.647 [ INFO] maestro.Maestro.launchApp$lambda$5: Stopping com.apple.Preferences app during launch
+23:24:05.175 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Launch app "com.apple.Preferences" COMPLETED
+23:24:05.176 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Assert that id: com.apple.settings.general is visible RUNNING
+23:24:12.855 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Assert that id: com.apple.settings.general is visible COMPLETED
+23:24:12.856 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Tap on id: magnifyingglass RUNNING
+23:24:13.250 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tapping on element:  UiElement(treeNode=TreeNode(attributes={accessibilityText=검색, title=, value=, text=, hintText=, resource-id=magnifyingglass, bounds=[40,812][60,831], enabled=true, focused=false, selected=false, checked=false}, children=[], clickable=null, enabled=true, focused=false, checked=false, selected=false), bounds=Bounds(x=40, y=812, width=20, height=19))
+23:24:13.714 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tap aimed via trusted pre-wait hierarchy (null settle, no recent scroll)
+23:24:13.716 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Try tapping at (50, 821) using hierarchy based logic for wait
+23:24:13.718 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+23:24:13.719 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+23:24:14.751 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Something have changed in the UI judging by view hierarchy. Proceed.
+23:24:14.751 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Tap on id: magnifyingglass COMPLETED
+23:24:14.752 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Input text ${QA_FIXTURE_ACCOUNT_ID} RUNNING
+23:24:15.950 [ INFO] maestro.Maestro.inputText: Inputting text: qa-fixture-id-7f3a
+23:24:17.955 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Input text ${QA_FIXTURE_ACCOUNT_ID} COMPLETED
+23:24:17.956 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Take screenshot 01_search_typed RUNNING
+23:24:17.958 [ INFO] maestro.Maestro.takeScreenshot: Taking screenshot
+23:24:17.959 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+23:24:18.062 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Take screenshot 01_search_typed COMPLETED

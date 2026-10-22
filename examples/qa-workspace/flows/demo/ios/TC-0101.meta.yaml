@@ -1,0 +1,17 @@
+# 플로우 생성 정보와 골든 런 요약 (PLAN 4.3)
+tc: TC-0101
+tcVersion: initial
+target: ios
+generatedBy: human
+goldenRun:
+  appBuild: com.example.demo 1.0 (1)
+  device: QA Tool iPhone 17 / iOS 27.0 / ko_KR
+  result: passed
+  evidenceLink: null
+missingIdentifiers:
+  - screen: welcome
+    element: 이메일로 계속하기
+    fallback: 'text: "이메일로 계속하기"'
+  - screen: signup
+    element: 가입하기 버튼
+    fallback: 'text: "가입하기"'

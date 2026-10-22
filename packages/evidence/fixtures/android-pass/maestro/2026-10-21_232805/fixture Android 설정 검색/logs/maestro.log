@@ -1,0 +1,28 @@
+23:28:10.031 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Define variables RUNNING
+23:28:10.033 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Define variables COMPLETED
+23:28:10.034 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Apply configuration RUNNING
+23:28:10.034 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Apply configuration COMPLETED
+23:28:10.034 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Stop com.google.android.settings.intelligence RUNNING
+23:28:10.035 [ INFO] maestro.Maestro.stopApp$lambda$6: Stopping app com.google.android.settings.intelligence
+23:28:10.063 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Stop com.google.android.settings.intelligence COMPLETED
+23:28:10.064 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Launch app "com.android.settings" RUNNING
+23:28:10.319 [ INFO] maestro.Maestro.launchApp$lambda$5: Launching app com.android.settings
+23:28:10.319 [ INFO] maestro.Maestro.launchApp$lambda$5: Stopping com.android.settings app during launch
+23:28:10.774 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Launch app "com.android.settings" COMPLETED
+23:28:10.775 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Assert that id: .*search_action_bar is visible RUNNING
+23:28:12.674 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Assert that id: .*search_action_bar is visible COMPLETED
+23:28:12.675 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Tap on id: .*search_action_bar RUNNING
+23:28:13.130 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tapping on element:  UiElement(treeNode=TreeNode(attributes={text=, accessibilityText=, hintText=, ignoreBoundsFiltering=false, resource-id=com.android.settings:id/search_action_bar, clickable=true, bounds=[42,611][1038,748], enabled=true, focused=false, checked=false, scrollable=false, selected=false, class=android.view.ViewGroup, important-for-accessibility=true, error=}, children=[TreeNode(attributes={text=, accessibilityText=, hintText=, ignoreBoundsFiltering=false, resource-id=, clickable=false, bounds=[53,611][200,748], enabled=true, focused=false, checked=false, scrollable=false, selected=false, class=android.widget.ImageButton, important-for-accessibility=false, error=}, children=[], clickable=false, enabled=true, focused=false, checked=false, selected=false), TreeNode(attributes={text=설정 검색, accessibilityText=, hintText=, ignoreBoundsFiltering=false, resource-id=com.android.settings:id/search_action_bar_title, clickable=false, bounds=[200,640][398,718], enabled=true, focused=false, checked=false, scrollable=false, selected=false, class=android.widget.TextView, important-for-accessibility=true, error=}, children=[], clickable=false, enabled=true, focused=false, checked=false, selected=false)], clickable=true, enabled=true, focused=false, checked=false, selected=false), bounds=Bounds(x=42, y=611, width=996, height=137))
+23:28:14.526 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tap aimed via settled hierarchy
+23:28:14.530 [ INFO] maestro.Maestro.hierarchyBasedTap-ogj28Uc: Tapping at (540, 679) using hierarchy based logic for wait
+23:28:16.914 [ INFO] maestro.Maestro.hierarchyBasedTap-ogj28Uc: Something has changed in the UI judging by view hierarchy. Proceed.
+23:28:16.914 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Tap on id: .*search_action_bar COMPLETED
+23:28:16.914 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Assert that id: .*open_search_view_edit_text is visible RUNNING
+23:28:17.070 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Assert that id: .*open_search_view_edit_text is visible COMPLETED
+23:28:17.071 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Input text ${QA_FIXTURE_ACCOUNT_ID} RUNNING
+23:28:17.939 [ INFO] maestro.Maestro.inputText: Inputting text: qa-fixture-id-7f3a
+23:28:23.937 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Input text ${QA_FIXTURE_ACCOUNT_ID} COMPLETED
+23:28:23.938 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandStart: Take screenshot 01_search_typed RUNNING
+23:28:23.940 [ INFO] maestro.Maestro.takeScreenshot: Taking screenshot
+23:28:23.940 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+23:28:24.155 [ INFO] maestro.cli.runner.CliConsoleListener.onCommandFinished: Take screenshot 01_search_typed COMPLETED

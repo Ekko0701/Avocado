@@ -1,0 +1,356 @@
+{
+ "runtimes": [
+  {
+   "identifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
+   "name": "iOS 26.5",
+   "version": "26.5",
+   "platform": "iOS",
+   "isAvailable": true,
+   "supportedDeviceTypes": [
+    {
+     "name": "iPhone 17 Pro",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 17 Pro Max",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 17e",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17e",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone Air",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-Air",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 17",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 16 Pro",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 16 Pro Max",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro-Max",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 16e",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-16e",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 16",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-16",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 16 Plus",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-16-Plus",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 15 Pro",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 15 Pro Max",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro-Max",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 15",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-15",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 15 Plus",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-15-Plus",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 14 Pro",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-14-Pro",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 14 Pro Max",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-14-Pro-Max",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 14",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-14",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 14 Plus",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-14-Plus",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone SE (3rd generation)",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 13 Pro",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-13-Pro",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 13 Pro Max",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-13-Pro-Max",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 13",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-13",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 13 mini",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-13-mini",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 12 Pro",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-12-Pro",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 12 Pro Max",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-12-Pro-Max",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 12",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-12",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 12 mini",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-12-mini",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone SE (2nd generation)",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-SE--2nd-generation-",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 11 Pro",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-11-Pro",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 11 Pro Max",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-11-Pro-Max",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 11",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-11",
+     "productFamily": "iPhone"
+    }
+   ]
+  },
+  {
+   "identifier": "com.apple.CoreSimulator.SimRuntime.iOS-27-0",
+   "name": "iOS 27.0",
+   "version": "27.0",
+   "platform": "iOS",
+   "isAvailable": true,
+   "supportedDeviceTypes": [
+    {
+     "name": "iPhone 18 Pro",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 18 Pro Max",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro-Max",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 17 Pro",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 17 Pro Max",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 17e",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17e",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone Air",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-Air",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 17",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 16 Pro",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 16 Pro Max",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro-Max",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 16e",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-16e",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 16",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-16",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 16 Plus",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-16-Plus",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 15 Pro",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 15 Pro Max",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro-Max",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 15",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-15",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 15 Plus",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-15-Plus",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 14 Pro",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-14-Pro",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 14 Pro Max",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-14-Pro-Max",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 14",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-14",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 14 Plus",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-14-Plus",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone SE (3rd generation)",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 13 Pro",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-13-Pro",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 13 Pro Max",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-13-Pro-Max",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 13",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-13",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 13 mini",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-13-mini",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 12 Pro",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-12-Pro",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 12 Pro Max",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-12-Pro-Max",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 12",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-12",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 12 mini",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-12-mini",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone SE (2nd generation)",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-SE--2nd-generation-",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 11 Pro",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-11-Pro",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 11 Pro Max",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-11-Pro-Max",
+     "productFamily": "iPhone"
+    },
+    {
+     "name": "iPhone 11",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-11",
+     "productFamily": "iPhone"
+    }
+   ]
+  },
+  {
+   "identifier": "com.apple.CoreSimulator.SimRuntime.iOS-27-1",
+   "name": "iOS 27.1",
+   "version": "27.1",
+   "platform": "iOS",
+   "isAvailable": true,
+   "supportedDeviceTypes": [
+    {
+     "name": "iPhone Duo",
+     "identifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-Duo",
+     "productFamily": "iPhone"
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,14 @@
+# 증적 파서 픽스처: iOS 설정 앱에서 검색창에 가짜 계정 값을 입력하고 캡처한다(통과).
+# 가짜 값은 -e 로 넘겨 Maestro 가 실제로 commands.json·maestro.log·화면 트리에 남기게 한다.
+appId: com.apple.Preferences
+name: fixture iOS 설정 검색
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "com.apple.settings.general"
+    timeout: 30000
+- tapOn:
+    id: "magnifyingglass"
+- inputText: ${QA_FIXTURE_ACCOUNT_ID}
+- takeScreenshot: 01_search_typed

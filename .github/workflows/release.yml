@@ -1,0 +1,119 @@
+# 릴리스(PLAN 11장, T-116, docs/release.md, ADR 0020).
+# v<semver> 태그 → build(시험·빌드·서명·공증) → publish(Releases 에 .dmg·.sha256).
+# 서명 시크릿은 저장소 Environment "release"에만 둔다. 그 Environment 는 보호된 태그만 쓰고 승인자를 요구하도록 저장소에서 설정한다
+# (태그만 밀어 다른 워크플로로 시크릿을 읽는 것을 막는다). 시크릿: CSC_LINK, CSC_KEY_PASSWORD, MAC_IDENTITY,
+# APPLE_API_KEY(.p8 내용), APPLE_API_KEY_ID, APPLE_API_ISSUER. 전부 없으면(D12 전) 서명 없는 내부 빌드를 미리보기로 올린다.
+name: release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    environment: release
+    outputs:
+      signed: ${{ steps.sign.outputs.signed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: pnpm
+        run: corepack enable && pnpm --version
+      - name: 의존성
+        run: pnpm install --frozen-lockfile
+      - name: 시험(시크릿 없음)
+        run: pnpm lint && pnpm typecheck && pnpm test
+      - name: 태그와 앱 버전이 같은지
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(node -p "require('./apps/desktop/package.json').version")
+          test "v${version}" = "${TAG}" || { echo "태그 ${TAG} 와 앱 버전 v${version} 이 다르다"; exit 1; }
+      - name: 앱 코드 빌드(시크릿 없음)
+        working-directory: apps/desktop
+        run: pnpm exec electron-vite build
+      - name: 패키징·서명·공증
+        id: sign
+        working-directory: apps/desktop
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          MAC_IDENTITY: ${{ secrets.MAC_IDENTITY }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          set -euo pipefail
+          present=0
+          for v in CSC_LINK CSC_KEY_PASSWORD MAC_IDENTITY APPLE_API_KEY_CONTENT APPLE_API_KEY_ID APPLE_API_ISSUER; do
+            if [ -n "${!v}" ]; then present=$((present + 1)); fi
+          done
+          if [ "${present}" -eq 0 ]; then
+            echo "서명 시크릿이 없어 서명 없는 내부 빌드를 만든다(D12)"
+            pnpm exec electron-builder --config electron-builder.yml --publish never
+            echo "signed=0" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          if [ "${present}" -ne 6 ]; then echo "서명 시크릿 일부만 있다(${present}/6). 멈춘다"; exit 1; fi
+          key_file="${RUNNER_TEMP}/AuthKey.p8"
+          printf '%s' "${APPLE_API_KEY_CONTENT}" > "${key_file}"
+          trap 'rm -f "${key_file}"' EXIT
+          # 서명 신원을 못 찾으면 경고로 넘어가지 않고 실패한다
+          APPLE_API_KEY="${key_file}" pnpm exec electron-builder --config electron-builder.yml --publish never \
+            -c.forceCodeSigning=true -c.mac.identity="${MAC_IDENTITY}" -c.mac.notarize=true -c.dmg.sign=true
+          app="dist/mac-arm64/Avocado.app"
+          codesign --verify --deep --strict --verbose=2 "${app}"
+          xcrun stapler validate "${app}"
+          spctl --assess --type exec -vv "${app}"
+          # electron-builder 는 .app 만 공증한다. dmg 도 공증·스테이플해 앱 내 업데이트의 spctl 확인을 통과하게 한다
+          for f in dist/*.dmg; do
+            xcrun notarytool submit "$f" --key "${key_file}" --key-id "${APPLE_API_KEY_ID}" --issuer "${APPLE_API_ISSUER}" --wait
+            xcrun stapler staple "$f"
+            spctl --assess --type open --context context:primary-signature -vv "$f"
+          done
+          echo "signed=1" >> "${GITHUB_OUTPUT}"
+      - name: SHA-256
+        working-directory: apps/desktop/dist
+        run: for f in *.dmg; do shasum -a 256 "$f" > "$f.sha256"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg
+          path: |
+            apps/desktop/dist/*.dmg
+            apps/desktop/dist/*.dmg.sha256
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dmg
+          path: dist
+      - name: Releases 에 올리기
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          SIGNED: ${{ needs.build.outputs.signed }}
+        run: |
+          flags=""
+          notes="Avocado ${TAG}. 설치는 docs/user-guide/install.md"
+          if [ "${SIGNED}" != "1" ]; then
+            flags="--prerelease"
+            notes="${notes}. 서명 없는 내부 빌드다(첫 실행 경고 대처는 설치 가이드)."
+          fi
+          gh release create "${TAG}" *.dmg *.dmg.sha256 --title "Avocado ${TAG}" --notes "${notes}" ${flags}

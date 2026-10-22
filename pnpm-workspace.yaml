@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+# 출시 2주(20160분)가 지나지 않은 버전은 간접 의존성까지 쓰지 않는다(ADR 0003, D16·ADR 0021)
+minimumReleaseAge: 20160
+# 설치 스크립트 실행을 허용하는 패키지(최소로 유지).
+# electron 44 는 설치 스크립트 없이 첫 사용 때 바이너리를 받고 checksums.json 으로 검증한다.
+allowBuilds:
+  electron-winstaller: false # Windows 설치 파일 도구. macOS 앱에는 필요 없어 거부
+  esbuild: true

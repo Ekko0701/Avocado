@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="Test Suite" device="QA Tool iPhone 17 - iOS 27.0 - 38D33774-E504-44EC-BE68-2E8FFB4E5D81" tests="1" failures="0" time="16.148" timestamp="2026-10-21T23:24:02">
+    <testcase id="fixture iOS 설정 검색" name="fixture iOS 설정 검색" classname="fixture iOS 설정 검색" file="fixtures/flows/ios-pass.yaml" time="16.137" timestamp="2026-10-21T23:24:02" status="SUCCESS"/>
+  </testsuite>
+</testsuites>

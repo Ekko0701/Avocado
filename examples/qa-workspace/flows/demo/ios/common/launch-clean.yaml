@@ -1,0 +1,10 @@
+# 로그인 정보까지 지우고 앱을 띄운다. 토큰은 키체인에 있어 clearState 만으로는 남는다(iOS 는 앱 데이터와 키체인을 따로 지운다).
+# clearKeychain 은 시뮬레이터 전체 키체인을 지운다. QA 전용 시뮬레이터에서만 쓴다.
+appId: ${APP_ID}
+---
+- clearKeychain
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "이메일로 계속하기"
+    timeout: 15000

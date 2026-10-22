@@ -1,0 +1,16 @@
+# 증적 파서 픽스처: 통과 플로우 뒤에 없는 요소를 누르게 해 실패시킨다.
+# 선택자에 가짜 계정 값이 들어가 Maestro 가 실패 캡처·트리 파일 이름에도 그 값을 쓴다(파일 이름 가림 검사용).
+appId: com.apple.Preferences
+name: fixture iOS 설정 검색 실패
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "com.apple.settings.general"
+    timeout: 30000
+- tapOn:
+    id: "magnifyingglass"
+- inputText: ${QA_FIXTURE_ACCOUNT_ID}
+- takeScreenshot: 01_search_typed
+- tapOn:
+    text: "${QA_FIXTURE_ACCOUNT_ID} 없음"

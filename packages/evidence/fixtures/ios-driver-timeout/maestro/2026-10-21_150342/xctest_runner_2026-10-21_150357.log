@@ -1,0 +1,7 @@
+2026-10-21 15:04:16.608 xcodebuild[71528:693555] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+** BUILD INTERRUPTED **
+7F-BF02-E2976E979AC81015436199282825264/maestro-driver-ios-config.xctestrun -destination id=B971ACB8-F428-477F-BF02-E2976E979AC8 -derivedDataPath /var/folders/dq/nl79dwb10nlcc2xxc4v0gcrh0000gn/T/maestro_xctestrunner_xcodebuild_output9368207735408191776
+
+2026-10-21 15:04:49.268966+0900 maestro-driver-iosUITests-Runner[71799:695456] [Default] Running tests...
+2026-10-21 15:04:51.666624+0900 maestro-driver-iosUITests-Runner[71799:695456] snapshotKeyHonorModalViews configured to value: (null)
+    t =      nans Interface orientation changed to Portrait

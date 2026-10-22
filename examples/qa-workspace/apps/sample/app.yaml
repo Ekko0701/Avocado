@@ -1,0 +1,6 @@
+name: Sample
+locale: ko_KR
+note: 예시용 가상 앱. 실제로 빌드·실행할 수 있는 앱이 아니다. 앱이 둘인 워크스페이스(필터·계정 키·린트)를 보이려고 둔다.
+targets:
+  ios:
+    appId: com.example.sample.dev

@@ -1,0 +1,24 @@
+{
+  "name": "@qa/workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./model": "./src/model.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@qa/shared": "workspace:*",
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "zod": "4.6.5"
+  },
+  "peerDependencies": {
+    "zod": "4.6.5"
+  }
+}

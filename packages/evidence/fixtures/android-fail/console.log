@@ -1,0 +1,8 @@
+[picocli WARN] Unbalanced quotes in [Pw&2026] for field java.util.Map<String, String> maestro.cli.command.TestCommand.env (value=QA_FIXTURE_ACCOUNT_PW=fixture"Pw&2026)
+[picocli WARN] Unable to respect quotes while splitting value QA_FIXTURE_ACCOUNT_PW=fixture"Pw&2026 for field java.util.Map<String, String> maestro.cli.command.TestCommand.env (unprocessed remainder: [Pw&2026])
+
+Waiting for flows to complete...
+[Failed] fixture Android 설정 검색 실패 (33s) (Element not found: Text matching regex: qa-fixture-id-7f3a 없음)
+
+1/1 Flow Failed
+

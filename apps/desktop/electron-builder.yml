@@ -1,0 +1,27 @@
+# 패키징(PLAN 11장, T-116). Apple Silicon .dmg. 서명·공증은 D12(Developer ID 인증서·공증 키) 뒤에
+# 릴리스 워크플로가 -c.mac.identity / -c.mac.notarize 로 켠다. 그 전에는 서명 없는 내부 빌드다.
+appId: net.ekko.avocado # D14(2026-10-22, ADR 0021)
+productName: Avocado
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**
+  - package.json
+asar: true
+# 네이티브 모듈이 없다(node:sqlite 사용, ADR 0005). 재빌드할 것이 없으므로 끈다.
+npmRebuild: false
+mac:
+  target:
+    - target: dmg
+      arch: [arm64]
+  identity: null
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  category: public.app-category.developer-tools
+dmg:
+  # 앱 내 업데이트가 이 이름으로 이 Mac 의 아키텍처 파일을 찾는다(UpdateService.pickDmg)
+  artifactName: Avocado-${version}-${arch}.${ext}
+  sign: false

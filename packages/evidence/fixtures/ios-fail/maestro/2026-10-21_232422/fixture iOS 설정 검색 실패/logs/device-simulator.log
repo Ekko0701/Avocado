@@ -1,0 +1,300 @@
+        2086,
+        2094,
+        5043,
+        2158
+    );
+    maxArrayCount = 2147483647;
+    maxChildren = 2147483647;
+    maxDepth = 2147483647;
+    traverseFromParentsToChildren = 1;
+}
+2026-10-21 23:26:03.934052+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Snapshot attributes 5004, 5003, 5058, 5019, 2004, 2087, 2003, 5002, 2123, 2021, 2001, 2086, 2094, 5043, 2158
+2026-10-21 23:26:03.934620+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got snapshot for <AXUIElementRef 0x102340ba0> {pid=62610} {uid=[ID:29 hash:0x109b84c80]}
+2026-10-21 23:26:03.934707+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got app orientation 0
+2026-10-21 23:26:03.934733+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Captured accessibility snapshot data in 0.00s
+2026-10-21 23:26:03.934805+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Preferring automation type 25 instead of legacy element type OTHER derived from class/trait: STUIStatusBar_Wrapper:UIStatusBar_Base 0
+2026-10-21 23:26:03.934849+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Uncaptured runtime issue reported: Automation type mismatch: computed Other from legacy attributes vs StatusBar from modern attribute.
+2026-10-21 23:26:03.936985+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Received request to fetch matches for query: ↪︎ Descendants matching type StatusBar
+    ↪︎ Element at index 1
+2026-10-21 23:26:03.937048+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Evaluating query:
+ ↪︎ Descendants matching type StatusBar
+    ↪︎ Element at index 1
+2026-10-21 23:26:03.937068+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Getting root element snapshot
+2026-10-21 23:26:03.937098+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Getting snapshot for App element pid: 62610 for query ↪︎ Descendants matching type StatusBar
+    ↪︎ Element at index 1
+2026-10-21 23:26:03.937140+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Query requires iOS snapshot attributes XC_kAXXCAttributeElementType, XC_kAXXCAttributeElementBaseType, XC_kAXXCAttributeAutomationType, XC_kAXXCAttributeTraits.
+2026-10-21 23:26:03.937182+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: about to CFRunLoopPerform
+2026-10-21 23:26:03.937202+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: waiting with 30.00s responsiveness timeout
+2026-10-21 23:26:03.937219+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[MT]: inside CFRunLoopPerform
+2026-10-21 23:26:03.937249+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[MT]: MT responded in time (won the race to the busy flag)
+2026-10-21 23:26:03.937257+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: waiting 60.00s for work to complete
+2026-10-21 23:26:03.938808+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got main window <AXUIElementRef 0x12bdf0db0> {pid=62610} {uid=[ID:14 hash:0x114324000]}
+2026-10-21 23:26:03.938877+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Capturing hierarchy with attributes XC_kAXXCAttributeElementType, XC_kAXXCAttributeElementBaseType, XC_kAXXCAttributeParent, XC_kAXXCAttributeIdentifier, XC_kAXXCAttributeAutomationType, XC_kAXXCAttributeTraits
+2026-10-21 23:26:03.938949+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Capturing hierarchy with parameters {
+    attributes =     (
+        5003,
+        5004,
+        5002,
+        5019,
+        5058,
+        2004
+    );
+    maxArrayCount = 2147483647;
+    maxChildren = 2147483647;
+    maxDepth = 2147483647;
+    snapshotKeyHonorModalViews = 0;
+    traverseFromParentsToChildren = 1;
+}
+2026-10-21 23:26:03.938978+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Snapshot attributes 5003, 5004, 5002, 5019, 5058, 2004
+2026-10-21 23:26:03.961718+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got snapshot for <AXUIElementRef 0x1266a7f90> {pid=62610} {uid=[ID:1 hash:0x0]}
+2026-10-21 23:26:03.961813+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got app orientation 1
+2026-10-21 23:26:03.961834+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Captured accessibility snapshot data in 0.02s
+2026-10-21 23:26:03.961901+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Preferring automation type 2 instead of legacy element type OTHER derived from class/trait: SpringBoard:UISystemShellApplication 0
+2026-10-21 23:26:03.962220+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Preferring automation type 4 instead of legacy element type OTHER derived from class/trait: UIRootSceneWindow:UIRootSceneWindow 0
+2026-10-21 23:26:03.962299+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Preferring automation type 4 instead of legacy element type OTHER derived from class/trait: _UISystemGestureWindow:_UISystemGestureWindow 0
+2026-10-21 23:26:03.962528+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Preferring automation type 25 instead of legacy element type OTHER derived from class/trait: STUIStatusBar_Wrapper:UIStatusBar_Base 8589934592
+2026-10-21 23:26:03.962699+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Using placeholder for remote element RemotePlaceholder, pid: 62710, child of Other because AX remote access is disabled
+2026-10-21 23:26:03.962967+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Preferring automation type 4 instead of legacy element type OTHER derived from class/trait: SBRecordingIndicatorAboveBlankingWindow:_UIRootWindow 0
+2026-10-21 23:26:03.962996+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Found main window: Window
+2026-10-21 23:26:03.963037+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Preferring automation type 25 instead of legacy element type OTHER derived from class/trait: STUIStatusBar_Wrapper:UIStatusBar_Base 0
+2026-10-21 23:26:03.963199+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: about to CFRunLoopPerform
+2026-10-21 23:26:03.963225+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: waiting with 30.00s responsiveness timeout
+2026-10-21 23:26:03.963241+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[MT]: inside CFRunLoopPerform
+2026-10-21 23:26:03.963269+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[MT]: MT responded in time (won the race to the busy flag)
+2026-10-21 23:26:03.963275+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: waiting 60.00s for work to complete
+2026-10-21 23:26:03.963295+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTElementQuery: set data source for rootElementSnapshot to <XCTAutomationSession: 0x12c25a1b0>
+2026-10-21 23:26:03.963381+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Finding all matches with input Application, pid: 62610 using transformers 
+↪︎ Descendants matching type StatusBar
+    ↪︎ Element at index 1
+2026-10-21 23:26:03.964176+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] [Match All] applied transformer `Descendants matching type StatusBar` to input {(
+    Application, pid: 62610
+)}, found {(
+    StatusBar,
+    StatusBar
+)}
+2026-10-21 23:26:03.964222+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] [Match All] unioned related elements {(
+    StatusBar
+)} from {(
+    StatusBar
+)}
+2026-10-21 23:26:03.964257+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] [Match All] applied transformer `Element at index 1` to input {(
+    StatusBar,
+    StatusBar
+)}, found {(
+    StatusBar
+)}
+2026-10-21 23:26:03.964279+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] [Match All] setting out related elements {(
+    StatusBar
+)}
+2026-10-21 23:26:03.966630+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Current tree:
+Application, 0x1222cad00, pid: 62610 <App element pid: 62610>
+  Window, 0x1222cb480 <AX element pid: 62610, elementOrHash.elementID: 4457117696.4>
+    Other, 0x1222ca440 <AX element pid: 62610, elementOrHash.elementID: 4850974016.18>
+  Window, 0x1222cb980 <AX element pid: 62610, elementOrHash.elementID: 4457105408.5>
+    Other, 0x1222cae40 <AX element pid: 62610, elementOrHash.elementID: 4633111936.19>
+      Other, 0x1222c83c0 <AX element pid: 62610, elementOrHash.elementID: 4633111040.32>
+        Other, 0x1222caf80 <AX element pid: 62610, elementOrHash.elementID: 4633110592.42>
+        Other, 0x1222c9680 <AX element pid: 62610, elementOrHash.elementID: 4633111488.43>
+        Other, 0x1222ca300 <AX element pid: 62610, elementOrHash.elementID: 4631202304.44>
+          Other, 0x1222c9f40 <AX element pid: 62610, elementOrHash.elementID: 4633107904.50>
+  Window, 0x1222ca580 <AX element pid: 62610, elementOrHash.elementID: 4457104384.6>
+    Other, 0x1222c8140 <AX element pid: 62610, elementOrHash.elementI
+2026-10-21 23:26:03.966676+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Query ↪︎ Descendants matching type StatusBar
+    ↪︎ Element at index 1 found matching snapshots: {(
+    StatusBar
+)} (error: (null))
+2026-10-21 23:26:03.966765+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Found remote element in snapshot tree: RemotePlaceholder, pid: 62710
+2026-10-21 23:26:03.967218+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Replying to query ↪︎ Descendants matching type StatusBar
+    ↪︎ Element at index 1 with results: <XCTElementQueryResults: 0x12c256d00> (error: (null))
+2026-10-21 23:26:03.970806+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: about to CFRunLoopPerform
+2026-10-21 23:26:03.970850+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: waiting with 30.00s responsiveness timeout
+2026-10-21 23:26:03.970860+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[MT]: inside CFRunLoopPerform
+2026-10-21 23:26:03.970887+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[MT]: MT responded in time (won the race to the busy flag)
+2026-10-21 23:26:03.970902+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: waiting 60.00s for work to complete
+2026-10-21 23:26:03.971592+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got main window <AXUIElementRef 0x102340f90> {pid=62710} {uid=[ID:8 hash:0x10220a400]}
+2026-10-21 23:26:03.971730+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Capturing hierarchy with attributes XC_kAXXCAttributeElementType, XC_kAXXCAttributeElementBaseType, XC_kAXXCAttributeParent, XC_kAXXCAttributeIdentifier, XC_kAXXCAttributeAutomationType, XC_kAXXCAttributeTraits
+2026-10-21 23:26:03.971812+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Capturing hierarchy with parameters {
+    attributes =     (
+        5003,
+        5004,
+        5002,
+        5019,
+        5058,
+        2004
+    );
+    maxArrayCount = 2147483647;
+    maxChildren = 2147483647;
+    maxDepth = 2147483647;
+    snapshotKeyHonorModalViews = 0;
+    traverseFromParentsToChildren = 1;
+}
+2026-10-21 23:26:03.971847+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Snapshot attributes 5003, 5004, 5002, 5019, 5058, 2004
+2026-10-21 23:26:03.973212+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got snapshot for <AXUIElementRef 0x1023434b0> {pid=62710} {uid=[ID:9999 hash:0xe0c7159f96aa21c0]}
+2026-10-21 23:26:03.973319+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got app orientation 0
+2026-10-21 23:26:03.973351+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Captured accessibility snapshot data in 0.00s
+2026-10-21 23:26:03.977763+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: about to CFRunLoopPerform
+2026-10-21 23:26:03.977816+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: waiting with 30.00s responsiveness timeout
+2026-10-21 23:26:03.977860+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[MT]: inside CFRunLoopPerform
+2026-10-21 23:26:03.977985+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: waiting 60.00s for work to complete
+2026-10-21 23:26:03.978008+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[MT]: MT responded in time (won the race to the busy flag)
+2026-10-21 23:26:03.980096+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got main window <AXUIElementRef 0x102342430> {pid=62610} {uid=[ID:14 hash:0x114324000]}
+2026-10-21 23:26:03.980253+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Capturing hierarchy with attributes XC_kAXXCAttributeElementBaseType, XC_kAXXCAttributeElementType, XC_kAXXCAttributeAutomationType, XC_kAXXCAttributeIdentifier, XC_kAXXCAttributeTraits, XC_kAXXCAttributeVerticalSizeClass, XC_kAXXCAttributeFrame, XC_kAXXCAttributeParent, XC_kAXXCAttributeWindowDisplayId, XC_kAXXCAttributeWindowContextId, XC_kAXXCAttributeLabel, XC_kAXXCAttributeHorizontalSizeClass, XC_kAXXCAttributeHasNativeFocus, XC_kAXXCAttributePlaceholderValue, XC_kAXXCAttributeTruncatedValue
+2026-10-21 23:26:03.980348+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Capturing hierarchy with parameters {
+    attributes =     (
+        5004,
+        5003,
+        5058,
+        5019,
+        2004,
+        2087,
+        2003,
+        5002,
+        2123,
+        2021,
+        2001,
+        2086,
+        2094,
+        5043,
+        2158
+    );
+    maxArrayCount = 2147483647;
+    maxChildren = 2147483647;
+    maxDepth = 2147483647;
+    traverseFromParentsToChildren = 1;
+}
+2026-10-21 23:26:03.980428+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Snapshot attributes 5004, 5003, 5058, 5019, 2004, 2087, 2003, 5002, 2123, 2021, 2001, 2086, 2094, 5043, 2158
+2026-10-21 23:26:03.985223+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got snapshot for <AXUIElementRef 0x102343d20> {pid=62610} {uid=[ID:176 hash:0x12dd45b80]}
+2026-10-21 23:26:03.985335+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got app orientation 0
+2026-10-21 23:26:03.985359+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Captured accessibility snapshot data in 0.01s
+2026-10-21 23:26:03.985436+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Preferring automation type 25 instead of legacy element type OTHER derived from class/trait: STUIStatusBar_Wrapper:UIStatusBar_Base 8589934592
+2026-10-21 23:26:03.985482+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Uncaptured runtime issue reported: Automation type mismatch: computed Other from legacy attributes vs StatusBar from modern attribute.
+2026-10-21 23:26:03.985549+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Checking '오후 11:26' for privileged AX value slot attributes
+2026-10-21 23:26:03.985624+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Checking '셀룰러' for privileged AX value slot attributes
+2026-10-21 23:26:03.985661+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Checking 'SSID, 총 3개의 Wi‑Fi 막대 중 3개' for privileged AX value slot attributes
+2026-10-21 23:26:03.985693+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Checking 'Wi-Fi' for privileged AX value slot attributes
+2026-10-21 23:26:03.987373+0900  localhost maestro-driver-iosUITests-Runner[66241]: (Foundation) Fetch status bar hierarchy - duration 0.1549069881439209
+2026-10-21 23:26:03.988423+0900  localhost maestro-driver-iosUITests-Runner[66241]: (Foundation) Fetch Safari WebView hierarchy - duration 0.0009000301361083984
+2026-10-21 23:26:03.989651+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Received request to fetch matches for query:
+2026-10-21 23:26:03.989702+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Evaluating query:
+2026-10-21 23:26:03.989720+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Getting root element snapshot
+2026-10-21 23:26:03.989741+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Getting snapshot for App element pid: 62610 for query
+2026-10-21 23:26:03.989766+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Query requires iOS snapshot attributes .
+2026-10-21 23:26:03.989809+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: about to CFRunLoopPerform
+2026-10-21 23:26:03.989828+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: waiting with 30.00s responsiveness timeout
+2026-10-21 23:26:03.989840+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[MT]: inside CFRunLoopPerform
+2026-10-21 23:26:03.989868+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[MT]: MT responded in time (won the race to the busy flag)
+2026-10-21 23:26:03.989882+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: waiting 60.00s for work to complete
+2026-10-21 23:26:03.991520+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got main window <AXUIElementRef 0x10c200030> {pid=62610} {uid=[ID:14 hash:0x114324000]}
+2026-10-21 23:26:03.991598+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Capturing hierarchy with attributes XC_kAXXCAttributeElementType, XC_kAXXCAttributeElementBaseType, XC_kAXXCAttributeParent, XC_kAXXCAttributeIdentifier, XC_kAXXCAttributeAutomationType, XC_kAXXCAttributeTraits
+2026-10-21 23:26:03.991666+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Capturing hierarchy with parameters {
+    attributes =     (
+        5003,
+        5004,
+        5002,
+        5019,
+        5058,
+        2004
+    );
+    maxArrayCount = 2147483647;
+    maxChildren = 2147483647;
+    maxDepth = 2147483647;
+    snapshotKeyHonorModalViews = 0;
+    traverseFromParentsToChildren = 1;
+}
+2026-10-21 23:26:03.991697+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Snapshot attributes 5003, 5004, 5002, 5019, 5058, 2004
+2026-10-21 23:26:04.014355+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got snapshot for <AXUIElementRef 0x1266a5d10> {pid=62610} {uid=[ID:1 hash:0x0]}
+2026-10-21 23:26:04.014444+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got app orientation 1
+2026-10-21 23:26:04.014465+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Captured accessibility snapshot data in 0.02s
+2026-10-21 23:26:04.014534+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Preferring automation type 2 instead of legacy element type OTHER derived from class/trait: SpringBoard:UISystemShellApplication 0
+2026-10-21 23:26:04.014850+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Preferring automation type 4 instead of legacy element type OTHER derived from class/trait: UIRootSceneWindow:UIRootSceneWindow 0
+2026-10-21 23:26:04.014931+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Preferring automation type 4 instead of legacy element type OTHER derived from class/trait: _UISystemGestureWindow:_UISystemGestureWindow 0
+2026-10-21 23:26:04.015168+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Preferring automation type 25 instead of legacy element type OTHER derived from class/trait: STUIStatusBar_Wrapper:UIStatusBar_Base 8589934592
+2026-10-21 23:26:04.015338+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Using placeholder for remote element RemotePlaceholder, pid: 62710, child of Other because AX remote access is disabled
+2026-10-21 23:26:04.015605+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Preferring automation type 4 instead of legacy element type OTHER derived from class/trait: SBRecordingIndicatorAboveBlankingWindow:_UIRootWindow 0
+2026-10-21 23:26:04.015633+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Found main window: Window
+2026-10-21 23:26:04.015674+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Preferring automation type 25 instead of legacy element type OTHER derived from class/trait: STUIStatusBar_Wrapper:UIStatusBar_Base 0
+2026-10-21 23:26:04.015849+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Query  found matching snapshots: {(
+    Application, pid: 62610
+)} (error: (null))
+2026-10-21 23:26:04.015933+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Found remote element in snapshot tree: RemotePlaceholder, pid: 62710
+2026-10-21 23:26:04.016156+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Replying to query  with results: <XCTElementQueryResults: 0x12c2569a0> (error: (null))
+2026-10-21 23:26:04.019176+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: about to CFRunLoopPerform
+2026-10-21 23:26:04.019220+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: waiting with 30.00s responsiveness timeout
+2026-10-21 23:26:04.019244+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[MT]: inside CFRunLoopPerform
+2026-10-21 23:26:04.019272+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[MT]: MT responded in time (won the race to the busy flag)
+2026-10-21 23:26:04.019285+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: waiting 60.00s for work to complete
+2026-10-21 23:26:04.020006+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got main window <AXUIElementRef 0x1023434b0> {pid=62710} {uid=[ID:8 hash:0x10220a400]}
+2026-10-21 23:26:04.020136+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Capturing hierarchy with attributes XC_kAXXCAttributeElementType, XC_kAXXCAttributeElementBaseType, XC_kAXXCAttributeParent, XC_kAXXCAttributeIdentifier, XC_kAXXCAttributeAutomationType, XC_kAXXCAttributeTraits
+2026-10-21 23:26:04.020216+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Capturing hierarchy with parameters {
+    attributes =     (
+        5003,
+        5004,
+        5002,
+        5019,
+        5058,
+        2004
+    );
+    maxArrayCount = 2147483647;
+    maxChildren = 2147483647;
+    maxDepth = 2147483647;
+    snapshotKeyHonorModalViews = 0;
+    traverseFromParentsToChildren = 1;
+}
+2026-10-21 23:26:04.020248+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Snapshot attributes 5003, 5004, 5002, 5019, 5058, 2004
+2026-10-21 23:26:04.021584+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got snapshot for <AXUIElementRef 0x102341e90> {pid=62710} {uid=[ID:9999 hash:0xe0c7159f96aa21c0]}
+2026-10-21 23:26:04.021692+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got app orientation 0
+2026-10-21 23:26:04.021719+0900  localhost testmanagerd[63446]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Captured accessibility snapshot data in 0.00s
+2026-10-21 23:26:04.023808+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Received attributes request for element: App element pid: 62610. Attributes: (
+    "XC_kAXXCAttributeFrame",
+    "XC_kAXXCAttributeWindowDisplayId",
+    "XC_kAXXCAttributeWindowContextId"
+)
+2026-10-21 23:26:04.023859+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: about to CFRunLoopPerform
+2026-10-21 23:26:04.023893+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: waiting with 30.00s responsiveness timeout
+2026-10-21 23:26:04.023901+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[MT]: inside CFRunLoopPerform
+2026-10-21 23:26:04.023925+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[MT]: MT responded in time (won the race to the busy flag)
+2026-10-21 23:26:04.023946+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Fetching AX attributes XC_kAXXCAttributeFrame, XC_kAXXCAttributeWindowDisplayId, XC_kAXXCAttributeWindowContextId for App element pid: 62610
+2026-10-21 23:26:04.023939+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] XCTPerformOnMainRunLoop[not MT]: waiting 60.00s for work to complete
+2026-10-21 23:26:04.024141+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Got attributes, transferring to dictionary for return.
+2026-10-21 23:26:04.024238+0900  localhost SpringBoard[62610]: (XCTAutomationSupport) [com.apple.dt.xctest:Default] Replying with attribute values: {
+    "XC_kAXXCAttributeFrame" =     {
+        Height = 874;
+        Width = 402;
+        X = 0;
+        Y = 0;
+    };
+    "XC_kAXXCAttributeWindowContextId" = 2938917791;
+    "XC_kAXXCAttributeWindowDisplayId" = 0;
+}
+2026-10-21 23:26:04.025233+0900  localhost maestro-driver-iosUITests-Runner[66241]: (Foundation) [Done] View hierarchy snapshot for Application 'com.apple.Preferences'
+2026-10-21 23:26:04.151508+0900  localhost testmanagerd[63446]: [com.apple.dt.xctest:Default] Requesting screenshot.
+2026-10-21 23:26:04.151972+0900  localhost testmanagerd[63446]: [com.apple.dt.xctest:Default] Got system UI orientation (<AXUIElementRef 0x1023432d0> {pid=62610} {uid=[ID:1 hash:0x0]}[kAXApplicationOrientationAttribute]) 1
+2026-10-21 23:26:04.152126+0900  localhost testmanagerd[63446]: [com.apple.dt.xctest:Screenshot] Preparing screenshot for request: ScreenshotRequest(screenID: 1, rect: nil, orientation: .up, encoding: Encoding(uniformTypeIdentifier: public.png, compressionQuality: 1.000000), options: [], bundleID: nil)
+2026-10-21 23:26:04.152166+0900  localhost testmanagerd[63446]: [com.apple.dt.xctest:Screenshot] Taking screenshot for request: ScreenshotRequest(screenID: 1, rect: nil, orientation: .up, encoding: Encoding(uniformTypeIdentifier: public.png, compressionQuality: 1.000000), options: [], bundleID: nil)
+2026-10-21 23:26:04.170810+0900  localhost testmanagerd[63446]: [com.apple.dt.xctest:Screenshot] Converting image for request: ScreenshotRequest(screenID: 1, rect: nil, orientation: .up, encoding: Encoding(uniformTypeIdentifier: public.png, compressionQuality: 1.000000), options: [], bundleID: nil)
+2026-10-21 23:26:04.593417+0900  localhost locationd[62635]: [com.apple.locationd.Utility:QA] {"msg":"os_transaction created: ", "fTransaction":"0x16d443a08", "fDescription":wifi1Event}
+2026-10-21 23:26:04.593541+0900  localhost locationd[62635]: [com.apple.locationd.Position:WifiPosition] @WifiLogic, handleInput, Client::UpdateTimer
+2026-10-21 23:26:04.593596+0900  localhost locationd[62635]: [com.apple.locationd.Position:WifiPosition] WifiTimer, reissue, 0, force, 0, time, 0, -1.0, 0.0, 814285565.6, place, 0, 0
+2026-10-21 23:26:04.593677+0900  localhost locationd[62635]: [com.apple.locationd.Utility:QA] {"msg":"os_transaction created: ", "fTransaction":"0x16d43d068", "fDescription":wifi1Event}
+2026-10-21 23:26:04.593691+0900  localhost locationd[62635]: [com.apple.locationd.Position:WifiPosition] @WifiLogic, handleInput, Client::LocationRequest
+2026-10-21 23:26:04.593720+0900  localhost locationd[62635]: [com.apple.locationd.Position:WifiPosition] @WifiFlow, locreq, timer, clientupdate, current, clientupdate
+2026-10-21 23:26:04.593732+0900  localhost locationd[62635]: [com.apple.locationd.Position:GeneralCLX] WifiFlow, step, done, from, initialscan, donereason, cancel
+2026-10-21 23:26:04.593743+0900  localhost locationd[62635]: [com.apple.locationd.Position:GeneralCLX] WifiFlow, reset, last, 4
+2026-10-21 23:26:04.593916+0900  localhost locationd[62635]: [com.apple.locationd.Position:GeneralCLX] WifiFlow, step, prepare, from, none, donereason, inprogress
+2026-10-21 23:26:04.594208+0900  localhost locationd[62635]: [com.apple.locationd.Position:WifiPosition] @WifiAps, history, 0, aged, 0, thresh, 30
+2026-10-21 23:26:04.594235+0900  localhost locationd[62635]: [com.apple.locationd.Position:WifiPosition] @WifiFlow, aps, history, 0, fresh, 0, 2ghz, 0, 5ghz, 0, agethresh, 5,
+2026-10-21 23:26:04.594295+0900  localhost locationd[62635]: [com.apple.locationd.Position:WifiPosition] @WifiAps, compute, 0, used, 0, used_vert, 0, hint, 0
+2026-10-21 23:26:04.594375+0900  localhost locationd[62635]: [com.apple.locationd.Position:WifiPosition] @WifiFlow, compute, 0, hacc, -1.0, vaps, 0, vacc, -1.0, conf, 63, reason, request, time, 814285564.6
+2026-10-21 23:26:04.594442+0900  localhost locationd[62635]: [com.apple.locationd.Position:WifiPosition] @WifiFlow, sufficiency, wifi fix is insufficient as it is invalid
+2026-10-21 23:26:04.594491+0900  localhost locationd[62635]: [com.apple.locationd.Position:GeneralCLX] WifiCalc, associated AP set: NO
+2026-10-21 23:26:04.594553+0900  localhost locationd[62635]: [com.apple.locationd.Position:GeneralCLX] WifiFlow, reset, last, 4
+2026-10-21 23:26:04.594568+0900  localhost locationd[62635]: [com.apple.locationd.Position:WifiPosition] @WifiFlow, scanreq, 1, hadRecentScanRequest, 0, sinceLastScanRequest, 6.0s
+2026-10-21 23:26:04.594914+0900  localhost locationd[62635]: [com.apple.locationd.Position:WifiPosition] @WifiFlow, scanreq, decision, Stage1
+2026-10-21 23:26:04.594929+0900  localhost locationd[62635]: [com.apple.locationd.Position:GeneralCLX] WifiFlow, step, initialscan, from, prepare, donereason, inprogress
+2026-10-21 23:26:04.594975+0900  localhost locationd[62635]: [com.apple.locationd.Position:WifiPosition] @WifiTimer, set, locreq, 6
+2026-10-21 23:26:04.595143+0900  localhost locationd[62635]: [com.apple.locationd.Position:WifiPosition] @WifiFlow, scanreq, Stage1, timer, result, 0
+2026-10-21 23:26:04.595160+0900  localhost locationd[62635]: [com.apple.locationd.Position:WifiPosition] @WifiFlow, outcome, scanfail
+2026-10-21 23:26:04.595175+0900  localhost locationd[62635]: [com.apple.locationd.Position:WifiPosition] @WifiFlow, nexttimer, 6.0, now, 814285564.6, next fire time, 814285570.6
+2026-10-21 23:26:04.595192+0900  localhost locationd[62635]: [com.apple.locationd.Utility:QA] {"msg":"os_transaction releasing:", "fTransaction":"0x16d43d068", "fDescription":wifi1Event}
+2026-10-21 23:26:04.595210+0900  localhost locationd[62635]: [com.apple.locationd.Utility:QA] {"msg":"os_transaction releasing:", "fTransaction":"0x16d443a08", "fDescription":wifi1Event}
+Child process terminated with signal 15: Terminated

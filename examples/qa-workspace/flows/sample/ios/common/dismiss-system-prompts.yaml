@@ -1,0 +1,10 @@
+# 보이면 처리하는 시스템 팝업. 암호 저장은 항상 "지금 안 함". 저절로 사라지기도 해서 모두 선택 사항이다.
+appId: ${APP_ID}
+---
+- extendedWaitUntil:
+    visible: "지금 안 함"
+    timeout: 5000
+    optional: true
+- tapOn:
+    text: "지금 안 함"
+    optional: true

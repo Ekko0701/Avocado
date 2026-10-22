@@ -1,0 +1,13 @@
+# T-000 스모크: Maestro가 iOS 시뮬레이터를 조작하고 증적을 남기는지 확인한다.
+# 화면이 실제로 그려졌는지 확인한 뒤 캡처한다. waitForAnimationToEnd만으로는
+# 부팅 직후 빈 화면이 캡처될 수 있다(2026-10-21 첫 실행에서 확인).
+# 선택자는 언어와 무관한 id를 쓴다(시뮬레이터 언어는 호스트를 따른다).
+appId: com.apple.Preferences
+name: bootstrap smoke - iOS Settings
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "com.apple.settings.general"
+    timeout: 30000
+- takeScreenshot: 01_settings_home

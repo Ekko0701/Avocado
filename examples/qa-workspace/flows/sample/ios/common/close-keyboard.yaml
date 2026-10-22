@@ -1,0 +1,7 @@
+# 앱이 키보드 위에 붙인 "완료" 막대로 키보드를 닫는다. 이런 막대가 있는 앱에서는 Maestro hideKeyboard 가 실패할 수 있다.
+appId: ${APP_ID}
+---
+- tapOn: "완료"
+- extendedWaitUntil:
+    notVisible: "완료"
+    timeout: 5000

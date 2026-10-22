@@ -1,0 +1,25 @@
+# TC-0002 학생 계정 로그인 (PLAN 4.2 예시 TC, 부록 B 규약)
+# 계정 값은 앱이 키체인의 account:sample:<KEY> 에서 읽어 -e 로 넘긴다. 이 파일에는 키 이름만 쓴다.
+appId: ${APP_ID}
+name: TC-0002 학생 계정 로그인
+tags: [TC-0002, smoke, login]
+---
+- runFlow: common/launch-clean.yaml
+- tapOn: "\\s*로그인"
+- extendedWaitUntil:
+    visible: "아이디"
+    timeout: 15000
+- takeScreenshot: 01_login
+- tapOn: "아이디"
+- inputText: ${SAMPLE_TEST_STUDENT_ID}
+- tapOn: "비밀번호"
+- inputText: ${SAMPLE_TEST_STUDENT_PW}
+- runFlow: common/close-keyboard.yaml
+- tapOn:
+    text: "로그인"
+    below: "아이디 저장"
+- runFlow: common/dismiss-system-prompts.yaml
+- extendedWaitUntil:
+    visible: "내 정보.*"
+    timeout: 20000
+- takeScreenshot: 02_home_logged_in
