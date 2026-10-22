@@ -1,6 +1,7 @@
 import type { AppInfo, DbStatus, MyPullRequest, RunSummary, SetupCheck, SetupReport, WorkspaceStatus } from "@qa/shared";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { errorMessage, formatDateTime } from "../lib/errors";
+import { onWorkspaceChanged } from "../lib/workspace-events";
 
 const RUN_STATUS: Record<RunSummary["status"], string> = { queued: "대기", running: "실행 중", passed: "통과", failed: "실패", error: "오류", canceled: "취소" };
 /** 환경 점검은 xcodebuild·simctl 을 띄우므로 홈에 올 때마다 하지 않고 10분 동안 재사용한다 */
@@ -30,7 +31,6 @@ export function HomePage() {
   const [message, setMessage] = useState("hello");
   const [pong, setPong] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
 
   // 섹션마다 따로 채운다(느린 호출이 다른 섹션을 막지 않게)
   const load = useCallback(() => {
@@ -44,18 +44,10 @@ export function HomePage() {
 
   useEffect(() => {
     load();
+    // 툴바에서 동기화하면 다시 읽는다
+    return onWorkspaceChanged(load);
   }, [load]);
 
-  async function sync() {
-    setSyncing(true);
-    try {
-      setWs(await window.qa.workspace.sync());
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setSyncing(false);
-    }
-  }
 
   async function onPing(event: FormEvent) {
     event.preventDefault();
@@ -97,9 +89,6 @@ export function HomePage() {
               {ws.dirty.length > 0 ? ` · 저장하지 않은 파일 ${ws.dirty.length}개` : ""}
               {ws.issues > 0 ? ` · 파일 문제 ${ws.issues}개` : ""}
             </span>
-            <button type="button" className="secondary" disabled={syncing} onClick={() => void sync()}>
-              {syncing ? "동기화 중" : "동기화"}
-            </button>
           </div>
         ) : (
           <p className="hint">{ws?.repo ? `${ws.repo} 를 아직 연결하지 않았습니다. 워크스페이스 메뉴에서 연결합니다.` : "설정에서 GitHub 조직을 정하면 워크스페이스를 연결할 수 있습니다."}</p>

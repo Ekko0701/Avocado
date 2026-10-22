@@ -1,6 +1,7 @@
 import type { TestcaseList, WorkspaceStatus } from "@qa/shared";
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../lib/errors";
+import { notifyWorkspaceChanged, onWorkspaceChanged } from "../lib/workspace-events";
 
 export function WorkspacePage() {
   const [status, setStatus] = useState<WorkspaceStatus | null>(null);
@@ -16,6 +17,8 @@ export function WorkspacePage() {
 
   useEffect(() => {
     refresh().catch((e: unknown) => setMessage(errorMessage(e)));
+    // 툴바에서 동기화하면 다시 읽는다
+    return onWorkspaceChanged(() => void refresh().catch((e: unknown) => setMessage(errorMessage(e))));
   }, [refresh]);
 
   async function act(label: string, fn: () => Promise<WorkspaceStatus>) {
@@ -23,6 +26,7 @@ export function WorkspacePage() {
     setMessage(null);
     try {
       await refresh(await fn());
+      notifyWorkspaceChanged();
     } catch (e) {
       setMessage(`${label} 실패: ${errorMessage(e)}`);
     } finally {
@@ -60,9 +64,7 @@ export function WorkspacePage() {
               {busy === "연결" ? "연결 중" : "연결(clone)"}
             </button>
           ) : (
-            <button type="button" className="secondary" disabled={busy !== null} onClick={() => void act("동기화", () => window.qa.workspace.sync())}>
-              {busy === "동기화" ? "동기화 중" : "동기화"}
-            </button>
+            <small className="hint">원격의 새 커밋은 위 툴바의 동기화로 받습니다. main 을 보고 있을 때 main 을 최신으로 맞춥니다.</small>
           )}
         </div>
         {message ? (

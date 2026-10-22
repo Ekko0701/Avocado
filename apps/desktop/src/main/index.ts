@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, session, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, session, shell } from "electron";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { AppDatabase } from "./db/database";
@@ -65,6 +65,9 @@ app.on("web-contents-created", (_event, contents) => {
   hardenWebContents(contents, isAllowed);
 });
 
+/** 화면 바탕과 같은 창 배경(라이트 흰색, 다크 검정). 처음 그릴 때와 창 크기를 바꿀 때 다른 색이 비치지 않게 한다 */
+const windowBackground = () => (nativeTheme.shouldUseDarkColors ? "#000000" : "#ffffff");
+
 function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1200,
@@ -73,8 +76,15 @@ function createMainWindow(): BrowserWindow {
     minHeight: 600,
     title: "Avocado",
     show: false,
+    backgroundColor: windowBackground(),
+    // 제목 표시줄을 숨기고 신호등 버튼을 렌더러 툴바(52px, 창 끌기 영역)의 왼쪽 가운데에 둔다
+    titleBarStyle: "hiddenInset",
+    trafficLightPosition: { x: 18, y: 19 },
     webPreferences: secureWebPreferences(join(__dirname, "../preload/index.js")),
   });
+  const onTheme = () => win.setBackgroundColor(windowBackground());
+  nativeTheme.on("updated", onTheme);
+  win.on("closed", () => nativeTheme.off("updated", onTheme));
   win.once("ready-to-show", () => win.show());
   if (devServerUrl) {
     // 개발 모드에서는 렌더러 콘솔(CSP 위반 포함)을 터미널로 넘겨 바로 보이게 한다.

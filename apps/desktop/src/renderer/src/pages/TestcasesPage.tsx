@@ -2,6 +2,7 @@ import type { AuthorJob, RequestReviewResult, TestcaseHistory, TestcaseList, Wor
 import { lintTestcase, nextTestcaseId, parseTestcase, serializeTestcase, testcaseTemplate, type LintIssue, type Target, type TestcaseDoc } from "@qa/workspace/model";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { errorMessage, formatDateTime } from "../lib/errors";
+import { notifyWorkspaceChanged, onWorkspaceChanged } from "../lib/workspace-events";
 
 const STATUS_TEXT: Record<string, string> = { active: "사용", draft: "초안", deprecated: "폐기" };
 
@@ -99,6 +100,8 @@ export function TestcasesPage() {
   }, []);
   useEffect(() => {
     refresh().catch((e: unknown) => setMessage(errorMessage(e)));
+    // 툴바에서 동기화하면 목록·브랜치를 다시 읽는다
+    return onWorkspaceChanged(() => void refresh().catch((e: unknown) => setMessage(errorMessage(e))));
   }, [refresh]);
 
   const appInfo: WorkspaceApp | undefined = list?.apps.find((a) => a.app === editing?.app);
@@ -182,6 +185,7 @@ export function TestcasesPage() {
       }
       const r = await window.qa.workspace.saveTestcase({ app: editing.app, id: editing.id, text, summary: summary.trim() });
       setMessage(`${r.branch} 에 커밋했습니다(${r.commit})`);
+      notifyWorkspaceChanged();
       setEditing({ ...editing, isNew: false });
       // 저장한 TC 의 작업 브랜치를 검토 요청 대상으로 둔다(다른 TC 의 브랜치였다면 제목도 새로)
       setReview((prev) =>
@@ -220,6 +224,7 @@ export function TestcasesPage() {
     setMessage(null);
     try {
       setStatus(await window.qa.workspace.checkout({ branch }));
+      notifyWorkspaceChanged();
       setList(await window.qa.workspace.testcases());
       setBranches(await window.qa.workspace.branches());
       if (editing && !editing.isNew) setHistory(await window.qa.workspace.history({ app: editing.app, id: editing.id }));
