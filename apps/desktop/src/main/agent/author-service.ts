@@ -502,12 +502,12 @@ export class AuthorService {
     if (s.phase === "done") {
       if (s.job.status === "succeeded" && s.result) {
         if (s.result.unchanged && s.result.branch === "main") {
-          return `2회 재생을 통과했다. 같은 플로우가 이미 main 에 승인돼 있어 새로 커밋하지 않았다(${s.result.commit}). 검토 요청은 필요 없다. 더 할 일은 없다.`;
+          return `2회 재생을 통과했다. 같은 플로우가 이미 main 에 승인돼 있어 새로 커밋하지 않았다(${s.result.commit}). PR 은 필요 없다. 더 할 일은 없다.`;
         }
         if (s.result.unchanged) {
-          return `2회 재생을 통과했다. 같은 플로우가 이미 작업 브랜치 ${s.result.branch} 에 커밋돼 있어 새로 커밋하지 않았다(${s.result.commit}). 사용자에게 Avocado 에서 검토 요청을 하라고 알린다. 더 할 일은 없다.`;
+          return `2회 재생을 통과했다. 같은 플로우가 이미 작업 브랜치 ${s.result.branch} 에 커밋돼 있어 새로 커밋하지 않았다(${s.result.commit}). 사용자에게 Avocado 에서 PR 작성을 누르라고 알린다. 더 할 일은 없다.`;
         }
-        return `2회 재생을 통과해 작업 브랜치 ${s.result.branch} 에 커밋했다(${s.result.commit}). 사용자에게 Avocado 에서 검토 요청을 하라고 알린다. 더 할 일은 없다.`;
+        return `2회 재생을 통과해 작업 브랜치 ${s.result.branch} 에 커밋했다(${s.result.commit}). 사용자에게 Avocado 에서 PR 작성을 누르라고 알린다. 더 할 일은 없다.`;
       }
       return `작업이 끝났다(${s.job.status})${s.job.error ? `: ${s.job.error}` : ""}. 더 할 일은 없다. 사용자에게 결과를 알린다.`;
     }

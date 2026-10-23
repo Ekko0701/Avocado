@@ -1,5 +1,6 @@
 import type { TestcaseList, WorkspaceStatus } from "@qa/shared";
 import { useCallback, useEffect, useState } from "react";
+import { AppSettingsEditor } from "../components/AppSettingsEditor";
 import { errorMessage } from "../lib/errors";
 import { notifyWorkspaceChanged, onWorkspaceChanged } from "../lib/workspace-events";
 
@@ -38,7 +39,7 @@ export function WorkspacePage() {
     <>
       <h1>워크스페이스</h1>
       <section className="card stack" aria-label="워크스페이스 상태">
-        <p className="hint">TC·플로우를 팀이 공유하는 GitHub 저장소입니다. 저장하면 작업 브랜치에 커밋하고, 검토 요청으로 PR 을 만듭니다. main 에 직접 올리지 않습니다.</p>
+        <p className="hint">TC·플로우를 팀이 공유하는 GitHub 저장소입니다. 저장하면 작업 브랜치에 커밋하고, PR 작성을 누르면 PR 을 만듭니다. main 에 직접 올리지 않습니다.</p>
         {status ? (
           <dl data-testid="workspace-status">
             <dt>저장소</dt>
@@ -74,6 +75,8 @@ export function WorkspacePage() {
         ) : null}
       </section>
 
+      {status?.connected && list ? <AppSettingsEditor apps={list.apps} /> : null}
+
       {list && list.issues.length > 0 ? (
         <section className="card stack" aria-label="워크스페이스 문제">
           <h2>문제 {list.issues.length}개</h2>
@@ -91,7 +94,7 @@ export function WorkspacePage() {
         </section>
       ) : null}
 
-      {status?.connected ? <p className="hint">TC 목록·편집·검토 요청은 메뉴 "TC"에서 합니다.</p> : null}
+      {status?.connected ? <p className="hint">TC 목록·편집·PR 작성은 메뉴 "TC"에서 합니다.</p> : null}
     </>
   );
 }

@@ -126,6 +126,12 @@ function setup() {
     "workspace:checkout": () => {
       throw new Error("not used");
     },
+    "workspace:readApp": () => {
+      throw new Error("not used");
+    },
+    "workspace:saveApp": () => {
+      throw new Error("not used");
+    },
     "workspace:history": () => {
       throw new Error("not used");
     },

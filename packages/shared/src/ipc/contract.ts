@@ -103,6 +103,13 @@ import {
   MyPullRequestSchema,
   type MyPullRequest,
   CheckoutInputSchema,
+  AppSettingsDocSchema,
+  ReadAppSettingsInputSchema,
+  SaveAppSettingsInputSchema,
+  SaveAppSettingsResultSchema,
+  type AppSettingsDoc,
+  type SaveAppSettingsInput,
+  type SaveAppSettingsResult,
   WorkBranchListSchema,
   type WorkBranchList,
 } from "../workspace";
@@ -199,6 +206,8 @@ export const ipcContract = {
   "workspace:requestReview": { input: RequestReviewInputSchema, output: RequestReviewResultSchema },
   "workspace:branches": { input: z.undefined(), output: WorkBranchListSchema },
   "workspace:checkout": { input: CheckoutInputSchema, output: WorkspaceStatusSchema },
+  "workspace:readApp": { input: ReadAppSettingsInputSchema, output: AppSettingsDocSchema },
+  "workspace:saveApp": { input: SaveAppSettingsInputSchema, output: SaveAppSettingsResultSchema },
   "workspace:history": { input: TestcaseRefSchema, output: TestcaseHistorySchema },
   "workspace:myPulls": { input: z.undefined(), output: z.array(MyPullRequestSchema) },
   "agent:usage": { input: z.undefined(), output: AgentUsageSchema },
@@ -319,6 +328,10 @@ export interface QaApi {
     branches(): Promise<WorkBranchList>;
     /** main 이나 내 작업 브랜치로 바꾼다. 저장하지 않은 변경이나 진행 중인 실행·플로우 만들기가 있으면 바꾸지 않는다 */
     checkout(input: { branch: string }): Promise<WorkspaceStatus>;
+    /** 앱 설정(이름·언어·타깃별 앱 ID·계정 역할). 그 앱의 진행 중인 앱 설정 브랜치가 있으면 거기서 읽는다. 없는 앱이면 exists: false */
+    readApp(input: { app: string }): Promise<AppSettingsDoc>;
+    /** 검사 → 그 앱의 앱 설정 작업 브랜치 → 커밋(새 앱이면 workspace.yaml 앱 목록까지). TC·플로우가 쓰는 타깃·역할·키는 지우지 못한다 */
+    saveApp(input: SaveAppSettingsInput): Promise<SaveAppSettingsResult>;
     /** TC 파일의 변경 내역(최근 20개) */
     history(input: { app: string; id: string }): Promise<TestcaseHistory>;
     /** 워크스페이스 저장소의 내 열린 PR */

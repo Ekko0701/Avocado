@@ -68,6 +68,8 @@ const api: QaApi = {
     requestReview: (input) => invoke("workspace:requestReview", input),
     branches: () => invoke("workspace:branches", undefined),
     checkout: (input) => invoke("workspace:checkout", input),
+    readApp: (input) => invoke("workspace:readApp", input),
+    saveApp: (input) => invoke("workspace:saveApp", input),
     history: (input) => invoke("workspace:history", input),
   },
   agent: {

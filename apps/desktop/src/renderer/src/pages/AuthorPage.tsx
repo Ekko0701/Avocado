@@ -132,9 +132,9 @@ export function AuthorPage(props: { onOpenResults?: (runId: string) => void }) {
           job.submission?.questions.length ? `\n기획자 질문:\n${job.submission.questions.map((q) => `- ${q}`).join("\n")}` : "",
         ].join(""),
       });
-      setMessage(pr.existing ? `이 TC 의 열린 PR #${pr.number} 에 올렸습니다: ${pr.url}` : `검토 요청을 만들었습니다: PR #${pr.number} ${pr.url}`);
+      setMessage(pr.existing ? `이 TC 의 열린 PR #${pr.number} 에 올렸습니다: ${pr.url}` : `PR #${pr.number} 을 만들었습니다: ${pr.url}`);
     } catch (e) {
-      setMessage(`검토 요청을 만들지 못했습니다: ${errorMessage(e)}`);
+      setMessage(`PR 을 만들지 못했습니다: ${errorMessage(e)}`);
     }
   }
 
@@ -279,7 +279,7 @@ function AuthorJobView(props: { job: AuthorJob; onRequestReview: () => void; onO
           </span>
           {job.result.branch !== "main" ? (
             <button type="button" onClick={props.onRequestReview}>
-              검토 요청
+              PR 작성
             </button>
           ) : null}
           {props.onOpenResults ? (

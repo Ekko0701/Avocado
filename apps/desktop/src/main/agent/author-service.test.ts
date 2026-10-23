@@ -357,7 +357,7 @@ describe("AuthorService (가짜 API·maestro mcp·재생)", () => {
     expect(status.log.map((l) => l.message)).toContain("같은 플로우가 이미 qa/tester/TC-0101-agent-flow 에 있다(f00d123). 새로 커밋하지 않았다");
   });
 
-  it("main 에 승인된 플로우와 같으면 main 의 커밋으로 성공하고 Claude 에게 검토 요청이 필요 없다고 알린다", async () => {
+  it("main 에 승인된 플로우와 같으면 main 의 커밋으로 성공하고 Claude 에게 PR 이 필요 없다고 알린다", async () => {
     const { service } = await setup([], [{ status: "passed" }, { status: "passed" }], { provider: "claude-app", apiKey: null, unchanged: "main" });
     const claude = { id: "conn-u", client: "claude-code 2.1.220" };
     const { job } = await service.start(INPUT);
@@ -366,7 +366,7 @@ describe("AuthorService (가짜 API·maestro mcp·재생)", () => {
     await service.mcpCall(claude, "submit_flow", SUBMIT(GOOD));
     const done = (await service.mcpCall(claude, "author_status", { waitSeconds: 10 })).content.map((c) => (c.type === "text" ? c.text : "")).join("\n");
     expect(done).toContain("이미 main 에 승인돼 있어 새로 커밋하지 않았다");
-    expect(done).toContain("검토 요청은 필요 없다");
+    expect(done).toContain("PR 은 필요 없다");
     expect(service.status(job.id).result).toMatchObject({ branch: "main", unchanged: true });
   });
 

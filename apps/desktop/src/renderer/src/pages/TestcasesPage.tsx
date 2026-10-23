@@ -81,7 +81,7 @@ export function TestcasesPage() {
   const [review, setReview] = useState({ title: "", body: "" });
   const [pr, setPr] = useState<RequestReviewResult | null>(null);
   const [branches, setBranches] = useState<WorkBranchList | null>(null);
-  /** 검토 요청할 작업 브랜치. 비면 지금 브랜치 */
+  /** PR 을 만들 작업 브랜치. 비면 지금 브랜치 */
   const [reviewBranch, setReviewBranch] = useState("");
   /** 진행 중인(또는 마지막) 플로우 만들기. 그 TC 를 저장하면 경고한다 */
   const [authorJob, setAuthorJob] = useState<AuthorJob | null>(null);
@@ -187,7 +187,7 @@ export function TestcasesPage() {
       setMessage(`${r.branch} 에 커밋했습니다(${r.commit})`);
       notifyWorkspaceChanged();
       setEditing({ ...editing, isNew: false });
-      // 저장한 TC 의 작업 브랜치를 검토 요청 대상으로 둔다(다른 TC 의 브랜치였다면 제목도 새로)
+      // 저장한 TC 의 작업 브랜치를 PR 작성 대상으로 둔다(다른 TC 의 브랜치였다면 제목도 새로)
       setReview((prev) =>
         prev.title && reviewBranch === r.branch ? prev : { title: `${editing.id} ${summary.trim()}`, body: `## 변경\n\n- TC: ${editing.id}\n- 요약: ${summary.trim()}\n` },
       );
@@ -212,7 +212,7 @@ export function TestcasesPage() {
       setPr(await window.qa.workspace.requestReview({ ...review, branch: reviewTarget.name }));
       await refresh();
     } catch (e) {
-      setMessage(`검토 요청 실패: ${errorMessage(e)}`);
+      setMessage(`PR 작성 실패: ${errorMessage(e)}`);
     } finally {
       setBusy(false);
     }
@@ -228,7 +228,7 @@ export function TestcasesPage() {
       setList(await window.qa.workspace.testcases());
       setBranches(await window.qa.workspace.branches());
       if (editing && !editing.isNew) setHistory(await window.qa.workspace.history({ app: editing.app, id: editing.id }));
-      setMessage(`${branch} 로 바꿨습니다`);
+      setMessage(`${branch} 로 체크아웃했습니다`);
     } catch (e) {
       setMessage(`브랜치를 바꾸지 못했습니다: ${errorMessage(e)}`);
     } finally {
@@ -250,7 +250,7 @@ export function TestcasesPage() {
       </>
     );
   }
-  // 고른 작업 브랜치(없으면 지금 브랜치)에 main 에 없는 변경이 있으면 검토 요청을 연다
+  // 고른 작업 브랜치(없으면 지금 브랜치)에 main 에 없는 변경이 있으면 PR 작성 양식을 연다
   const reviewTarget = branches?.branches.find((b) => b.name === (reviewBranch || branches.current)) ?? null;
   const canReview = reviewTarget !== null && reviewTarget.pending && !(reviewTarget.current && (status?.dirty.length ?? 0) > 0);
 
@@ -340,7 +340,7 @@ export function TestcasesPage() {
             <thead>
               <tr>
                 <th>브랜치</th>
-                <th>TC</th>
+                <th>대상</th>
                 <th>main 보다 앞선 커밋</th>
                 <th>마지막 커밋</th>
                 <th />
@@ -357,7 +357,7 @@ export function TestcasesPage() {
                 <td>
                   {status?.onMain ? null : (
                     <button type="button" className="secondary" disabled={busy} onClick={() => void checkout("main")}>
-                      보기
+                      체크아웃
                     </button>
                   )}
                 </td>
@@ -368,19 +368,19 @@ export function TestcasesPage() {
                     <code>{b.name}</code> {b.current ? <span className="badge">지금</span> : null}
                     {b.pending ? null : <small className="hint"> · main 에 반영됨</small>}
                   </td>
-                  <td>{b.tcId ?? "-"}</td>
+                  <td>{b.tcId ?? (b.appSettings ? `앱 설정 · ${b.appSettings}` : "-")}</td>
                   <td>{b.ahead}</td>
                   <td>{b.subject}</td>
                   <td>
                     <div className="row">
                       {b.current ? null : (
                         <button type="button" className="secondary" disabled={busy} onClick={() => void checkout(b.name)}>
-                          보기
+                          체크아웃
                         </button>
                       )}
                       {b.pending ? (
                         <button type="button" className="secondary" disabled={busy} onClick={() => startReview(b)}>
-                          검토 요청
+                          PR 작성
                         </button>
                       ) : null}
                     </div>
@@ -544,8 +544,8 @@ export function TestcasesPage() {
       ) : null}
 
       {canReview ? (
-        <form className="card stack" onSubmit={requestReview} aria-label="검토 요청">
-          <h2>검토 요청</h2>
+        <form className="card stack" onSubmit={requestReview} aria-label="PR 작성">
+          <h2>PR 작성</h2>
           <p className="hint" data-testid="tc-review-target">
             <code>{reviewTarget?.name}</code> 의 커밋 {reviewTarget?.ahead}개를 PR 로 올립니다. 이 브랜치의 열린 PR 이 있으면 그 PR 에 올립니다. 리뷰어가 머지하면 승인입니다.
           </p>
@@ -559,7 +559,7 @@ export function TestcasesPage() {
           </label>
           <div className="row">
             <button type="submit" disabled={busy || !review.title.trim()}>
-              {busy ? "요청 중" : "검토 요청(PR)"}
+              {busy ? "올리는 중" : "PR 올리기"}
             </button>
           </div>
         </form>

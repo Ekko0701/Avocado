@@ -14,7 +14,7 @@ function allFiles(d: string): string[] {
   });
 }
 
-test("워크스페이스: 앱에서 TC 를 고쳐 저장하면 작업 브랜치에 커밋되고, 검토 요청으로 PR 이 생긴다 (T-110)", async () => {
+test("워크스페이스: 앱에서 TC 를 고쳐 저장하면 작업 브랜치에 커밋되고, PR 올리기로 PR 이 생긴다 (T-110)", async () => {
   const remote = await startFakeWorkspaceRemote(TOKEN);
   try {
     const { app, page, userDataDir } = await launchApp({ env: remote.env });
@@ -47,7 +47,7 @@ test("워크스페이스: 앱에서 TC 를 고쳐 저장하면 작업 브랜치�
     await editor.fill(original.replace("홈 화면이 열리고", "홈 화면(홈)이 열리고"));
 
     await expect(page.getByLabel("PR 제목")).toHaveValue("TC-0101 connect screen wording");
-    await page.getByRole("button", { name: "검토 요청(PR)" }).click();
+    await page.getByRole("button", { name: "PR 올리기" }).click();
     await expect(page.getByTestId("tc-pr")).toContainText("PR #7");
     expect(remote.api.pulls).toEqual([
       expect.objectContaining({ repo: "acme/qa-workspace", head: "qa/qa-bot/TC-0101-connect-screen-wording", base: "main", title: "TC-0101 connect screen wording" }),

@@ -5,7 +5,7 @@ import { launchApp } from "./launch";
 
 const TOKEN = "github_pat_E2ETC_0123456789abcdefghijklmnopqrstu";
 
-test("TC 작성: 기획자가 템플릿으로 새 TC 를 쓰고, 린트를 통과시켜 저장하고, 검토를 요청한다 (T-111)", async () => {
+test("TC 작성: 기획자가 템플릿으로 새 TC 를 쓰고, 린트를 통과시켜 저장하고, PR 을 만든다 (T-111)", async () => {
   const remote = await startFakeWorkspaceRemote(TOKEN);
   try {
     const { app, page } = await launchApp({ env: remote.env });
@@ -56,7 +56,7 @@ test("TC 작성: 기획자가 템플릿으로 새 TC 를 쓰고, 린트를 통�
     await expect(page.getByTestId("tc-history")).toContainText("tc: TC-0102 add TC-0102");
 
     await page.getByLabel("PR 제목").fill("TC-0102 닉네임 길이 검증");
-    await page.getByRole("button", { name: "검토 요청(PR)" }).click();
+    await page.getByRole("button", { name: "PR 올리기" }).click();
     await expect(page.getByTestId("tc-pr")).toContainText("PR #7");
     expect(remote.api.pulls).toEqual([expect.objectContaining({ head: "qa/qa-bot/TC-0102-add-tc-0102", base: "main", title: "TC-0102 닉네임 길이 검증" })]);
 
@@ -78,17 +78,17 @@ test("TC 작성: 기획자가 템플릿으로 새 TC 를 쓰고, 린트를 통�
     const branches = page.getByTestId("work-branches");
     await expect(branches.getByTestId("branch-qa/qa-bot/TC-0101-title-wording")).toContainText("지금");
     await expect(branches.getByTestId("branch-qa/qa-bot/TC-0102-add-tc-0102")).toContainText("tc: TC-0102 add TC-0102");
-    // 지금 브랜치(TC-0101)의 목록에는 아직 머지되지 않은 TC-0102 가 없다. 그 브랜치를 보면 나온다
+    // 지금 브랜치(TC-0101)의 목록에는 아직 머지되지 않은 TC-0102 가 없다. 그 브랜치로 체크아웃하면 나온다
     await expect(page.getByTestId("tc-demo-TC-0102")).toHaveCount(0);
-    await branches.getByTestId("branch-qa/qa-bot/TC-0102-add-tc-0102").getByRole("button", { name: "보기" }).click();
-    await expect(page.getByTestId("tc-message")).toContainText("qa/qa-bot/TC-0102-add-tc-0102 로 바꿨습니다");
+    await branches.getByTestId("branch-qa/qa-bot/TC-0102-add-tc-0102").getByRole("button", { name: "체크아웃" }).click();
+    await expect(page.getByTestId("tc-message")).toContainText("qa/qa-bot/TC-0102-add-tc-0102 로 체크아웃했습니다");
     await expect(page.getByTestId("tc-demo-TC-0102")).toBeVisible();
 
-    // 지금 브랜치가 아닌 TC-0101 의 브랜치도 검토 요청할 수 있다(브랜치는 그대로)
-    await branches.getByTestId("branch-qa/qa-bot/TC-0101-title-wording").getByRole("button", { name: "검토 요청" }).click();
+    // 지금 브랜치가 아닌 TC-0101 의 브랜치도 PR 을 만들 수 있다(브랜치는 그대로)
+    await branches.getByTestId("branch-qa/qa-bot/TC-0101-title-wording").getByRole("button", { name: "PR 작성" }).click();
     await expect(page.getByTestId("tc-review-target")).toContainText("qa/qa-bot/TC-0101-title-wording");
     await page.getByLabel("PR 제목").fill("TC-0101 제목 다듬기");
-    await page.getByRole("button", { name: "검토 요청(PR)" }).click();
+    await page.getByRole("button", { name: "PR 올리기" }).click();
     await expect(page.getByTestId("tc-pr")).toContainText("PR #8 을 만들었습니다(qa/qa-bot/TC-0101-title-wording)");
     expect(remote.api.pulls[1]).toMatchObject({ head: "qa/qa-bot/TC-0101-title-wording", base: "main", title: "TC-0101 제목 다듬기" });
     // 올라간 TC-0101 브랜치에는 TC-0101 커밋만 있다

@@ -120,7 +120,7 @@ describe("워크스페이스", () => {
     expect(readFileSync(join(wsDir(), "testcases", "demo", "TC-0101.md"), "utf8")).toBe(before);
   });
 
-  it("검토 요청: 작업 브랜치를 푸시하고 PR 을 만든다. 토큰은 워크스페이스 어디에도 없다", async () => {
+  it("PR 작성: 작업 브랜치를 푸시하고 PR 을 만든다. 토큰은 워크스페이스 어디에도 없다", async () => {
     const r = await ws.requestReview({ title: "TC-0101 기대 결과 문구", body: "골든 런: 미실행" });
     expect(r).toEqual({ number: 7, url: "https://github.com/acme/qa-workspace/pull/7", branch: "qa/qa-bot/TC-0101-signup-expected-text", existing: false });
     expect(fake.pulls).toEqual([{ repo: "acme/qa-workspace", head: r.branch, base: "main", title: "TC-0101 기대 결과 문구", body: "골든 런: 미실행" }]);
@@ -153,7 +153,7 @@ describe("워크스페이스", () => {
     expect(readFileSync(join(wsDir(), "README.md"), "utf8")).toBe("# 다른 사람이 바꿈\n");
   });
 
-  it("main 에서는 검토 요청을 하지 않는다", async () => {
+  it("main 에서는 PR 을 만들지 않는다", async () => {
     await expect(ws.requestReview({ title: "x", body: "" })).rejects.toThrow(/main 에서는/);
   });
 
@@ -264,12 +264,12 @@ describe("워크스페이스", () => {
     // 내 작업 브랜치 목록과 바꾸기
     const list = await ws.branches();
     expect(list.current).toBe(a.branch);
-    expect(list.branches.find((x) => x.name === b.branch)).toEqual({ name: b.branch, tcId: "TC-0102", current: false, ahead: 1, subject: "tc: TC-0102 add TC-0102", pending: true });
+    expect(list.branches.find((x) => x.name === b.branch)).toEqual({ name: b.branch, tcId: "TC-0102", appSettings: null, current: false, ahead: 1, subject: "tc: TC-0102 add TC-0102", pending: true });
     expect(list.branches.find((x) => x.name === a.branch)).toMatchObject({ tcId: "TC-0101", current: true, ahead: 2, pending: true });
     expect(await ws.checkout(b.branch)).toMatchObject({ branch: b.branch, onMain: false, dirty: [] });
     await expect(ws.checkout("qa/someone/TC-0101-x")).rejects.toThrow("내 작업 브랜치가 아니다");
 
-    // 검토 요청은 지금 브랜치가 아니어도 그 브랜치를 올린다(브랜치는 그대로). 같은 브랜치에 다시 요청하면 열린 PR 에 올린다
+    // PR 작성은 지금 브랜치가 아니어도 그 브랜치를 올린다(브랜치는 그대로). 같은 브랜치에 다시 요청하면 열린 PR 에 올린다
     const pulls = fake.pulls.length;
     const pr = await ws.requestReview({ title: "TC-0101", body: "", branch: a.branch });
     expect(pr).toMatchObject({ branch: a.branch, existing: false });
@@ -292,6 +292,93 @@ describe("워크스페이스", () => {
     const d = await ws.saveTestcase({ app: "demo", id: "TC-0102", text: tc102.replace("홈 화면이 열리고", "홈 화면(D)이 열리고"), summary: "add TC-0102" });
     expect(d.branch).toBe(`${b.branch}-2`);
     expect(git(wsDir(), "rev-parse", `${d.branch}^`)).toBe(git(wsDir(), "rev-parse", "main"));
+  });
+
+  it("앱 설정: 검사하고 앱의 앱 설정 브랜치에 app.yaml·accounts.yaml 만 커밋해 PR 을 만든다. 새 앱도 만든다", async () => {
+    git(wsDir(), "checkout", "-q", "main");
+    const doc = await ws.readApp("demo");
+    const signup = doc.roles[0];
+    if (!signup) throw new Error("demo 의 signup 역할이 없다");
+    expect(doc).toEqual({
+      app: "demo",
+      exists: true,
+      name: "Demo",
+      locale: "ko_KR",
+      targets: [{ target: "ios", appId: "com.example.demo" }],
+      roles: [{ role: "signup", description: expect.any(String), keys: ["DEMO_TEST_PASSWORD"] }],
+      branch: null,
+    });
+    const base = { app: "demo", create: false, name: "Demo", locale: "ko_KR", targets: doc.targets, roles: doc.roles, summary: "x" };
+    const member = { role: "member", description: "미리 만든 로그인 계정", keys: ["DEMO_MEMBER_EMAIL", "DEMO_MEMBER_PASSWORD"] };
+    const android = { target: "android" as const, appId: "com.example.demo" };
+
+    // 형식·사용 중 검사는 브랜치를 옮기기 전에 막는다(빈 브랜치가 남지 않는다)
+    const head = git(wsDir(), "rev-parse", "HEAD");
+    const branchesBefore = git(wsDir(), "branch", "--list", "qa/*");
+    await expect(ws.saveApp({ ...base, roles: [signup, { ...member, role: "Member" }] })).rejects.toThrow(/역할 이름은 소문자/);
+    await expect(ws.saveApp({ ...base, roles: [signup, { ...member, keys: ["lower"] }] })).rejects.toThrow(/키 이름은 대문자/);
+    await expect(ws.saveApp({ ...base, roles: [signup, signup] })).rejects.toThrow("같은 역할 이름이 두 번 있다: signup");
+    await expect(ws.saveApp({ ...base, roles: [member] })).rejects.toThrow(/TC 가 쓰는 역할은 지울 수 없다: signup\(TC-0101/);
+    await expect(ws.saveApp({ ...base, roles: [{ ...signup, keys: ["DEMO_OTHER"] }] })).rejects.toThrow(
+      "플로우가 쓰는 키는 지울 수 없다: DEMO_TEST_PASSWORD(flows/demo/ios/TC-0101.yaml)",
+    );
+    await expect(ws.saveApp({ ...base, targets: [android] })).rejects.toThrow(/TC·플로우가 쓰는 타깃은 지울 수 없다: ios\(TC-0101/);
+    await expect(ws.saveApp({ ...base, targets: [...doc.targets, { target: "android", appId: "com example" }] })).rejects.toThrow("android 앱 ID 를 공백 없이 쓴다");
+    await expect(ws.saveApp({ ...base, targets: [...doc.targets, ...doc.targets] })).rejects.toThrow("같은 타깃이 두 번 있다: ios");
+    await expect(ws.saveApp({ ...base, locale: "korean" })).rejects.toThrow(/앱 설정 형식 오류/);
+    await expect(ws.saveApp({ ...base, name: " " })).rejects.toThrow(/앱 설정 형식 오류/);
+    await expect(ws.saveApp(base)).rejects.toThrow("바뀐 내용이 없다");
+    await expect(ws.saveApp({ ...base, app: "nope" })).rejects.toThrow("workspace.yaml 에 없는 앱이다: nope");
+    await expect(ws.saveApp({ ...base, create: true })).rejects.toThrow("이미 있는 앱이다: demo");
+    expect(git(wsDir(), "rev-parse", "HEAD")).toBe(head);
+    expect(git(wsDir(), "rev-parse", "--abbrev-ref", "HEAD")).toBe("main");
+    expect(git(wsDir(), "branch", "--list", "qa/*")).toBe(branchesBefore);
+
+    // Android 타깃과 역할을 더하면 main 에서 이 앱의 앱 설정 브랜치를 만들어 두 파일만 커밋한다. 메모·주석·한 줄 키 목록은 그대로
+    const saved = await ws.saveApp({ ...base, targets: [...doc.targets, android], roles: [signup, member], summary: "android and member" });
+    expect(saved.branch).toBe("qa/qa-bot/app/demo/android-and-member");
+    expect(git(wsDir(), "rev-parse", `${saved.branch}^`)).toBe(git(wsDir(), "rev-parse", "main"));
+    expect(git(wsDir(), "show", "--name-only", "--format=%s", "HEAD").split("\n").filter(Boolean)).toEqual(["app: demo android and member", "apps/demo/accounts.yaml", "apps/demo/app.yaml"]);
+    const appText = readFileSync(join(wsDir(), "apps", "demo", "app.yaml"), "utf8");
+    expect(appText).toContain("note: 예시용 가상 앱");
+    expect(appText).toMatch(/android:\n\s+appId: com\.example\.demo/);
+    const accountsText = readFileSync(join(wsDir(), "apps", "demo", "accounts.yaml"), "utf8");
+    expect(accountsText.startsWith("# 계정 역할")).toBe(true);
+    expect(accountsText).toContain("keys: [DEMO_MEMBER_EMAIL, DEMO_MEMBER_PASSWORD]");
+    expect(ws.testcases().apps.find((a) => a.app === "demo")).toMatchObject({ targets: ["ios", "android"], accountRoles: ["signup", "member"] });
+
+    // 다른 브랜치로 옮겨도 진행 중인 앱 설정 브랜치에서 읽고, 다시 저장하면 그 브랜치에 쌓는다
+    await ws.checkout("main");
+    expect(await ws.readApp("demo")).toMatchObject({ branch: saved.branch, targets: [{ target: "ios" }, { target: "android" }] });
+    const again = await ws.saveApp({ ...base, targets: [...doc.targets, { ...android, appId: "com.example.demo.app" }], roles: [signup, member], summary: "rename package" });
+    expect(again.branch).toBe(saved.branch);
+    expect(git(wsDir(), "log", "--format=%s", `main..${saved.branch}`).split("\n")).toEqual(["app: demo rename package", "app: demo android and member"]);
+    expect((await ws.branches()).branches.find((b) => b.name === saved.branch)).toMatchObject({ tcId: null, appSettings: "demo", pending: true, ahead: 2 });
+
+    // 예전 계정 역할 브랜치 이름(accounts/<앱>/…)도 그 앱의 앱 설정 범위다
+    git(wsDir(), "checkout", "-q", "main");
+    git(wsDir(), "checkout", "-q", "-b", "qa/qa-bot/accounts/sample/old-roles");
+    const sampleAccounts = join(wsDir(), "apps", "sample", "accounts.yaml");
+    writeFileSync(sampleAccounts, readFileSync(sampleAccounts, "utf8").replace("학생 계정", "학생 계정(예전)"));
+    git(wsDir(), "commit", "-q", "-am", "old roles");
+    git(wsDir(), "checkout", "-q", "main");
+    expect(await ws.readApp("sample")).toMatchObject({ branch: "qa/qa-bot/accounts/sample/old-roles", roles: [{ description: expect.stringContaining("(예전)") }] });
+
+    // PR 작성
+    const pr = await ws.requestReview({ title: "demo 앱 설정", body: "", branch: saved.branch });
+    expect(pr).toMatchObject({ branch: saved.branch, existing: false });
+    expect(git(bare, "show", `${saved.branch}:apps/demo/app.yaml`)).toContain("android:");
+
+    // 새 앱: workspace.yaml 앱 목록에 더하고(주석·한 줄 목록 그대로) app.yaml 을 만든다. 계정 역할이 없으면 accounts.yaml 은 만들지 않는다
+    const created = await ws.saveApp({ app: "notes", create: true, name: "Notes", locale: null, targets: [{ target: "android", appId: "com.example.notes" }], roles: [], summary: "add notes app" });
+    expect(created.branch).toBe("qa/qa-bot/app/notes/add-notes-app");
+    expect(git(wsDir(), "show", "--name-only", "--format=", "HEAD").split("\n").filter(Boolean)).toEqual(["apps/notes/app.yaml", "workspace.yaml"]);
+    const wsText = readFileSync(join(wsDir(), "workspace.yaml"), "utf8");
+    expect(wsText.startsWith("# qa-workspace 설정")).toBe(true);
+    expect(wsText).toContain("apps: [demo, sample, notes]");
+    expect(await ws.readApp("notes")).toMatchObject({ exists: true, name: "Notes", targets: [{ target: "android", appId: "com.example.notes" }], roles: [], branch: created.branch });
+    expect(await ws.readApp("other")).toMatchObject({ exists: false, name: "", targets: [], roles: [] });
+    git(wsDir(), "checkout", "-q", "main");
   });
 
   it("브랜치 요약: 영문 소문자·숫자·하이픈, 한글만 있으면 edit", () => {

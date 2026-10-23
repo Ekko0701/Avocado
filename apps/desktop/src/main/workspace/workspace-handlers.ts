@@ -12,6 +12,8 @@ type WorkspaceChannel =
   | "workspace:requestReview"
   | "workspace:branches"
   | "workspace:checkout"
+  | "workspace:readApp"
+  | "workspace:saveApp"
   | "workspace:history"
   | "workspace:myPulls";
 
@@ -27,6 +29,8 @@ export function createWorkspaceHandlers(ws: WorkspaceService): Pick<IpcHandlers,
     "workspace:requestReview": (input) => ws.requestReview(input),
     "workspace:branches": () => ws.branches(),
     "workspace:checkout": ({ branch }) => ws.checkout(branch),
+    "workspace:readApp": ({ app }) => ws.readApp(app),
+    "workspace:saveApp": (input) => ws.saveApp(input),
     "workspace:history": ({ app, id }) => ws.history(app, id),
     "workspace:myPulls": () => ws.myPullRequests(),
   };

@@ -1,9 +1,10 @@
-import type { GitHubSettings, RequestReviewResult, SaveTestcaseResult, TestcaseHistory, TestcaseList, WorkBranch, WorkBranchList, WorkspaceAccounts, WorkspaceStatus } from "@qa/shared";
-import { AppIdSchema } from "@qa/shared";
+import type { AccountRoleEdit, AppSettingsDoc, GitHubSettings, RequestReviewResult, SaveAppSettingsInput, SaveAppSettingsResult, SaveTestcaseResult, TestcaseHistory, TestcaseList, WorkBranch, WorkBranchList, WorkspaceAccounts, WorkspaceStatus } from "@qa/shared";
+import { AppIdSchema, AppTargetSchema } from "@qa/shared";
 import { runGit, type AskpassServer, type RemoteProvider } from "@qa/remote";
-import { hasBlocking, lintTestcase, loadWorkspace, TC_ID } from "@qa/workspace";
+import { AccountsSchema, AppConfigSchema, hasBlocking, lintTestcase, loadWorkspace, TC_ID, WorkspaceConfigSchema, type Accounts, type AppConfig } from "@qa/workspace";
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
+import { Document, isSeq, parse as parseYaml, parseDocument, visit } from "yaml";
 
 export class WorkspaceError extends Error {
   constructor(message: string) {
@@ -31,12 +32,30 @@ export interface WorkspaceServiceOptions {
 
 const MAIN = "main";
 
-/** qa/<login>/<TC-id>-… 작업 브랜치의 TC id. 내 작업 브랜치가 아니면 null */
-export function workBranchTc(branch: string, login: string): string | null {
+/** 앱 설정(app.yaml·accounts.yaml) 작업 범위 */
+const appScope = (app: string) => `app/${app}`;
+
+/**
+ * 작업 브랜치가 맡은 일(작업 범위): TC 는 "TC-0101"(qa/<login>/TC-0101-…), 앱 설정은 "app/<앱>"(qa/<login>/app/<앱>/…).
+ * 예전 계정 역할 브랜치(qa/<login>/accounts/<앱>/…)도 그 앱의 앱 설정 범위다. 내 작업 브랜치가 아니면 null. 범위 하나에 브랜치 하나, PR 하나다
+ */
+export function workBranchScope(branch: string, login: string): string | null {
   const prefix = `qa/${login}/`;
   if (!branch.startsWith(prefix)) return null;
-  return /^(TC-\d{4,})(?:-|$)/.exec(branch.slice(prefix.length))?.[1] ?? null;
+  const rest = branch.slice(prefix.length);
+  const tc = /^(TC-\d{4,})(?:-|$)/.exec(rest)?.[1];
+  if (tc) return tc;
+  const app = /^(?:app|accounts)\/([a-z0-9][a-z0-9-]{0,39})\//.exec(rest)?.[1];
+  return app ? appScope(app) : null;
 }
+
+/** qa/<login>/<TC-id>-… 작업 브랜치의 TC id. TC 작업 브랜치가 아니면 null */
+export function workBranchTc(branch: string, login: string): string | null {
+  const scope = workBranchScope(branch, login);
+  return scope?.startsWith("TC-") ? scope : null;
+}
+
+
 
 /** 플로우 만들기 입력(PLAN 6.5 1) */
 export interface AuthorContext {
@@ -67,6 +86,54 @@ export function branchSlug(summary: string): string {
     .replace(/-+$/, "");
   return slug || "edit";
 }
+
+/** 앱 설정 파일 본문. 앞쪽 설명 주석은 그대로 두고(없으면 defaultHeader), 목록은 한 줄([A, B])로 쓴다 */
+function yamlText(value: unknown, previous: string | null, defaultHeader: string): string {
+  const header: string[] = [];
+  for (const line of previous?.split("\n") ?? []) {
+    if (!line.startsWith("#")) break;
+    header.push(line);
+  }
+  const head = header.length > 0 ? header.join("\n") : defaultHeader;
+  const doc = new Document(value);
+  visit(doc, {
+    Seq(_key, node) {
+      node.flow = true;
+    },
+  });
+  return `${head}\n${doc.toString({ lineWidth: 0, flowCollectionPadding: false })}`;
+}
+
+/** 키 순서와 상관없이 같은 값인가(파일을 다시 쓸지 정할 때. 주석·모양만 다르면 같다) */
+function sameData(a: unknown, b: unknown): boolean {
+  const canon = (v: unknown): unknown =>
+    Array.isArray(v)
+      ? v.map(canon)
+      : v !== null && typeof v === "object"
+        ? Object.fromEntries(
+            Object.entries(v)
+              .sort(([x], [y]) => x.localeCompare(y))
+              .map(([k, x]) => [k, canon(x)]),
+          )
+        : v;
+  return JSON.stringify(canon(a)) === JSON.stringify(canon(b));
+}
+
+/** accounts.yaml 본문 */
+export function accountsYaml(app: string, accounts: Accounts, previous: string | null): string {
+  return yamlText(accounts, previous, `# 계정 역할 → 키 이름. 값은 두지 않는다. 각자 앱 설정 화면에서 account:${app}:<KEY> 로 저장한다.`);
+}
+
+/** workspace.yaml 의 앱 목록에 앱을 더한다(주석과 목록 모양은 그대로) */
+export function addAppToWorkspaceYaml(text: string, app: string): string {
+  const doc = parseDocument(text);
+  const apps = doc.get("apps");
+  if (isSeq(apps)) apps.add(app);
+  else doc.set("apps", [app]);
+  return doc.toString({ lineWidth: 0, flowCollectionPadding: false });
+}
+
+const toRoleEdits = (accounts: Accounts): AccountRoleEdit[] => Object.entries(accounts).map(([role, r]) => ({ role, description: r.description, keys: [...r.keys] }));
 
 /**
  * 워크스페이스 저장소(PLAN 4.4). clone·동기화·작업 브랜치·커밋·푸시·PR.
@@ -192,6 +259,180 @@ export class WorkspaceService {
         roles: Object.entries(a.accounts).map(([role, r]) => ({ role, description: r.description, keys: [...r.keys] })),
       })),
     };
+  }
+
+  /** 앱 설정(이름·언어·타깃별 앱 ID·계정 역할) 편집용. 그 앱의 진행 중인 앱 설정 브랜치가 있으면 거기서, 없으면 지금 브랜치에서 읽는다 */
+  async readApp(app: string): Promise<AppSettingsDoc> {
+    if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
+    const appId = AppIdSchema.parse(app);
+    const source = await this.appSource(appId);
+    return {
+      app: appId,
+      exists: source.exists,
+      name: source.config?.name ?? "",
+      locale: source.config?.locale ?? null,
+      targets: Object.entries(source.config?.targets ?? {}).map(([target, t]) => ({ target: AppTargetSchema.parse(target), appId: t.appId })),
+      roles: toRoleEdits(source.accounts),
+      branch: source.branch,
+    };
+  }
+
+  /**
+   * 앱 설정을 저장한다: 형식과 지금 TC·플로우가 쓰는 타깃·역할·키를 검사하고, 이 앱의 앱 설정 작업 브랜치(qa/<login>/app/<앱>/…)에
+   * app.yaml·accounts.yaml(새 앱이면 workspace.yaml 앱 목록까지)만 커밋한다. 검사는 브랜치를 옮기기 전에 한다(막히면 빈 브랜치가 남지 않는다).
+   */
+  async saveApp(input: SaveAppSettingsInput): Promise<SaveAppSettingsResult> {
+    if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
+    const app = AppIdSchema.parse(input.app);
+    const { dir } = this.target();
+    const source = await this.appSource(app);
+    if (input.create && source.exists) throw new WorkspaceError(`이미 있는 앱이다: ${app}`);
+    if (input.create && existsSync(join(dir, "apps", app))) throw new WorkspaceError(`apps/${app} 폴더가 이미 있다`);
+    if (!input.create && !source.exists) throw new WorkspaceError(`workspace.yaml 에 없는 앱이다: ${app}`);
+
+    // 앱 설정: 메모·빌드 정보는 그대로 둔다
+    const kinds = input.targets.map((t) => t.target);
+    const twice = [...new Set(kinds.filter((k, i) => kinds.indexOf(k) !== i))];
+    if (twice.length > 0) throw new WorkspaceError(`같은 타깃이 두 번 있다: ${twice.join(", ")}`);
+    const targets: AppConfig["targets"] = {};
+    for (const t of input.targets) {
+      const appId = t.appId.trim();
+      if (!appId || /\s/.test(appId)) throw new WorkspaceError(`${t.target} 앱 ID 를 공백 없이 쓴다`);
+      const build = source.config?.targets[t.target]?.build;
+      targets[t.target] = build ? { appId, build } : { appId };
+    }
+    const locale = input.locale?.trim() || undefined;
+    const note = source.config?.note;
+    const parsedConfig = AppConfigSchema.safeParse({ name: input.name.trim(), ...(locale ? { locale } : {}), ...(note !== undefined ? { note } : {}), targets });
+    if (!parsedConfig.success) throw new WorkspaceError(`앱 설정 형식 오류: ${parsedConfig.error.issues.map((i) => `${i.path.join(".") || "app"}: ${i.message}`).join(" / ")}`);
+
+    // 계정 역할
+    const roles = input.roles.map((r) => ({ role: r.role.trim(), description: r.description.trim(), keys: [...new Set(r.keys.map((k) => k.trim()).filter(Boolean))] }));
+    const duplicated = [...new Set(roles.map((r) => r.role).filter((r, i, all) => all.indexOf(r) !== i))];
+    if (duplicated.length > 0) throw new WorkspaceError(`같은 역할 이름이 두 번 있다: ${duplicated.join(", ")}`);
+    const parsedAccounts = AccountsSchema.safeParse(Object.fromEntries(roles.map((r) => [r.role, { description: r.description, keys: r.keys }])));
+    if (!parsedAccounts.success) {
+      throw new WorkspaceError(`계정 역할 형식 오류: ${parsedAccounts.error.issues.map((i) => `${i.path.join(".") || "accounts"}: ${i.message}`).join(" / ")}`);
+    }
+    const nextAccounts = parsedAccounts.data;
+
+    // 지금 워크스페이스의 TC·플로우가 쓰는 타깃·역할·키는 지우지 않는다
+    const ws = loadWorkspace(dir);
+    const tcs = ws.testcases.filter((t) => t.app === app && t.doc);
+    const lostTargets = Object.keys(source.config?.targets ?? {})
+      .filter((target) => !(target in targets))
+      .map((target) => [target, [...tcs.filter((t) => t.doc?.frontMatter.targets.some((x) => x === target)).map((t) => t.id), ...this.flowFiles(`flows/${app}/${target}`)]] as const)
+      .filter(([, users]) => users.length > 0);
+    if (lostTargets.length > 0) throw new WorkspaceError(`TC·플로우가 쓰는 타깃은 지울 수 없다: ${lostTargets.map(([t, users]) => `${t}(${users.join(", ")})`).join(" / ")}`);
+    const usedRoles = new Map<string, string[]>();
+    for (const t of tcs) {
+      const role = t.doc?.frontMatter.account;
+      if (role) usedRoles.set(role, [...(usedRoles.get(role) ?? []), t.id]);
+    }
+    const lostRoles = [...usedRoles].filter(([role]) => !nextAccounts[role]);
+    if (lostRoles.length > 0) throw new WorkspaceError(`TC 가 쓰는 역할은 지울 수 없다: ${lostRoles.map(([r, ids]) => `${r}(${ids.join(", ")})`).join(" / ")}`);
+    const knownKeys = new Set(Object.values({ ...(ws.apps[app]?.accounts ?? {}), ...source.accounts }).flatMap((r) => r.keys));
+    const nextKeys = new Set(Object.values(nextAccounts).flatMap((r) => r.keys));
+    const lostKeys = [...this.flowKeyUses(app, knownKeys)].filter(([key]) => !nextKeys.has(key));
+    if (lostKeys.length > 0) throw new WorkspaceError(`플로우가 쓰는 키는 지울 수 없다: ${lostKeys.map(([k, files]) => `${k}(${files.join(", ")})`).join(" / ")}`);
+
+    // 쓸 파일(바뀐 것만)
+    const writes: { path: string; text: string }[] = [];
+    if (source.config === null || !sameData(source.config, parsedConfig.data)) {
+      writes.push({ path: `apps/${app}/app.yaml`, text: yamlText(parsedConfig.data, source.appText, `# ${app} 앱 설정. 타깃별 앱 ID(iOS 번들 ID, Android 패키지)가 플로우의 \${APP_ID} 가 된다.`) });
+    }
+    if ((source.accountsText === null && Object.keys(nextAccounts).length > 0) || (source.accountsText !== null && !sameData(source.accounts, nextAccounts))) {
+      writes.push({ path: `apps/${app}/accounts.yaml`, text: accountsYaml(app, nextAccounts, source.accountsText) });
+    }
+    if (input.create) {
+      if (source.workspaceText === null) throw new WorkspaceError("workspace.yaml 이 없다");
+      writes.push({ path: "workspace.yaml", text: addAppToWorkspaceYaml(source.workspaceText, app) });
+    }
+    if (writes.length === 0) throw new WorkspaceError("바뀐 내용이 없다");
+
+    const login = await this.whoami();
+    const { branch } = await this.workBranch(appScope(app), input.summary, "user");
+    for (const w of writes) {
+      mkdirSync(dirname(join(dir, w.path)), { recursive: true });
+      writeFileSync(join(dir, w.path), w.text);
+    }
+    const paths = writes.map((w) => w.path);
+    await this.git(["add", "--", ...paths]);
+    if ((await this.git(["diff", "--cached", "--name-only", "--", ...paths])) === "") throw new WorkspaceError("바뀐 내용이 없다");
+    await this.git(["-c", `user.name=${login}`, "-c", `user.email=${login}@users.noreply.github.com`, "commit", "--quiet", "-m", `app: ${app} ${input.summary}`, "--", ...paths]);
+    return { status: await this.status(), branch, commit: await this.git(["rev-parse", "--short", "HEAD"]) };
+  }
+
+  /** 편집 기준: 이 앱의 진행 중인 앱 설정 브랜치(있으면)의 파일, 없으면 지금 브랜치의 파일 */
+  private async appSource(app: string): Promise<{
+    branch: string | null;
+    exists: boolean;
+    config: AppConfig | null;
+    appText: string | null;
+    accounts: Accounts;
+    accountsText: string | null;
+    workspaceText: string | null;
+  }> {
+    const login = await this.whoami();
+    const current = await this.currentBranch();
+    const scope = appScope(app);
+    const branch = workBranchScope(current, login) === scope ? current : await this.scopeBranch(login, scope);
+    const ref = branch && branch !== current ? `refs/heads/${branch}` : null;
+    const workspaceText = await this.readAt(ref, "workspace.yaml");
+    const wsConfig = workspaceText ? WorkspaceConfigSchema.safeParse(parseYaml(workspaceText)) : null;
+    if (wsConfig && !wsConfig.success) throw new WorkspaceError(`workspace.yaml 형식 오류: ${wsConfig.error.issues.map((i) => i.message).join(" / ")}`);
+    const appText = await this.readAt(ref, `apps/${app}/app.yaml`);
+    const config = appText ? AppConfigSchema.safeParse(parseYaml(appText)) : null;
+    if (config && !config.success) throw new WorkspaceError(`apps/${app}/app.yaml 형식 오류: ${config.error.issues.map((i) => i.message).join(" / ")}`);
+    const accountsText = await this.readAt(ref, `apps/${app}/accounts.yaml`);
+    const accounts = AccountsSchema.safeParse(accountsText ? (parseYaml(accountsText) ?? {}) : {});
+    if (!accounts.success) throw new WorkspaceError(`apps/${app}/accounts.yaml 형식 오류: ${accounts.error.issues.map((i) => i.message).join(" / ")}`);
+    return {
+      branch,
+      exists: wsConfig?.data.apps.includes(app) ?? false,
+      config: config?.data ?? null,
+      appText,
+      accounts: accounts.data,
+      accountsText,
+      workspaceText,
+    };
+  }
+
+  /** 브랜치(ref)나 지금 작업 폴더의 파일 내용. 없으면 null */
+  private async readAt(ref: string | null, path: string): Promise<string | null> {
+    const { dir } = this.target();
+    if (!ref) return existsSync(join(dir, path)) ? readFileSync(join(dir, path), "utf8") : null;
+    const exists = await this.git(["cat-file", "-e", `${ref}:${path}`]).then(
+      () => true,
+      () => false,
+    );
+    return exists ? this.git(["show", `${ref}:${path}`]) : null;
+  }
+
+  /** 폴더 아래 YAML 파일(워크스페이스 기준 경로). 심볼릭 링크는 따라가지 않는다 */
+  private flowFiles(rel: string): string[] {
+    const { dir } = this.target();
+    const abs = join(dir, rel);
+    if (!existsSync(abs) || !lstatSync(abs).isDirectory()) return [];
+    return readdirSync(abs).flatMap((name) => {
+      const childRel = `${rel}/${name}`;
+      const st = lstatSync(join(dir, childRel));
+      if (st.isDirectory()) return this.flowFiles(childRel);
+      return st.isFile() && /\.ya?ml$/.test(name) ? [childRel] : [];
+    });
+  }
+
+  /** 이 앱 플로우(flows/<앱>/**.yaml)가 \${KEY} 로 쓰는 계정 키와 그 파일. keys 에 있는 것만 본다(APP_ID 같은 다른 값은 뺀다) */
+  private flowKeyUses(app: string, keys: Set<string>): Map<string, string[]> {
+    const { dir } = this.target();
+    const uses = new Map<string, string[]>();
+    for (const file of this.flowFiles(`flows/${app}`)) {
+      for (const m of readFileSync(join(dir, file), "utf8").matchAll(/\$\{([A-Z][A-Z0-9_]*)\}/g)) {
+        const key = m[1] ?? "";
+        if (keys.has(key)) uses.set(key, [...new Set([...(uses.get(key) ?? []), file])]);
+      }
+    }
+    return uses;
   }
 
   /**
@@ -390,16 +631,17 @@ export class WorkspaceService {
    * - 없으면 main 에서 새로 만든다(main 이면 지금 내용 그대로 브랜치만 만든다).
    * by: user(TC 저장)는 실행·플로우 만들기가 진행 중이면 옮기지 않는다. author-save 는 플로우 만들기 자신의 커밋이다.
    */
-  private async workBranch(id: string, summary: string, by: "user" | "author-save"): Promise<{ branch: string; created: boolean }> {
+  private async workBranch(scope: string, summary: string, by: "user" | "author-save"): Promise<{ branch: string; created: boolean }> {
     const login = await this.whoami();
     const current = await this.currentBranch();
-    if (workBranchTc(current, login) === id) return { branch: current, created: false };
-    const existing = await this.tcBranch(login, id);
+    if (workBranchScope(current, login) === scope) return { branch: current, created: false };
+    const existing = await this.scopeBranch(login, scope);
     if (existing) {
       await this.switchTo(existing, { by });
       return { branch: existing, created: false };
     }
-    const base = `qa/${login}/${id}-${branchSlug(summary)}`;
+    // TC 는 qa/<login>/<TC>-<요약>, 앱 설정은 qa/<login>/app/<앱>/<요약>
+    const base = scope.startsWith("app/") ? `qa/${login}/${scope}/${branchSlug(summary)}` : `qa/${login}/${scope}-${branchSlug(summary)}`;
     const taken = new Set(await this.myBranches(login));
     let branch = base;
     for (let n = 2; taken.has(branch); n += 1) branch = `${base}-${n}`;
@@ -435,10 +677,10 @@ export class WorkspaceService {
     return (await this.git(["diff", "--name-only", MAIN, `refs/heads/${branch}`, "--", ...changed])) !== "";
   }
 
-  /** 이 TC 의 내 작업 브랜치 중 main 에 아직 없는 변경이 있는 가장 최근 것 */
-  private async tcBranch(login: string, id: string): Promise<string | null> {
+  /** 이 작업 범위(TC 또는 앱 계정 역할)의 내 작업 브랜치 중 main 에 아직 없는 변경이 있는 가장 최근 것 */
+  private async scopeBranch(login: string, scope: string): Promise<string | null> {
     for (const name of await this.myBranches(login)) {
-      if (workBranchTc(name, login) === id && (await this.hasPendingWork(name))) return name;
+      if (workBranchScope(name, login) === scope && (await this.hasPendingWork(name))) return name;
     }
     return null;
   }
@@ -487,7 +729,7 @@ export class WorkspaceService {
     if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
     const current = await this.currentBranch();
     const branch = input.branch ?? current;
-    if (branch === MAIN || branch === "HEAD") throw new WorkspaceError("main 에서는 검토 요청을 하지 않는다. TC 를 저장하면 작업 브랜치가 생긴다");
+    if (branch === MAIN || branch === "HEAD") throw new WorkspaceError("main 에서는 PR 을 만들지 않는다. TC 를 저장하면 작업 브랜치가 생긴다");
     const login = await this.whoami();
     if (!(await this.myBranches(login)).includes(branch)) throw new WorkspaceError(`내 작업 브랜치가 아니다: ${branch}`);
     if (branch === current) {
@@ -503,16 +745,18 @@ export class WorkspaceService {
     return { ...pr, branch, existing: false };
   }
 
-  /** 내 작업 브랜치 목록(최근 커밋 순). 다른 TC 의 브랜치를 보거나 검토 요청할 때 쓴다 */
+  /** 내 작업 브랜치 목록(최근 커밋 순). 다른 TC 의 브랜치로 체크아웃하거나 PR 을 만들 때 쓴다 */
   async branches(): Promise<WorkBranchList> {
     if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
     const login = await this.whoami();
     const current = await this.currentBranch();
     const branches: WorkBranch[] = [];
     for (const name of await this.myBranches(login)) {
+      const scope = workBranchScope(name, login);
       branches.push({
         name,
         tcId: workBranchTc(name, login),
+        appSettings: scope?.startsWith("app/") ? scope.slice("app/".length) : null,
         current: name === current,
         ahead: Number(await this.git(["rev-list", "--count", `${MAIN}..refs/heads/${name}`])),
         subject: await this.git(["log", "-1", "--format=%s", `refs/heads/${name}`]),
@@ -539,7 +783,7 @@ export class WorkspaceService {
     const login = await this.whoami();
     const current = await this.currentBranch();
     if (workBranchTc(current, login) === id) return current;
-    const target = (await this.tcBranch(login, id)) ?? MAIN;
+    const target = (await this.scopeBranch(login, id)) ?? MAIN;
     if (target !== current) await this.switchTo(target, { by: "author" });
     return target;
   }

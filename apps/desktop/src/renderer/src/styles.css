@@ -874,3 +874,38 @@ textarea.editor {
     animation: none;
   }
 }
+
+/* ---- 표 안에서 고치는 줄(계정 역할) ---- */
+.matrix.editable td {
+  padding: 4px 6px;
+}
+.matrix.editable input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.matrix.editable td:last-child {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* ---- 앱 설정: 타깃 줄 ---- */
+fieldset.targets {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+fieldset.targets legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.target-row {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
