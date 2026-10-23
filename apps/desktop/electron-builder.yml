@@ -16,6 +16,8 @@ mac:
     - target: dmg
       arch: [arm64]
   identity: null
+  # 앱 아이콘(buildResources 안의 build/icon.icns). 없으면 기본 Electron 아이콘으로 넘어가지 않고 패키징이 멈춘다
+  icon: icon.icns
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist

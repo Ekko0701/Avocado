@@ -10,6 +10,9 @@ coverage/
 .env.*
 !.env.example
 
+# 패키징 자원(entitlements·앱 아이콘). 흔한 전역 gitignore 의 build/ 규칙에 걸려 빠지지 않게 다시 넣는다
+!apps/desktop/build/
+
 # local runtime output
 out/
 *.log
