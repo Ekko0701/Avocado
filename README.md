@@ -64,3 +64,7 @@ examples/qa-workspace 예시 워크스페이스(가상 앱)
 - API 키·GitHub 토큰·테스트 계정 값은 macOS 키체인(Electron safeStorage)에만 저장하고 화면에는 저장 여부만 보입니다.
 - 플로우 실행 때 계정 값은 앱이 넘기고, 증적에서는 가린 사본만 보이고 올립니다.
 - 렌더러는 Node·파일·네트워크에 직접 접근하지 않고, 정해진 IPC 만 씁니다.
+
+## 라이선스
+
+[MIT](LICENSE)
