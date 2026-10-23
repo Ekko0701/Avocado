@@ -13,7 +13,27 @@ permissions:
   contents: read
 
 jobs:
+  # 이 Mac 에서 scripts/release-mac.sh 로 서명·공증해 같은 태그의 릴리스를 이미 올렸으면 아무것도 하지 않는다
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      exists: ${{ steps.release.outputs.exists }}
+    steps:
+      - name: 같은 태그의 릴리스가 있는지
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "릴리스 ${TAG} 가 이미 있다. 빌드하지 않는다"
+            echo "exists=1" >> "${GITHUB_OUTPUT}"
+          fi
+
   build:
+    needs: check
+    if: needs.check.outputs.exists != '1'
     runs-on: macos-15
     timeout-minutes: 60
     environment: release

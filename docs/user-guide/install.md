@@ -18,7 +18,7 @@
 
 ## 2. 앱 받기와 설치
 
-1. Avocado 배포 저장소의 Releases 에서 `Avocado-<버전>-arm64.dmg`와 `Avocado-<버전>-arm64.dmg.sha256`을 받는다.
+1. [Avocado Releases](https://github.com/Ekko0701/Avocado/releases) 에서 `Avocado-<버전>-arm64.dmg`와 `Avocado-<버전>-arm64.dmg.sha256`을 받는다.
 2. 파일이 온전한지 확인한다. 두 줄의 해시가 같아야 한다.
 
    ```bash
@@ -33,7 +33,7 @@
 
 ### 첫 실행 보안 경고 (서명 없는 내부 빌드일 때)
 
-Developer ID 서명·공증(D12) 전의 빌드는 "확인되지 않은 개발자" 경고가 뜬다. Releases 에 "미리보기"로 표시된 빌드가 그렇다.
+정식 릴리스는 Developer ID 로 서명·공증돼 경고 없이 열린다. Releases 에 "미리보기"로 표시된 서명 없는 빌드만 "확인되지 않은 개발자" 경고가 뜬다.
 
 1. Avocado 를 한 번 열어 경고를 띄우고 닫는다.
 2. 시스템 설정 → 개인정보 보호 및 보안 → 아래쪽 보안 항목에서 "Avocado" 옆 **그래도 열기**를 누르고 암호를 입력한다.
