@@ -17,8 +17,9 @@ afterEach(async () => {
   fake = null;
 });
 
-async function setup(assets: { name: string; content: Buffer }[], opts: { current?: string; spctlCode?: number; codesignCode?: number; owner?: string | null; team?: string | null } = {}) {
-  fake = await startFakeGitHub({ token: TOKEN, repos: { "acme/qa-tool": { push: false } }, release: { tag: "v0.2.0", assets } });
+async function setup(assets: { name: string; content: Buffer }[], opts: { current?: string; spctlCode?: number; codesignCode?: number; token?: string | null; team?: string | null } = {}) {
+  fake = await startFakeGitHub({ token: TOKEN, repos: { "acme/avocado": { push: false } }, publicRepos: ["acme/avocado"], release: { tag: "v0.2.0", assets } });
+  const token = opts.token === undefined ? TOKEN : opts.token;
   const dir = mkdtempSync(join(tmpdir(), "qa-update-"));
   const opened: string[] = [];
   const shown: string[] = [];
@@ -29,8 +30,8 @@ async function setup(assets: { name: string; content: Buffer }[], opts: { curren
     return { code, stdout: "", stderr: code ? "rejected" : "accepted" };
   };
   const service = new UpdateService({
-    remote: new GitHubProvider({ token: () => TOKEN, apiUrl: fake.url }),
-    github: () => ({ owner: opts.owner === undefined ? "acme" : opts.owner, workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-", appRepo: "qa-tool" }),
+    remote: new GitHubProvider({ token: () => token, apiUrl: fake.url }),
+    releaseRepo: { owner: "acme", repo: "avocado" },
     currentVersion: opts.current ?? "0.1.0",
     arch: "arm64",
     updatesDir: join(dir, "updates"),
@@ -62,7 +63,7 @@ describe("새 버전 확인 (PLAN 11장)", () => {
   it("새 버전을 알리고, 받으면 SHA-256 을 맞춰 보고 서명이 확인된 것만 연다", async () => {
     const { service, opened, calls } = await setup(RELEASE);
     const status = await service.check();
-    expect(status).toMatchObject({ current: "0.1.0", latest: "v0.2.0", available: true, asset: { name: "Avocado-0.2.0-arm64.dmg", size: DMG.length }, error: null });
+    expect(status).toMatchObject({ current: "0.1.0", source: "acme/avocado", latest: "v0.2.0", available: true, asset: { name: "Avocado-0.2.0-arm64.dmg", size: DMG.length }, error: null });
     const done = await service.download();
     expect(done.downloaded).toEqual({ file: "Avocado-0.2.0-arm64.dmg", verified: true, signed: true, opened: true });
     expect(opened[0]).toMatch(/updates\/Avocado-0\.2\.0-arm64\.dmg$/);
@@ -114,12 +115,18 @@ describe("새 버전 확인 (PLAN 11장)", () => {
     await expect(noSum.service.download()).rejects.toThrow(UpdateError);
   });
 
-  it("같은 버전이면 알리지 않고, 조직이 없으면 확인하지 않는다", async () => {
+  it("같은 버전이면 알리지 않는다", async () => {
     const same = await setup(RELEASE, { current: "0.2.0" });
     expect((await same.service.check()).available).toBe(false);
     await expect(same.service.download()).rejects.toThrow("받을 새 버전이 없다");
-    await fake?.close();
-    const none = await setup(RELEASE, { owner: null });
-    expect((await none.service.check()).error).toContain("GitHub 조직");
+  });
+
+  it("GitHub 토큰·워크스페이스 조직이 없어도 공개 배포 저장소에서 확인하고 받는다", async () => {
+    const { service, opened } = await setup(RELEASE, { token: null });
+    expect(await service.check()).toMatchObject({ source: "acme/avocado", latest: "v0.2.0", available: true, error: null });
+    expect((await service.download()).downloaded).toMatchObject({ verified: true, signed: true, opened: true });
+    expect(opened).toHaveLength(1);
+    // 토큰 없이 부른 요청만 있다
+    expect(fake?.requests.every((r) => !r.authorized)).toBe(true);
   });
 });

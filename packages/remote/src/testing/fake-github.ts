@@ -10,6 +10,8 @@ export interface FakeGitHubOptions {
   /** 최신 릴리스 요청에 500 을 내고 본문에 받은 Authorization 헤더를 그대로 담는다(오류 메시지 가림 시험) */
   leakAuthOnReleaseError?: boolean;
   release?: { tag: string; assets?: { name: string; content: Buffer }[] } | null;
+  /** 공개 저장소(owner/repo): Authorization 없는 GET 을 받는다. 틀린 토큰은 그대로 401 */
+  publicRepos?: string[];
 }
 
 export interface FakeGitHub {
@@ -48,8 +50,9 @@ export async function startFakeGitHub(opts: FakeGitHubOptions): Promise<FakeGitH
       const authorized = auth === `token ${opts.token}` || auth === `Bearer ${opts.token}`;
       requests.push({ method: req.method ?? "", path, authorized });
       const send = (status: number, body: unknown) => res.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify(body));
-      if (!authorized) return send(401, { message: "Bad credentials" });
       const m = /^\/repos\/([^/]+)\/([^/]+)(\/.*)?$/.exec(path);
+      const anonymousPublicRead = auth === "" && req.method === "GET" && m !== null && (opts.publicRepos ?? []).includes(`${m[1]}/${m[2]}`);
+      if (!authorized && !anonymousPublicRead) return send(401, { message: "Bad credentials" });
       if (path === "/user" && req.method === "GET") return send(200, { login: "qa-bot" });
       if (path === "/user/repos" && req.method === "GET") {
         return send(

@@ -224,7 +224,12 @@ function VersionSection() {
           {checking ? "확인 중" : "새 버전 확인"}
         </button>
       </div>
-      {status?.checkedAt ? <small className="hint">마지막 확인 {new Date(status.checkedAt).toLocaleString("ko-KR")}</small> : null}
+      {status ? (
+        <small className="hint">
+          새 버전은 {status.source} 의 Releases 에서 확인합니다
+          {status.checkedAt ? ` · 마지막 확인 ${new Date(status.checkedAt).toLocaleString("ko-KR")}` : ""}
+        </small>
+      ) : null}
       {status?.error ? <small className="warning">{status.error}</small> : null}
     </section>
   );
@@ -271,7 +276,6 @@ function GitHubSection(props: { settings: Settings; tokenStored: boolean; onSave
   const [owner, setOwner] = useState(g.owner ?? "");
   const [workspaceRepo, setWorkspaceRepo] = useState(g.workspaceRepo);
   const [prefix, setPrefix] = useState(g.evidenceRepoPrefix);
-  const [appRepo, setAppRepo] = useState(g.appRepo);
   const [message, setMessage] = useState<string | null>(null);
   const [result, setResult] = useState<RemoteVerify | null>(null);
   const [checking, setChecking] = useState(false);
@@ -279,7 +283,7 @@ function GitHubSection(props: { settings: Settings; tokenStored: boolean; onSave
   async function save(event: FormEvent) {
     event.preventDefault();
     try {
-      await window.qa.settings.update({ github: { owner: owner.trim() || null, workspaceRepo: workspaceRepo.trim(), evidenceRepoPrefix: prefix.trim(), appRepo: appRepo.trim() } });
+      await window.qa.settings.update({ github: { owner: owner.trim() || null, workspaceRepo: workspaceRepo.trim(), evidenceRepoPrefix: prefix.trim() } });
       setMessage("저장했습니다");
       await props.onSaved();
     } catch (e) {
@@ -315,7 +319,6 @@ function GitHubSection(props: { settings: Settings; tokenStored: boolean; onSave
           setOwner(next.owner ?? "");
           setWorkspaceRepo(next.workspaceRepo);
           setPrefix(next.evidenceRepoPrefix);
-          setAppRepo(next.appRepo);
           return props.onSaved();
         }}
       />
@@ -332,10 +335,6 @@ function GitHubSection(props: { settings: Settings; tokenStored: boolean; onSave
         <label>
           증적 저장소 접두사
           <input value={prefix} onChange={(e) => setPrefix(e.target.value)} />
-        </label>
-        <label>
-          앱 저장소(새 버전 확인)
-          <input value={appRepo} onChange={(e) => setAppRepo(e.target.value)} />
         </label>
       </div>
       <div className="row">

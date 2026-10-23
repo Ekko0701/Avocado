@@ -77,6 +77,17 @@ describe("GitHubProvider", () => {
     expect(p.fileUrl(WS, "runs/2026/10/22/r 1/report.md", "main")).toBe("https://github.com/acme/qa-workspace/blob/main/runs/2026/10/22/r%201/report.md");
   });
 
+  it("공개 저장소의 릴리스는 토큰 없이 보고 받는다. 다른 요청은 여전히 토큰이 있어야 한다", async () => {
+    const dmg = Buffer.from("public dmg");
+    fake = await startFakeGitHub({ token: TOKEN, repos: { "acme/avocado": { push: false } }, publicRepos: ["acme/avocado"], release: { tag: "v0.4.0", assets: [{ name: "Avocado-0.4.0-arm64.dmg", content: dmg }] } });
+    const repo = { owner: "acme", repo: "avocado" };
+    const anonymous = provider(null);
+    await expect(anonymous.getLatestRelease(repo)).resolves.toMatchObject({ tag: "v0.4.0" });
+    expect((await anonymous.downloadReleaseAsset(repo, { id: 1, size: dmg.length }, 1024)).equals(dmg)).toBe(true);
+    expect(fake.requests.every((r) => !r.authorized)).toBe(true);
+    await expect(anonymous.verify([])).rejects.toThrow(/토큰이 없다/);
+  });
+
   it("릴리스가 없으면 null", async () => {
     fake = await startFakeGitHub({ token: TOKEN, repos: { "acme/qa-tool": { push: false } }, release: null });
     await expect(provider().getLatestRelease({ owner: "acme", repo: "qa-tool" })).resolves.toBeNull();

@@ -65,7 +65,7 @@ function service(opts: { approved?: boolean; status?: RunDetail["status"]; secre
     evidence: { redactedDir: () => redacted },
     remote: new GitHubProvider({ token: () => TOKEN, apiUrl: fake.url, webUrl: "https://github.com" }),
     uploadApproved: () => opts.approved ?? true,
-    github: () => ({ owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-", appRepo: "qa-tool" }),
+    github: () => ({ owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-" }),
     secrets: () => opts.secrets ?? [...FAKE_SECRETS, TOKEN],
     toJpeg: opts.jpeg ?? toJpeg,
     generator: "qa-tool test",

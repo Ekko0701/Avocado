@@ -4,3 +4,9 @@
  * null 이면 어떤 업데이트도 자동으로 열지 않는다.
  */
 export const UPDATE_SIGNER_TEAM_ID: string | null = "34JS69S5XZ";
+
+/**
+ * 새 버전을 확인하는 배포 저장소(공개). 워크스페이스·증적 저장소의 GitHub 조직과 상관없이 모든 사용자가 여기서 받는다(ADR 0020, 0024).
+ * 공개 저장소라 GitHub 토큰이 없어도 확인한다
+ */
+export const UPDATE_RELEASE_REPO = { owner: "Ekko0701", repo: "Avocado" } as const;

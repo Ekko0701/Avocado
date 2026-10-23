@@ -66,8 +66,9 @@ export interface RemoteProvider {
   createPullRequest(input: PullRequestInput): Promise<{ number: number; url: string }>;
   /** 열린 PR(최근 50개) */
   listOpenPullRequests(repo: RepoRef): Promise<PullRequestSummary[]>;
+  /** 정식 최신 릴리스. 공개 저장소면 토큰 없이도 본다. 없으면 null */
   getLatestRelease(repo: RepoRef): Promise<Release | null>;
-  /** 릴리스 파일을 받는다(API 로, 토큰은 GitHub API 호스트에만). 크기가 maxBytes 를 넘으면 받지 않는다 */
+  /** 릴리스 파일을 받는다(API 로, 토큰은 있을 때만 GitHub API 호스트에만). 크기가 maxBytes 를 넘으면 받지 않는다 */
   downloadReleaseAsset(repo: RepoRef, asset: { id: number; size: number }, maxBytes: number): Promise<Buffer>;
   /** clone 없이 한 커밋으로 파일을 올린다(Git Data API). 브랜치가 앞서 나가 있으면 최신 위에서 다시 만든다(최대 3회, PLAN 9.4) */
   commitFiles(input: CommitFilesInput): Promise<{ commitSha: string; url: string }>;

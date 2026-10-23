@@ -15,7 +15,7 @@ describe("GitHub 연결 확인 핸들러", () => {
   });
 
   it("워크스페이스와 올해 증적 저장소를 확인한다", async () => {
-    const settings: Settings = { ...DEFAULT_SETTINGS, github: { owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-", appRepo: "qa-tool" } };
+    const settings: Settings = { ...DEFAULT_SETTINGS, github: { owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-" } };
     await createRemoteHandlers(remote, () => settings, at)["remote:verify"](undefined);
     expect(seen.at(-1)).toEqual([
       { owner: "acme", repo: "qa-workspace" },

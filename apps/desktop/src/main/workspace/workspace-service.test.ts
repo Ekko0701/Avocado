@@ -52,7 +52,7 @@ beforeAll(async () => {
   ws = new WorkspaceService({
     root: join(dir, "workspaces"),
     remote: new GitHubProvider({ token: () => TOKEN, apiUrl: fake.url, webUrl: server.url }),
-    github: () => ({ owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-", appRepo: "qa-tool" }),
+    github: () => ({ owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-" }),
     token: () => TOKEN,
     askpass: () => Promise.resolve(askpass),
     home,

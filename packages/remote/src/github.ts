@@ -24,12 +24,15 @@ export class GitHubProvider implements RemoteProvider {
     this.webUrl = (options.webUrl ?? "https://github.com").replace(/\/+$/, "");
   }
 
-  /** timeoutMs: 이 클라이언트로 하는 요청 전체의 제한 시간(응답 없는 GitHub 이 화면을 붙잡지 않게) */
-  private client(timeoutMs = 60_000): { octokit: Octokit; token: string } {
+  /**
+   * timeoutMs: 이 클라이언트로 하는 요청 전체의 제한 시간(응답 없는 GitHub 이 화면을 붙잡지 않게).
+   * anonymous: 공개 저장소 읽기(배포 저장소의 릴리스). 토큰이 있으면 쓰고(요청 한도가 크다), 없으면 인증 없이 부른다
+   */
+  private client(timeoutMs = 60_000, opts: { anonymous?: boolean } = {}): { octokit: Octokit; token: string } {
     const token = this.options.token();
-    if (!token) throw new RemoteError("GitHub 토큰이 없다. 설정에서 저장한다");
+    if (!token && !opts.anonymous) throw new RemoteError("GitHub 토큰이 없다. 설정에서 저장한다");
     const octokit = new Octokit({
-      auth: token,
+      ...(token ? { auth: token } : {}),
       request: { signal: AbortSignal.timeout(timeoutMs) },
       baseUrl: this.options.apiUrl ?? "https://api.github.com",
       userAgent: this.options.userAgent ?? "qa-tool",
@@ -49,7 +52,7 @@ export class GitHubProvider implements RemoteProvider {
         throw error;
       }
     });
-    return { octokit, token };
+    return { octokit, token: token ?? "" };
   }
 
   /** Octokit 오류를 토큰 없는 RemoteError 로 바꾼다 */
@@ -149,7 +152,7 @@ export class GitHubProvider implements RemoteProvider {
   }
 
   async getLatestRelease(repo: RepoRef): Promise<Release | null> {
-    const { octokit, token } = this.client();
+    const { octokit, token } = this.client(60_000, { anonymous: true });
     try {
       const { data } = await octokit.repos.getLatestRelease({ owner: repo.owner, repo: repo.repo });
       return {
@@ -167,7 +170,7 @@ export class GitHubProvider implements RemoteProvider {
 
   async downloadReleaseAsset(repo: RepoRef, asset: { id: number; size: number }, maxBytes: number): Promise<Buffer> {
     if (asset.size > maxBytes) throw new RemoteError(`릴리스 파일이 너무 크다(${asset.size}바이트)`);
-    const { octokit, token } = this.client(15 * 60_000);
+    const { octokit, token } = this.client(15 * 60_000, { anonymous: true });
     try {
       // 저장소 파일 저장소(S3 등)로 넘겨질 때 fetch 는 다른 호스트로 Authorization 을 보내지 않는다
       const { data } = await octokit.repos.getReleaseAsset({ owner: repo.owner, repo: repo.repo, asset_id: asset.id, headers: { accept: "application/octet-stream" } });

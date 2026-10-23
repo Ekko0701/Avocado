@@ -58,6 +58,15 @@ describe("설정", () => {
     expect(state.issue).toContain("설정 파일이 손상돼");
     expect(readdirSync(dir).some((f) => f.startsWith("settings.json.corrupt-"))).toBe(true);
   });
+
+  it("예전 설정의 github.appRepo 는 손상으로 보지 않고 버린다(새 버전은 배포 저장소에서 확인)", () => {
+    const github = { owner: "me", workspaceRepo: "Avocado-workspace", evidenceRepoPrefix: "Avocado-qa-evidence-" };
+    writeFileSync(join(dir, "settings.json"), JSON.stringify({ ...DEFAULT_SETTINGS, github: { ...github, appRepo: "qa-tool" } }));
+    const service = makeService();
+    expect(service.getSettings()).toEqual({ settings: { ...DEFAULT_SETTINGS, github }, issue: null });
+    service.updateSettings({ devices: { locale: "en_US" } });
+    expect(JSON.parse(readFileSync(join(dir, "settings.json"), "utf8")).github).toEqual(github);
+  });
 });
 
 describe("비밀", () => {

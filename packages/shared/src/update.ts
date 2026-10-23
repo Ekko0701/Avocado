@@ -3,6 +3,8 @@ import { z } from "zod";
 /** 앱 내 새 버전 확인(PLAN 11장, T-116) */
 export const UpdateStatusSchema = z.strictObject({
   current: z.string(),
+  /** 새 버전을 확인하는 배포 저장소(owner/repo). 워크스페이스 조직과 상관없다 */
+  source: z.string(),
   latest: z.string().nullable(),
   available: z.boolean(),
   checkedAt: z.string().nullable(),

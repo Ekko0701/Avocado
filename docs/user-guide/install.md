@@ -46,7 +46,7 @@
 GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → Generate new token.
 
 - Resource owner: 저장소의 주인(개인 계정 또는 조직)
-- Repository access: 워크스페이스 저장소, 올해 증적 저장소(`…-<연도>`), Avocado 배포 저장소(새 버전 확인)
+- Repository access: 워크스페이스 저장소, 올해 증적 저장소(`…-<연도>`). 새 버전 확인은 공개 배포 저장소를 보므로 토큰에 넣지 않아도 된다
 - Permissions(Repository): Contents **읽기·쓰기**, Pull requests **읽기·쓰기**, Metadata 읽기
 - 만료: 필요한 기간으로 정한다. 조직 저장소면 조직 정책을 따른다(만료되면 설정에서 새 토큰으로 바꾼다)
 

@@ -27,7 +27,7 @@ import { createAvocadoMcpServer, routeMcpPorts } from "./claude/mcp-server";
 import { McpSocketHost } from "./claude/socket-host";
 import { JudgeService } from "./agent/judge-service";
 import { UpdateService } from "./update/update-service";
-import { UPDATE_SIGNER_TEAM_ID } from "./update/trust";
+import { UPDATE_RELEASE_REPO, UPDATE_SIGNER_TEAM_ID } from "./update/trust";
 import { UploadService } from "./evidence/upload-service";
 import { EvidenceRetention } from "./evidence/retention";
 import { createSipsJpegConverter, createSipsShrinker } from "./agent/image";
@@ -334,7 +334,7 @@ void app.whenReady().then(() => {
   });
   const update = new UpdateService({
     remote,
-    github: () => settings.getSettings().settings.github,
+    releaseRepo: UPDATE_RELEASE_REPO,
     currentVersion: app.getVersion(),
     arch: process.arch,
     updatesDir: join(app.getPath("userData"), "updates"),

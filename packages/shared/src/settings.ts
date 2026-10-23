@@ -17,8 +17,6 @@ export const GitHubSettingsSchema = z.strictObject({
   workspaceRepo: RepoNameSchema,
   /** 연도별 증적 저장소 접두사. 예: qa-evidence- → qa-evidence-2026 (PLAN 9.4) */
   evidenceRepoPrefix: z.string().regex(/^[A-Za-z0-9_.-]{1,90}$/, "저장소 이름 형식이 아니다"),
-  /** 앱 소스·Releases 저장소(PLAN 11장 업데이트 확인). T-116 에서 더했고 기본값으로 이전 설정도 읽힌다 */
-  appRepo: RepoNameSchema.default("qa-tool"),
 });
 export type GitHubSettings = z.infer<typeof GitHubSettingsSchema>;
 /**
@@ -32,7 +30,18 @@ export function evidencePrefixOf(repo: string): { prefix: string; year: number }
   return prefix.success ? { prefix: prefix.data, year: Number(m[2]) } : null;
 }
 
-export const DEFAULT_GITHUB_SETTINGS: GitHubSettings = { owner: null, workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-", appRepo: "qa-tool" };
+export const DEFAULT_GITHUB_SETTINGS: GitHubSettings = { owner: null, workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-" };
+
+/**
+ * 예전 settings.json 의 github.appRepo(새 버전을 확인하던 저장소)는 읽을 때 버린다.
+ * 새 버전은 워크스페이스 조직과 상관없이 배포 저장소에서 확인한다(desktop update/trust.ts). 버리지 않으면 예전 파일이 손상으로 처리된다
+ */
+function withoutLegacyAppRepo(value: unknown): unknown {
+  if (value === null || typeof value !== "object" || !("appRepo" in value)) return value;
+  const rest: Record<string, unknown> = { ...value };
+  delete rest.appRepo;
+  return rest;
+}
 
 export const AgentProviderSchema = z.enum(["claude-app", "api"]);
 export type AgentProvider = z.infer<typeof AgentProviderSchema>;
@@ -69,7 +78,7 @@ export const SettingsSchema = z.strictObject({
    */
   setup: z.strictObject({ completedAt: z.iso.datetime().nullable() }).default({ completedAt: null }),
   /** GitHub 연동(T-109). 기본값을 둬서 이전 settings.json 도 그대로 읽힌다 */
-  github: GitHubSettingsSchema.default(DEFAULT_GITHUB_SETTINGS),
+  github: z.preprocess(withoutLegacyAppRepo, GitHubSettingsSchema).default(DEFAULT_GITHUB_SETTINGS),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 

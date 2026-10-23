@@ -16,7 +16,6 @@ export function GitHubRepoPicker(props: { github: GitHubSettings; tokenStored: b
   const [loading, setLoading] = useState(false);
   const [workspace, setWorkspace] = useState("");
   const [evidence, setEvidence] = useState("");
-  const [appRepo, setAppRepo] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
   async function load() {
@@ -29,7 +28,6 @@ export function GitHubRepoPicker(props: { github: GitHubSettings; tokenStored: b
       const has = (owner: string | null, repo: string) => list.some((r) => r.owner === owner && r.repo === repo);
       setWorkspace(g.owner && has(g.owner, g.workspaceRepo) ? `${g.owner}/${g.workspaceRepo}` : "");
       setEvidence(g.owner && has(g.owner, `${g.evidenceRepoPrefix}${year}`) ? `${g.evidenceRepoPrefix}${year}` : "");
-      setAppRepo(g.owner && has(g.owner, g.appRepo) ? g.appRepo : "");
       if (list.length === 0) setMessage("이 토큰으로 볼 수 있는 저장소가 없습니다. 토큰의 저장소 선택을 확인합니다.");
     } catch (e) {
       setMessage(`저장소 목록을 불러오지 못했습니다: ${errorMessage(e)}`);
@@ -47,7 +45,7 @@ export function GitHubRepoPicker(props: { github: GitHubSettings; tokenStored: b
 
   async function save() {
     if (!chosen || !evidenceInfo) return;
-    const next: GitHubSettings = { owner: chosen.owner, workspaceRepo: chosen.repo, evidenceRepoPrefix: evidenceInfo.prefix, appRepo: appRepo || g.appRepo };
+    const next: GitHubSettings = { owner: chosen.owner, workspaceRepo: chosen.repo, evidenceRepoPrefix: evidenceInfo.prefix };
     try {
       await window.qa.settings.update({ github: next });
       setMessage("고른 저장소로 저장했습니다");
@@ -75,7 +73,6 @@ export function GitHubRepoPicker(props: { github: GitHubSettings; tokenStored: b
                 onChange={(e) => {
                   setWorkspace(e.target.value);
                   setEvidence("");
-                  setAppRepo("");
                 }}
               >
                 <option value="">선택</option>
@@ -95,17 +92,6 @@ export function GitHubRepoPicker(props: { github: GitHubSettings; tokenStored: b
                   <option key={full(r)} value={r.repo}>
                     {full(r)}
                     {r.canPush ? "" : " · 읽기 전용"}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              앱(새 버전 확인, 선택)
-              <select value={appRepo} onChange={(e) => setAppRepo(e.target.value)} disabled={!owner}>
-                <option value="">{`지금 값 유지(${g.appRepo})`}</option>
-                {sameOwner.map((r) => (
-                  <option key={full(r)} value={r.repo}>
-                    {full(r)}
                   </option>
                 ))}
               </select>

@@ -1,5 +1,5 @@
-import type { RemoteProvider } from "@qa/remote";
-import type { GitHubSettings, UpdateStatus } from "@qa/shared";
+import type { RemoteProvider, RepoRef } from "@qa/remote";
+import type { UpdateStatus } from "@qa/shared";
 import { createHash } from "node:crypto";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
@@ -14,7 +14,8 @@ export class UpdateError extends Error {
 
 export interface UpdateServiceOptions {
   remote: Pick<RemoteProvider, "getLatestRelease" | "downloadReleaseAsset">;
-  github(): GitHubSettings;
+  /** 새 버전을 받는 배포 저장소(trust.ts). 워크스페이스 조직 설정과 상관없다 */
+  releaseRepo: RepoRef;
   /** app.getVersion() */
   currentVersion: string;
   /** process.arch (arm64 우선, PLAN 11장) */
@@ -51,7 +52,7 @@ export function isNewer(latest: string, current: string): boolean {
 }
 
 /**
- * 새 버전 확인(PLAN 11장): 시작할 때와 하루 한 번 qa-tool 저장소의 최신 릴리스를 본다. 자동 설치는 하지 않는다(M2).
+ * 새 버전 확인(PLAN 11장): 시작할 때와 하루 한 번 배포 저장소의 최신 릴리스를 본다. 자동 설치는 하지 않는다(M2).
  * 사용자가 받기를 누르면 .dmg 와 .sha256 을 받아 SHA-256 을 맞춰 보고, 서명·공증이 확인된 것만 연다(PLAN 10.4).
  * 서명이 없으면(D12 전) 열지 않고 Finder 에서 보여 준다.
  */
@@ -61,7 +62,7 @@ export class UpdateService {
   private release: Awaited<ReturnType<RemoteProvider["getLatestRelease"]>> = null;
 
   constructor(private readonly options: UpdateServiceOptions) {
-    this.state = { current: options.currentVersion, latest: null, available: false, checkedAt: null, release: null, asset: null, error: null, downloaded: null, busy: false };
+    this.state = { current: options.currentVersion, source: `${options.releaseRepo.owner}/${options.releaseRepo.repo}`, latest: null, available: false, checkedAt: null, release: null, asset: null, error: null, downloaded: null, busy: false };
   }
 
   status(): UpdateStatus {
@@ -81,13 +82,9 @@ export class UpdateService {
   }
 
   async check(): Promise<UpdateStatus> {
-    const g = this.options.github();
-    if (!g.owner) {
-      this.state = { ...this.state, error: "GitHub 조직을 설정하면 새 버전을 확인한다", checkedAt: (this.options.now ?? (() => new Date()))().toISOString() };
-      return this.status();
-    }
+    const repo = this.options.releaseRepo;
     try {
-      const release = await this.options.remote.getLatestRelease({ owner: g.owner, repo: g.appRepo });
+      const release = await this.options.remote.getLatestRelease(repo);
       this.release = release;
       const asset = release ? this.pickDmg(release) : null;
       const latest = release?.tag ?? null;
@@ -97,9 +94,9 @@ export class UpdateService {
         available: latest !== null && asset !== null && isNewer(latest, this.options.currentVersion),
         release: release ? { tag: release.tag, name: release.name, url: release.url, publishedAt: release.publishedAt } : null,
         asset: asset ? { name: asset.name, size: asset.size } : null,
-        // 404 는 릴리스가 없거나 토큰이 저장소를 못 보는 경우다. 조용히 넘기지 않고 알린다
+        // 404 는 정식 릴리스가 없는 경우다. 조용히 넘기지 않고 알린다
         error: !release
-          ? `${g.owner}/${g.appRepo} 에 정식 릴리스가 없거나 토큰으로 볼 수 없다(미리보기 릴리스는 확인하지 않는다)`
+          ? `${repo.owner}/${repo.repo} 에 정식 릴리스가 없다(미리보기 릴리스는 확인하지 않는다)`
           : !asset
             ? `이 Mac(${this.options.arch})용 ${release.tag} .dmg 가 릴리스에 없다`
             : null,
@@ -113,13 +110,12 @@ export class UpdateService {
 
   async download(): Promise<UpdateStatus> {
     if (this.state.busy) throw new UpdateError("이미 받고 있다");
-    const g = this.options.github();
     const release = this.release;
     const asset = release ? this.pickDmg(release) : null;
-    if (!g.owner || !release || !asset || !this.state.available) throw new UpdateError("받을 새 버전이 없다. 먼저 확인한다");
+    if (!release || !asset || !this.state.available) throw new UpdateError("받을 새 버전이 없다. 먼저 확인한다");
     const sumAsset = release.assets.find((a) => a.name === `${asset.name}.sha256`);
     if (!sumAsset) throw new UpdateError(`${asset.name}.sha256 이 릴리스에 없어 받지 않는다`);
-    const repo = { owner: g.owner, repo: g.appRepo };
+    const repo = this.options.releaseRepo;
     this.state = { ...this.state, busy: true, error: null };
     const file = join(this.options.updatesDir, basename(asset.name));
     try {

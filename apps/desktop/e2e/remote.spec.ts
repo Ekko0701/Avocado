@@ -88,7 +88,6 @@ test("저장소 고르기: 사용자마다 다른 저장소 이름을 토큰으�
 
     await picker.getByLabel("워크스페이스(TC·플로우)").selectOption("me/Avocado-workspace");
     await picker.getByLabel("증적(연도별)").selectOption(`Avocado-qa-evidence-${year}`);
-    await picker.getByLabel("앱(새 버전 확인, 선택)").selectOption("Avocado");
     await picker.getByRole("button", { name: "고른 저장소로 저장" }).click();
     await expect(github.getByLabel("GitHub 조직")).toHaveValue("me");
     await expect(github.getByLabel("워크스페이스 저장소")).toHaveValue("Avocado-workspace");
@@ -97,7 +96,6 @@ test("저장소 고르기: 사용자마다 다른 저장소 이름을 토큰으�
       owner: "me",
       workspaceRepo: "Avocado-workspace",
       evidenceRepoPrefix: "Avocado-qa-evidence-",
-      appRepo: "Avocado",
     });
 
     // 고른 이름으로 연결 확인이 된다
