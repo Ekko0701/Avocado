@@ -131,6 +131,8 @@ void app.whenReady().then(() => {
     androidHome: process.env["ANDROID_HOME"] || join(app.getPath("home"), "Library", "Android", "sdk"),
     locale: () => settings.getSettings().settings.devices.locale,
     logDir: join(app.getPath("userData"), "logs"),
+    // 실행·플로우 만들기가 기기를 쓰는 동안에는 지우지 않는다(runs·author 는 아래에서 만든다)
+    busy: (): string | null => authorBusy() ?? (runs.activeCount() > 0 ? "플로우 실행이 진행 중이다" : null),
   });
   const builds = new BuildService({
     db,

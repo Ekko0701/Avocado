@@ -1,11 +1,12 @@
-import type { Device, DeviceList } from "@qa/shared";
+import type { Device, DeviceList, IosDeviceOptions } from "@qa/shared";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { CommandRunner } from "../setup/command";
 import { androidLocale, chooseAvd, parseAvdList, parseEmulatorSerials } from "./android";
 import {
   appleLocaleValues,
-  findDeviceByName,
+  findNewestDevice,
+  iosDeviceChoices,
   iosVersionFromRuntimeId,
   pickRuntime,
   simState,
@@ -33,6 +34,8 @@ export interface DeviceServiceOptions {
   /** iOS 부팅 대기 상한. 기본 10분 */
   iosBootTimeoutMs?: number;
   pollMs?: number;
+  /** 기기를 지우면 안 되는 이유(실행·플로우 만들기 진행 중). 없으면 null */
+  busy?: () => string | null;
 }
 
 export const DEFAULT_IOS_DEVICE_TYPE = "iPhone 17";
@@ -40,11 +43,17 @@ export const MANAGED_PREFIX = "Avocado ";
 /** 앱 이름을 바꾸기 전(D14, 2026-10-22)에 만든 시뮬레이터도 앱 기기로 계속 쓴다(설치한 앱·설정을 잃지 않게) */
 export const LEGACY_PREFIXES = ["QA Tool "] as const;
 const isManagedName = (name: string) => [MANAGED_PREFIX, ...LEGACY_PREFIXES].some((p) => name.startsWith(p));
+/** 새로 만드는 앱 시뮬레이터 이름: 같은 기종을 여러 iOS 버전으로 둘 수 있게 버전을 붙인다 */
+export const managedSimName = (deviceType: string, iosVersion: string) => `${MANAGED_PREFIX}${deviceType} (iOS ${iosVersion})`;
+/** 이 기종의 앱 시뮬레이터인가: 새 이름(버전 포함)이거나 예전 이름(버전 없음, "Avocado ", "QA Tool ") */
+const isManagedSimFor = (name: string, deviceType: string, runtimeId: string) =>
+  name === managedSimName(deviceType, iosVersionFromRuntimeId(runtimeId)) || [MANAGED_PREFIX, ...LEGACY_PREFIXES].some((p) => name === `${p}${deviceType}`);
 const ANIMATION_KEYS = ["window_animation_scale", "transition_animation_scale", "animator_duration_scale"] as const;
 
 /**
  * QA 기기 관리 (PLAN 3.2, T-104).
- * - iOS: 앱 전용 시뮬레이터("Avocado <기기>". 예전 "QA Tool <기기>"도 그대로 쓴다)를 기기를 지원하는 최신 런타임으로 만들고, 언어와 동작 줄이기를 맞춘다.
+ * - iOS: 앱 전용 시뮬레이터("Avocado <기종> (iOS <버전>)". 예전 "Avocado <기종>", "QA Tool <기종>"도 그대로 쓴다)를 고른 기종·iOS 런타임으로 만들고,
+ *   언어와 동작 줄이기를 맞춘다. 사용자가 직접 만든 시뮬레이터는 목록에 넣지도, 바꾸지도, 지우지도 않는다.
  * - Android: 기존 AVD 를 화면 없이 설정 언어로 부팅하고 애니메이션을 끈다.
  * 언어가 실제로 적용되지 않으면 조용히 넘어가지 않고 오류를 낸다(ADR 0001 발견 2).
  */
@@ -137,15 +146,29 @@ export class DeviceService {
     return { devices, androidAvailable };
   }
 
-  async prepareIos(input: { deviceType?: string }): Promise<Device> {
+  private async simRuntimes(): Promise<SimRuntime[]> {
+    return (JSON.parse(await this.simctl(["list", "runtimes", "-j"])) as { runtimes: SimRuntime[] }).runtimes;
+  }
+
+  /** 기기 화면에서 고를 수 있는 iOS 런타임과 기종 */
+  async iosOptions(): Promise<IosDeviceOptions> {
+    return { runtimes: iosDeviceChoices(await this.simRuntimes()), defaultDeviceType: DEFAULT_IOS_DEVICE_TYPE };
+  }
+
+  /**
+   * 기종(없으면 기본)과 iOS 런타임으로 앱 시뮬레이터를 준비한다.
+   * 런타임을 고르면 그 런타임의 앱 기기를 쓰거나 만든다. 고르지 않으면 이 기종의 앱 기기 중 가장 새 iOS 것을 다시 쓰고,
+   * 없으면 기종을 지원하는 최신 런타임으로 만든다(설정 마법사·예전 기기 그대로)
+   */
+  async prepareIos(input: { deviceType?: string; runtime?: string }): Promise<Device> {
     const deviceType = input.deviceType ?? DEFAULT_IOS_DEVICE_TYPE;
-    const name = `${MANAGED_PREFIX}${deviceType}`;
-    const runtimes = (JSON.parse(await this.simctl(["list", "runtimes", "-j"])) as { runtimes: SimRuntime[] }).runtimes;
-    const { runtime, deviceTypeId } = pickRuntime(runtimes, deviceType);
+    // 고른 조합이 이 Mac 에 없으면 기기를 찾기 전에 알린다
+    const { runtime, deviceTypeId } = pickRuntime(await this.simRuntimes(), deviceType, input.runtime);
 
     const sims = await this.simDevices();
-    let found = findDeviceByName(sims, name) ?? LEGACY_PREFIXES.map((p) => findDeviceByName(sims, `${p}${deviceType}`)).find((f) => f !== null) ?? null;
+    let found = findNewestDevice(sims, (d, runtimeId) => isManagedSimFor(d.name, deviceType, runtimeId) && (!input.runtime || runtimeId === input.runtime));
     if (!found) {
+      const name = managedSimName(deviceType, iosVersionFromRuntimeId(runtime.identifier));
       const udid = (await this.simctl(["create", name, deviceTypeId, runtime.identifier])).trim();
       found = { device: { udid, name, state: "Shutdown" }, runtimeId: runtime.identifier };
     }
@@ -266,6 +289,23 @@ export class DeviceService {
       serial: s,
       locale,
     };
+  }
+
+  /** 앱이 만든 iOS 시뮬레이터만 지운다. 켜져 있으면 끄고 지운다. 실행·플로우 만들기 중에는 거부한다 */
+  async deleteIos(input: { id: string }): Promise<DeviceList> {
+    const busy = this.options.busy?.();
+    if (busy) throw new DeviceError(`${busy}. 끝난 뒤 지운다`);
+    const sim = Object.values(await this.simDevices())
+      .flat()
+      .find((d) => d.udid === input.id);
+    if (!sim) throw new DeviceError(`시뮬레이터를 찾지 못했다: ${input.id}`);
+    if (!isManagedName(sim.name)) throw new DeviceError(`Avocado 가 만든 시뮬레이터만 지운다: ${sim.name}`);
+    if (simState(sim.state) !== "shutdown") {
+      const r = await this.options.run("/usr/bin/xcrun", ["simctl", "shutdown", input.id]);
+      if (r.code !== 0 && !/current state: Shutdown/i.test(r.stderr)) throw new DeviceError(`시뮬레이터 종료 실패: ${r.stderr.trim().slice(0, 300)}`);
+    }
+    await this.simctl(["delete", input.id]);
+    return this.list();
   }
 
   async shutdown(ref: { platform: "ios" | "android"; id: string }): Promise<Device> {

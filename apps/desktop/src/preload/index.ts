@@ -25,6 +25,8 @@ const api: QaApi = {
     prepareIos: (input) => invoke("devices:prepareIos", input),
     prepareAndroid: (input) => invoke("devices:prepareAndroid", input),
     shutdown: (input) => invoke("devices:shutdown", input),
+    iosOptions: () => invoke("devices:iosOptions", undefined),
+    deleteIos: (input) => invoke("devices:deleteIos", input),
   },
   builds: {
     list: () => invoke("builds:list", undefined),

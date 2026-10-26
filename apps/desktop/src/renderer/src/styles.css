@@ -481,6 +481,11 @@ button.secondary:hover:not(:disabled) {
   filter: none;
   background: color-mix(in srgb, var(--control) 88%, var(--text));
 }
+/* 되돌릴 수 없는 동작(지우기) 확인 */
+button.danger {
+  background: var(--danger);
+  color: #fff;
+}
 button.link {
   background: transparent;
   color: var(--accent-text);

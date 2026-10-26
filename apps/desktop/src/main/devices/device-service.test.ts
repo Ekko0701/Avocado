@@ -19,12 +19,20 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(sdk, { recursive: true, force: true }));
 
-/** iOS 시뮬레이터 하나를 흉내 내는 실행기. 언어는 defaults write 후 재부팅해야 바뀐다. */
-function fakeIos(opts: { initialLocale: string; applyLocale?: boolean; existingName?: string }) {
+const RT_26_5 = "com.apple.CoreSimulator.SimRuntime.iOS-26-5";
+const RT_27_0 = "com.apple.CoreSimulator.SimRuntime.iOS-27-0";
+const RT_27_1 = "com.apple.CoreSimulator.SimRuntime.iOS-27-1";
+
+/**
+ * iOS 시뮬레이터 하나(UDID-1)를 흉내 내는 실행기. 언어는 defaults write 후 재부팅해야 바뀐다.
+ * other: 사용자가 직접 만든 시뮬레이터(UDID-2, iOS 27.0)
+ */
+function fakeIos(opts: { initialLocale: string; applyLocale?: boolean; existingName?: string; existingRuntime?: string; existingState?: string; other?: string }) {
   const calls: string[] = [];
   let created = opts.existingName !== undefined;
   let simName = opts.existingName ?? "";
-  let state = "Shutdown";
+  let simRuntime = opts.existingRuntime ?? RT_27_0;
+  let state = opts.existingState ?? "Shutdown";
   let locale = opts.initialLocale;
   let pending: string | null = null;
   const run: CommandRunner = async (file, args) => {
@@ -33,13 +41,20 @@ function fakeIos(opts: { initialLocale: string; applyLocale?: boolean; existingN
     const sub = args.slice(1).join(" ");
     if (sub === "list runtimes -j") return ok(RUNTIMES);
     if (sub === "list devices -j") {
-      const devices = created ? [{ udid: "UDID-1", name: simName, state, isAvailable: true }] : [];
-      return ok(JSON.stringify({ devices: { "com.apple.CoreSimulator.SimRuntime.iOS-27-0": devices } }));
+      const devices: Record<string, { udid: string; name: string; state: string; isAvailable: boolean }[]> = { [RT_27_0]: [] };
+      if (opts.other) devices[RT_27_0]?.push({ udid: "UDID-2", name: opts.other, state: "Shutdown", isAvailable: true });
+      if (created) (devices[simRuntime] ??= []).push({ udid: "UDID-1", name: simName, state, isAvailable: true });
+      return ok(JSON.stringify({ devices }));
     }
     if (args[1] === "create") {
       created = true;
       simName = args[2] ?? "";
+      simRuntime = args[4] ?? "";
       return ok("UDID-1\n");
+    }
+    if (args[1] === "delete" && args[2] === "UDID-1") {
+      created = false;
+      return ok();
     }
     if (args[1] === "boot") {
       if (pending && opts.applyLocale !== false) locale = pending;
@@ -81,9 +96,9 @@ describe("prepareIos", () => {
   it("지원 런타임으로 기기를 만들고, 호스트 언어(en_US)를 설정 언어(ko_KR)로 바꾼 뒤 재부팅한다", async () => {
     const ios = fakeIos({ initialLocale: "en_US" });
     const device = await service(ios.run).prepareIos({});
-    expect(device).toMatchObject({ id: "UDID-1", name: "Avocado iPhone 17", osVersion: "27.0", state: "booted", locale: "ko_KR" });
+    expect(device).toMatchObject({ id: "UDID-1", name: "Avocado iPhone 17 (iOS 27.0)", osVersion: "27.0", state: "booted", locale: "ko_KR" });
     expect(ios.calls).toContain(
-      "/usr/bin/xcrun simctl create Avocado iPhone 17 com.apple.CoreSimulator.SimDeviceType.iPhone-17 com.apple.CoreSimulator.SimRuntime.iOS-27-0",
+      "/usr/bin/xcrun simctl create Avocado iPhone 17 (iOS 27.0) com.apple.CoreSimulator.SimDeviceType.iPhone-17 com.apple.CoreSimulator.SimRuntime.iOS-27-0",
     );
     expect(ios.calls).toContain("/usr/bin/xcrun simctl spawn UDID-1 defaults write -g AppleLanguages -array ko-KR");
     expect(ios.calls).toContain("/usr/bin/xcrun simctl shutdown UDID-1");
@@ -100,6 +115,31 @@ describe("prepareIos", () => {
     expect((await service(f.run).list()).devices.map((d) => d.name)).toContain("QA Tool iPhone 17");
   });
 
+  it("고른 기종·iOS 버전으로 만든다(이름에 버전을 붙인다)", async () => {
+    const ios = fakeIos({ initialLocale: "ko_KR" });
+    const device = await service(ios.run).prepareIos({ deviceType: "iPhone SE (3rd generation)", runtime: RT_26_5 });
+    expect(device).toMatchObject({ name: "Avocado iPhone SE (3rd generation) (iOS 26.5)", osVersion: "26.5", state: "booted" });
+    expect(ios.calls).toContain(
+      `/usr/bin/xcrun simctl create Avocado iPhone SE (3rd generation) (iOS 26.5) com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation ${RT_26_5}`,
+    );
+  });
+
+  it("고른 iOS 버전의 앱 기기가 있으면 다시 쓰고, 다른 버전의 예전 기기는 그 버전에 쓰지 않는다", async () => {
+    const same = fakeIos({ initialLocale: "ko_KR", existingName: "Avocado iPhone 17 (iOS 26.5)", existingRuntime: RT_26_5 });
+    expect(await service(same.run).prepareIos({ deviceType: "iPhone 17", runtime: RT_26_5 })).toMatchObject({ id: "UDID-1", osVersion: "26.5" });
+    expect(same.calls.some((c) => c.includes("simctl create"))).toBe(false);
+
+    const other = fakeIos({ initialLocale: "ko_KR", existingName: "QA Tool iPhone 17", existingRuntime: RT_27_0 });
+    await service(other.run).prepareIos({ deviceType: "iPhone 17", runtime: RT_26_5 });
+    expect(other.calls.some((c) => c.includes(`simctl create Avocado iPhone 17 (iOS 26.5)`) && c.endsWith(RT_26_5))).toBe(true);
+  });
+
+  it("그 iOS 버전이 지원하지 않는 기종은 기기를 만들기 전에 알린다", async () => {
+    const ios = fakeIos({ initialLocale: "ko_KR" });
+    await expect(service(ios.run).prepareIos({ deviceType: "iPhone 17", runtime: RT_27_1 })).rejects.toThrow(/iOS 27\.1 은 'iPhone 17' 을 지원하지 않는다/);
+    expect(ios.calls.some((c) => c.includes("simctl create") || c.includes("simctl boot"))).toBe(false);
+  });
+
   it("이미 설정 언어면 언어를 다시 쓰거나 재부팅하지 않는다", async () => {
     const ios = fakeIos({ initialLocale: "ko_KR" });
     await service(ios.run).prepareIos({});
@@ -110,6 +150,35 @@ describe("prepareIos", () => {
   it("언어가 적용되지 않으면 조용히 넘어가지 않는다", async () => {
     const ios = fakeIos({ initialLocale: "en_US", applyLocale: false });
     await expect(service(ios.run).prepareIos({})).rejects.toThrow(/ko_KR 로 바뀌지 않았다/);
+  });
+});
+
+describe("iosOptions·deleteIos", () => {
+  it("고를 수 있는 iOS 버전(최신 먼저)과 기종, 기본 기종을 준다", async () => {
+    const options = await service(fakeIos({ initialLocale: "ko_KR" }).run).iosOptions();
+    expect(options.defaultDeviceType).toBe("iPhone 17");
+    expect(options.runtimes.map((r) => r.version)).toEqual(["27.1", "27.0", "26.5"]);
+    expect(options.runtimes[1]?.deviceTypes).toContainEqual({ name: "iPhone 17", family: "iPhone" });
+  });
+
+  it("앱 시뮬레이터는 켜져 있으면 끄고 지운 뒤 목록을 돌려준다", async () => {
+    const ios = fakeIos({ initialLocale: "ko_KR", existingName: "Avocado iPhone 17 (iOS 27.0)", existingState: "Booted" });
+    const list = await service(ios.run).deleteIos({ id: "UDID-1" });
+    expect(ios.calls).toContain("/usr/bin/xcrun simctl shutdown UDID-1");
+    expect(ios.calls).toContain("/usr/bin/xcrun simctl delete UDID-1");
+    expect(list.devices.filter((d) => d.platform === "ios")).toEqual([]);
+  });
+
+  it("직접 만든 시뮬레이터는 지우지 않고, 실행·플로우 만들기 중에는 아무것도 지우지 않는다", async () => {
+    const mine = fakeIos({ initialLocale: "ko_KR", other: "내 iPhone" });
+    await expect(service(mine.run).deleteIos({ id: "UDID-2" })).rejects.toThrow(/Avocado 가 만든 시뮬레이터만 지운다/);
+    expect(mine.calls.some((c) => c.includes("simctl delete") || c.includes("simctl shutdown"))).toBe(false);
+    // 직접 만든 시뮬레이터는 목록에도 없다
+    expect((await service(mine.run).list()).devices.map((d) => d.id)).not.toContain("UDID-2");
+
+    const busy = fakeIos({ initialLocale: "ko_KR", existingName: "Avocado iPhone 17 (iOS 27.0)" });
+    await expect(service(busy.run, { busy: () => "플로우 실행이 진행 중이다" }).deleteIos({ id: "UDID-1" })).rejects.toThrow(/플로우 실행이 진행 중이다/);
+    expect(busy.calls).toEqual([]);
   });
 });
 

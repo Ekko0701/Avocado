@@ -29,13 +29,16 @@ import {
   type ToolStatus,
 } from "../setup";
 import {
+  DeleteIosInputSchema,
   DeviceListSchema,
   DeviceRefSchema,
   DeviceSchema,
+  IosDeviceOptionsSchema,
   PrepareAndroidInputSchema,
   PrepareIosInputSchema,
   type Device,
   type DeviceList,
+  type IosDeviceOptions,
 } from "../devices";
 import {
   BuildSchema,
@@ -174,6 +177,8 @@ export const ipcContract = {
   "devices:prepareIos": { input: PrepareIosInputSchema, output: DeviceSchema },
   "devices:prepareAndroid": { input: PrepareAndroidInputSchema, output: DeviceSchema },
   "devices:shutdown": { input: DeviceRefSchema, output: DeviceSchema },
+  "devices:iosOptions": { input: z.undefined(), output: IosDeviceOptionsSchema },
+  "devices:deleteIos": { input: DeleteIosInputSchema, output: DeviceListSchema },
   "builds:list": { input: z.undefined(), output: z.array(BuildSchema) },
   "builds:pickAndRegister": { input: PickBuildInputSchema, output: BuildSchema.nullable() },
   "builds:runScript": { input: RunBuildScriptInputSchema, output: BuildSchema.nullable() },
@@ -262,11 +267,15 @@ export interface QaApi {
   };
   devices: {
     list(): Promise<DeviceList>;
-    /** QA 시뮬레이터를 만들거나 찾아 부팅하고 언어·동작 줄이기를 맞춘다. */
-    prepareIos(input: { deviceType?: string }): Promise<Device>;
+    /** QA 시뮬레이터를 만들거나 찾아 부팅하고 언어·동작 줄이기를 맞춘다. 기종·iOS 런타임을 고를 수 있다 */
+    prepareIos(input: { deviceType?: string; runtime?: string }): Promise<Device>;
     /** AVD 를 화면 없이 부팅하고 언어·애니메이션을 맞춘다. */
     prepareAndroid(input: { avd?: string }): Promise<Device>;
     shutdown(input: { platform: "ios" | "android"; id: string }): Promise<Device>;
+    /** 고를 수 있는 iOS 런타임과 기종 */
+    iosOptions(): Promise<IosDeviceOptions>;
+    /** 앱이 만든 iOS 시뮬레이터를 지운다(실행·플로우 만들기 중에는 거부) */
+    deleteIos(input: { id: string }): Promise<DeviceList>;
   };
   builds: {
     list(): Promise<Build[]>;

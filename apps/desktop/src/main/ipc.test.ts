@@ -71,6 +71,12 @@ const handlers: IpcHandlers = {
   "devices:shutdown": () => {
     throw new Error("not used");
   },
+  "devices:iosOptions": () => {
+    throw new Error("not used");
+  },
+  "devices:deleteIos": () => {
+    throw new Error("not used");
+  },
   "builds:list": () => {
     throw new Error("not used");
   },
