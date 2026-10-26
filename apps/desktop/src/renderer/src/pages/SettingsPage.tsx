@@ -5,6 +5,7 @@ import { GitHubRepoPicker } from "../components/GitHubRepoPicker";
 import { SecretRow } from "../components/SecretRow";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { errorMessage } from "../lib/errors";
+import { notifyUpdateStatus, onUpdateStatus } from "../lib/update-events";
 
 const APP_SECRET_LABELS: Record<string, string> = {
   anthropicApiKey: "Anthropic API 키",
@@ -200,12 +201,17 @@ function VersionSection() {
 
   useEffect(() => {
     window.qa.update.status().then(setStatus, () => undefined);
+    // 배너에서 받기를 하면 이 칸도 맞춘다
+    return onUpdateStatus(setStatus);
   }, []);
 
   async function check() {
     setChecking(true);
     try {
-      setStatus(await window.qa.update.check());
+      const next = await window.qa.update.check();
+      setStatus(next);
+      // 맨 위 배너도 바로 바뀌게 알린다
+      notifyUpdateStatus(next);
     } finally {
       setChecking(false);
     }
