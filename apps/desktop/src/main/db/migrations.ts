@@ -8,6 +8,11 @@ export interface Migration {
   version: number;
   name: string;
   up: string;
+  /**
+   * 다른 테이블이 참조하는 테이블을 다시 만들 때만 켠다(SQLite 는 CHECK 를 바꾸지 못한다).
+   * 외래 키를 켠 채 지우면 참조하던 행이 ON DELETE 동작으로 바뀌므로, 이 버전만 외래 키를 끄고 적용한 뒤 foreign_key_check 로 확인한다
+   */
+  foreignKeysOff?: boolean;
 }
 
 const V1_INITIAL = `
@@ -156,12 +161,37 @@ ALTER TABLE run ADD COLUMN keep INTEGER NOT NULL DEFAULT 0 CHECK (keep IN (0, 1)
 ALTER TABLE run ADD COLUMN evidence_removed_at TEXT;
 `;
 
+/**
+ * v6 (ADR 0025): 프로젝트 폴더로 빌드한 것(source = project)과 이름표(스킴 · 구성).
+ * build 는 run.build_id 가 참조한다. 테이블을 다시 만들므로 외래 키를 끄고 적용한다(foreignKeysOff)
+ */
+const V6_PROJECT_BUILD = `
+CREATE TABLE build_v6 (
+  id            TEXT PRIMARY KEY,
+  app           TEXT NOT NULL,
+  target        TEXT NOT NULL CHECK (target IN ('ios', 'android')),
+  app_id        TEXT NOT NULL,
+  version       TEXT NOT NULL,
+  build_number  TEXT NOT NULL,
+  commit_sha    TEXT,
+  source        TEXT NOT NULL CHECK (source IN ('file', 'script', 'project')),
+  path          TEXT NOT NULL,
+  created_at    TEXT NOT NULL,
+  label         TEXT
+) STRICT;
+INSERT INTO build_v6 (id, app, target, app_id, version, build_number, commit_sha, source, path, created_at)
+  SELECT id, app, target, app_id, version, build_number, commit_sha, source, path, created_at FROM build;
+DROP TABLE build;
+ALTER TABLE build_v6 RENAME TO build;
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: "initial schema", up: V1_INITIAL },
   { version: 2, name: "run results", up: V2_RUN_RESULTS },
   { version: 3, name: "agent job usage", up: V3_AGENT_JOB_USAGE },
   { version: 4, name: "judgement reason", up: V4_JUDGEMENT_REASON },
   { version: 5, name: "evidence retention", up: V5_EVIDENCE_RETENTION },
+  { version: 6, name: "project build", up: V6_PROJECT_BUILD, foreignKeysOff: true },
 ];
 
 /** 앱이 기대하는 테이블 목록(마이그레이션 기록 테이블 포함). 테스트와 상태 표시에 쓴다. */

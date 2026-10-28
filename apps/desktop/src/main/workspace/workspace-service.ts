@@ -271,7 +271,12 @@ export class WorkspaceService {
       exists: source.exists,
       name: source.config?.name ?? "",
       locale: source.config?.locale ?? null,
-      targets: Object.entries(source.config?.targets ?? {}).map(([target, t]) => ({ target: AppTargetSchema.parse(target), appId: t.appId })),
+      targets: Object.entries(source.config?.targets ?? {}).map(([target, t]) => ({
+        target: AppTargetSchema.parse(target),
+        appId: t.appId,
+        scheme: t.build?.scheme ?? null,
+        configuration: t.build?.configuration ?? null,
+      })),
       roles: toRoleEdits(source.accounts),
       branch: source.branch,
     };
@@ -298,8 +303,12 @@ export class WorkspaceService {
     for (const t of input.targets) {
       const appId = t.appId.trim();
       if (!appId || /\s/.test(appId)) throw new WorkspaceError(`${t.target} 앱 ID 를 공백 없이 쓴다`);
-      const build = source.config?.targets[t.target]?.build;
-      targets[t.target] = build ? { appId, build } : { appId };
+      // 메모·스크립트는 그대로 두고, 화면이 넘긴 스킴·구성만 바꾼다(빈 값이면 없앤다, 넘기지 않으면 그대로)
+      const { scheme: oldScheme, configuration: oldConfiguration, ...kept } = source.config?.targets[t.target]?.build ?? {};
+      const scheme = t.scheme === undefined ? oldScheme : t.scheme?.trim() || undefined;
+      const configuration = t.configuration === undefined ? oldConfiguration : t.configuration?.trim() || undefined;
+      const build = { ...kept, ...(scheme ? { scheme } : {}), ...(configuration ? { configuration } : {}) };
+      targets[t.target] = Object.keys(build).length > 0 ? { appId, build } : { appId };
     }
     const locale = input.locale?.trim() || undefined;
     const note = source.config?.note;
@@ -439,6 +448,14 @@ export class WorkspaceService {
    * 실행할 플로우(워크스페이스 안의 절대 경로). TC 하나 또는 태그로 고른다(PLAN 12장 실행 화면).
    * 태그는 그 앱의 active TC 중 그 타깃 플로우가 있는 것만, TC id 순서로.
    */
+  /** 프로젝트 빌드(ADR 0025)에 쓰는 iOS 앱 ID 와 팀 스킴·구성. 지금 브랜치의 app.yaml 에서 읽는다. 연결 전이거나 없으면 null */
+  buildHints(app: string): { appId: string | null; scheme: string | null; configuration: string | null } {
+    const none = { appId: null, scheme: null, configuration: null };
+    if (!this.connected() || !AppIdSchema.safeParse(app).success) return none;
+    const ios = loadWorkspace(this.target().dir).apps[app]?.config?.targets.ios;
+    return ios ? { appId: ios.appId, scheme: ios.build?.scheme ?? null, configuration: ios.build?.configuration ?? null } : none;
+  }
+
   flowsToRun(input: { app: string; target: "ios" | "android"; tcId?: string; tag?: string }): { appId: string | null; flows: { tcId: string; path: string }[] } {
     if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
     if (!AppIdSchema.safeParse(input.app).success) throw new WorkspaceError("앱 id 형식이 아니다");

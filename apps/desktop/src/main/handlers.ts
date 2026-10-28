@@ -11,6 +11,7 @@ import { createDeviceHandlers } from "./devices/device-handlers";
 import type { DeviceService } from "./devices/device-service";
 import { createBuildHandlers, type BuildPickers } from "./builds/build-handlers";
 import type { BuildService } from "./builds/build-service";
+import type { ProjectBuilds } from "./builds/project-builds";
 import { createRunHandlers, type RunPickers } from "./runs/run-handlers";
 import { createWorkspaceRunHandlers } from "./runs/workspace-run-handlers";
 import type { RunQueue } from "./runs/run-queue";
@@ -36,6 +37,7 @@ export interface HandlerDeps {
   devices: DeviceService;
   builds: BuildService;
   buildPickers: BuildPickers;
+  projectBuilds: ProjectBuilds;
   runs: RunService;
   runPickers: RunPickers;
   runQueue: RunQueue;
@@ -79,7 +81,7 @@ export function createHandlers(deps: HandlerDeps): IpcHandlers {
     "db:status": () => deps.db.status(),
     ...createSetupHandlers(deps.setup, deps.settings),
     ...createDeviceHandlers(deps.devices),
-    ...createBuildHandlers(deps.builds, deps.buildPickers),
+    ...createBuildHandlers(deps.builds, deps.buildPickers, deps.projectBuilds),
     ...createRunHandlers(deps.runs, deps.runPickers),
     ...createWorkspaceRunHandlers({ workspace: deps.workspace, builds: deps.builds, queue: deps.runQueue }),
     ...createEvidenceHandlers(deps.evidence, deps.upload),

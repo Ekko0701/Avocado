@@ -111,6 +111,28 @@ describe("제약", () => {
     }
   });
 
+  it("v6(빌드 테이블 다시 만들기)는 기존 빌드와 실행 기록의 빌드 연결을 지우지 않고, 외래 키를 다시 켠다", () => {
+    const raw = new DatabaseSync(join(dir, "v5.sqlite"));
+    migrate(raw, MIGRATIONS.slice(0, 5));
+    raw.prepare(
+      "INSERT INTO build (id, app, target, app_id, version, build_number, commit_sha, source, path, created_at) VALUES ('b1', 'sample', 'ios', 'com.example.sample.dev', '1.2.3', '9', 'abc1234', 'script', '/tmp/Sample.app', ?)",
+    ).run(NOW);
+    seedRun(raw);
+    seedExecution(raw, "exec-1", "run-1", "b1");
+
+    expect(migrate(raw)).toEqual({ from: 5, to: MIGRATIONS.length });
+    expect(raw.prepare("SELECT build_id FROM execution WHERE id = 'exec-1'").get()).toEqual({ build_id: "b1" });
+    expect(raw.prepare("SELECT source, commit_sha, label FROM build WHERE id = 'b1'").get()).toEqual({ source: "script", commit_sha: "abc1234", label: null });
+    raw.prepare(
+      "INSERT INTO build (id, app, target, app_id, version, build_number, source, path, created_at, label) VALUES ('b2', 'sample', 'ios', 'com.example.sample.dev', '1.2.4', '10', 'project', '/tmp/S2.app', ?, 'Sample · Debug')",
+    ).run(NOW);
+    expect((raw.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }).foreign_keys).toBe(1);
+    // 외래 키가 다시 켜져 있어 빌드를 지우면 실행 기록의 연결만 비워진다
+    raw.prepare("DELETE FROM build WHERE id = 'b1'").run();
+    expect(raw.prepare("SELECT build_id FROM execution WHERE id = 'exec-1'").get()).toEqual({ build_id: null });
+    raw.close();
+  });
+
   it("빌드를 지워도 실행 기록은 남고 build_id 만 비워진다", () => {
     const { db } = open();
     db.prepare(

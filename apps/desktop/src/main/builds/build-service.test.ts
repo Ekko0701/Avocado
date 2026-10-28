@@ -137,7 +137,7 @@ describe("빌드 스크립트", () => {
     const app = makeFakeApp(join(dir, "out"));
     const s = service();
     const first = s.runScript("sample", makeScript(dir, `sleep 0.5\nprintf 'ARTIFACT=%s\\n' "${app}" > "$QA_BUILD_INFO"`));
-    await expect(s.runScript("sample", makeScript(join(dir, "out"), "true"))).rejects.toThrow(/이미 빌드 스크립트가 실행 중/);
+    await expect(s.runScript("sample", makeScript(join(dir, "out"), "true"))).rejects.toThrow(/이미 빌드가 진행 중이다/);
     await expect(first).resolves.toMatchObject({ source: "script" });
   });
 

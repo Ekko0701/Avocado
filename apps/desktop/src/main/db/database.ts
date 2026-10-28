@@ -55,15 +55,24 @@ export function migrate(
 
   const record = db.prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)");
   for (const migration of migrations.slice(from)) {
+    // 외래 키 설정은 트랜잭션 안에서 바뀌지 않아 시작 전에 끄고, 끝나면 원래대로 돌린다
+    const restoreForeignKeys = migration.foreignKeysOff === true && (db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }).foreign_keys === 1;
+    if (migration.foreignKeysOff) db.exec("PRAGMA foreign_keys = OFF");
     db.exec("BEGIN IMMEDIATE");
     try {
       db.exec(migration.up);
+      if (migration.foreignKeysOff) {
+        const broken = db.prepare("PRAGMA foreign_key_check").all();
+        if (broken.length > 0) throw new Error(`외래 키가 맞지 않는 행 ${broken.length}개`);
+      }
       record.run(migration.version, migration.name, now().toISOString());
       db.exec(`PRAGMA user_version = ${migration.version}`);
       db.exec("COMMIT");
     } catch (error) {
       db.exec("ROLLBACK");
       throw new MigrationError(migration, error);
+    } finally {
+      if (restoreForeignKeys) db.exec("PRAGMA foreign_keys = ON");
     }
   }
   return { from, to: latest };

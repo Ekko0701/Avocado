@@ -1,10 +1,11 @@
 import type { Build, Device } from "@qa/shared";
 import { AppIdSchema } from "@qa/shared";
 import { useCallback, useEffect, useState } from "react";
+import { ProjectBuildPanel } from "../components/ProjectBuildPanel";
 import { errorMessage, formatDateTime } from "../lib/errors";
 
 const TARGET_TEXT: Record<Build["target"], string> = { ios: "iOS", android: "Android" };
-const SOURCE_TEXT: Record<Build["source"], string> = { file: "파일", script: "스크립트" };
+const SOURCE_TEXT: Record<Build["source"], string> = { file: "파일", script: "스크립트", project: "프로젝트" };
 
 export function BuildsPage() {
   const [builds, setBuilds] = useState<Build[] | null>(null);
@@ -13,6 +14,8 @@ export function BuildsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
+  const [apps, setApps] = useState<string[]>([]);
+  const [projectBusy, setProjectBusy] = useState(false);
 
   // 빌드 목록과 기기 목록은 따로 불러온다. 기기 조회가 실패해도 빌드 목록은 보여야 한다.
   const reload = useCallback(async () => {
@@ -25,6 +28,14 @@ export function BuildsPage() {
 
   useEffect(() => {
     void reload();
+    // 워크스페이스 앱 목록으로 앱 ID 를 고르기 쉽게 한다(연결 전이면 직접 쓴다)
+    window.qa.workspace.testcases().then(
+      (l) => {
+        setApps(l.apps.map((a) => a.app));
+        setApp((current) => current || l.apps[0]?.app || "");
+      },
+      () => undefined,
+    );
   }, [reload]);
 
   const appValid = AppIdSchema.safeParse(app).success;
@@ -53,14 +64,19 @@ export function BuildsPage() {
         </p>
         <label>
           앱 ID
-          <input value={app} onChange={(e) => setApp(e.target.value.trim())} placeholder="예: demo" aria-invalid={app !== "" && !appValid} />
+          <input value={app} onChange={(e) => setApp(e.target.value.trim())} placeholder="예: demo" aria-invalid={app !== "" && !appValid} list="build-apps" />
+          <datalist id="build-apps">
+            {apps.map((a) => (
+              <option key={a} value={a} />
+            ))}
+          </datalist>
         </label>
         {app !== "" && !appValid ? <p className="error">소문자·숫자·하이픈만, 40자 이하</p> : null}
         <div className="row">
-          <button type="button" disabled={busy !== null || !appValid} onClick={() => void act("등록", async () => registered(await window.qa.builds.pickAndRegister({ app })))}>
+          <button type="button" disabled={busy !== null || projectBusy || !appValid} onClick={() => void act("등록", async () => registered(await window.qa.builds.pickAndRegister({ app })))}>
             {busy === "등록" ? "등록 중" : "파일로 등록"}
           </button>
-          <button type="button" disabled={busy !== null || !appValid} onClick={() => void act("빌드", async () => registered(await window.qa.builds.runScript({ app })))}>
+          <button type="button" disabled={busy !== null || projectBusy || !appValid} onClick={() => void act("빌드", async () => registered(await window.qa.builds.runScript({ app })))}>
             {busy === "빌드" ? "빌드 중 (수십 분 걸릴 수 있음)" : "빌드 스크립트 실행"}
           </button>
           <button type="button" className="secondary" disabled={busy !== null} onClick={() => void reload()}>
@@ -73,6 +89,14 @@ export function BuildsPage() {
           </p>
         ) : null}
       </section>
+      {appValid ? (
+        <ProjectBuildPanel
+          app={app}
+          disabled={busy !== null}
+          onBusy={setProjectBusy}
+          onBuilt={() => void reload()}
+        />
+      ) : null}
       <section className="card stack" aria-label="빌드 목록">
         {listError ? (
           <p className="error" role="alert">
@@ -83,7 +107,7 @@ export function BuildsPage() {
         {builds && builds.length === 0 ? <p className="hint">등록한 빌드가 없습니다.</p> : null}
         <ul className="checks">
           {builds?.map((b) => (
-            <BuildRow key={b.id} build={b} devices={devices.filter((d) => d.platform === b.target)} disabled={busy !== null} onInstall={(deviceId, deviceName) =>
+            <BuildRow key={b.id} build={b} devices={devices.filter((d) => d.platform === b.target)} disabled={busy !== null || projectBusy} onInstall={(deviceId, deviceName) =>
               void act("설치", async () => {
                 const r = await window.qa.builds.install({ buildId: b.id, deviceId });
                 return r.installed ? `${deviceName} 에 설치했습니다: ${r.appId}` : `설치 명령은 끝났지만 ${deviceName} 에서 ${r.appId} 를 찾지 못했습니다`;
@@ -109,6 +133,7 @@ function BuildRow(props: { build: Build; devices: Device[]; disabled: boolean; o
         </strong>
         <small className="hint">
           {SOURCE_TEXT[b.source]}
+          {b.label ? ` · ${b.label}` : ""}
           {b.commit ? ` · ${b.commit.slice(0, 10)}` : ""} · {formatDateTime(b.createdAt)}
         </small>
       </div>

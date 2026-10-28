@@ -43,6 +43,15 @@ function withoutLegacyAppRepo(value: unknown): unknown {
   return rest;
 }
 
+/** 이 Mac 에 연결한 프로젝트 폴더(앱마다). 경로는 사람마다 달라 워크스페이스가 아니라 각자 설정에 둔다(ADR 0025) */
+export const ProjectLinkSchema = z.strictObject({
+  path: z.string().min(1),
+  /** 이 Mac 에서 마지막으로 고른 스킴·구성 */
+  scheme: z.string().nullable(),
+  configuration: z.string().nullable(),
+});
+export type ProjectLink = z.infer<typeof ProjectLinkSchema>;
+
 export const AgentProviderSchema = z.enum(["claude-app", "api"]);
 export type AgentProvider = z.infer<typeof AgentProviderSchema>;
 
@@ -79,6 +88,8 @@ export const SettingsSchema = z.strictObject({
   setup: z.strictObject({ completedAt: z.iso.datetime().nullable() }).default({ completedAt: null }),
   /** GitHub 연동(T-109). 기본값을 둬서 이전 settings.json 도 그대로 읽힌다 */
   github: z.preprocess(withoutLegacyAppRepo, GitHubSettingsSchema).default(DEFAULT_GITHUB_SETTINGS),
+  /** 앱 → 플랫폼별 프로젝트 연결. 렌더러의 settings:update 로는 바꾸지 못하고 빌드 화면의 연결로만 바꾼다 */
+  projects: z.record(z.string(), z.strictObject({ ios: ProjectLinkSchema.optional() })).default({}),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 
@@ -91,6 +102,7 @@ export const DEFAULT_SETTINGS: Settings = {
   policy: { evidenceUploadApproved: false },
   setup: { completedAt: null },
   github: DEFAULT_GITHUB_SETTINGS,
+  projects: {},
 };
 
 export const SettingsPatchSchema = z.strictObject({

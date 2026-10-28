@@ -33,6 +33,10 @@ const api: QaApi = {
     pickAndRegister: (input) => invoke("builds:pickAndRegister", input),
     runScript: (input) => invoke("builds:runScript", input),
     install: (input) => invoke("builds:install", input),
+    projectStatus: (input) => invoke("builds:projectStatus", input),
+    linkProject: (input) => invoke("builds:linkProject", input),
+    unlinkProject: (input) => invoke("builds:unlinkProject", input),
+    buildProject: (input) => invoke("builds:buildProject", input),
   },
   runs: {
     pickFlow: () => invoke("runs:pickFlow", undefined),

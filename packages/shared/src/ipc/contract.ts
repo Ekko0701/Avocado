@@ -41,13 +41,18 @@ import {
   type IosDeviceOptions,
 } from "../devices";
 import {
+  BuildProjectInputSchema,
   BuildSchema,
   InstallBuildInputSchema,
   InstallResultSchema,
   PickBuildInputSchema,
+  ProjectRefSchema,
+  ProjectStatusInputSchema,
+  ProjectStatusSchema,
   RunBuildScriptInputSchema,
   type Build,
   type InstallResult,
+  type ProjectStatus,
 } from "../builds";
 import {
   PickedFlowSchema,
@@ -183,6 +188,10 @@ export const ipcContract = {
   "builds:pickAndRegister": { input: PickBuildInputSchema, output: BuildSchema.nullable() },
   "builds:runScript": { input: RunBuildScriptInputSchema, output: BuildSchema.nullable() },
   "builds:install": { input: InstallBuildInputSchema, output: InstallResultSchema },
+  "builds:projectStatus": { input: ProjectStatusInputSchema, output: ProjectStatusSchema },
+  "builds:linkProject": { input: ProjectRefSchema, output: ProjectStatusSchema.nullable() },
+  "builds:unlinkProject": { input: ProjectRefSchema, output: ProjectStatusSchema },
+  "builds:buildProject": { input: BuildProjectInputSchema, output: BuildSchema },
   "runs:pickFlow": { input: z.undefined(), output: PickedFlowSchema.nullable() },
   "runs:start": { input: StartRunInputSchema, output: RunSummarySchema },
   "runs:list": { input: z.undefined(), output: z.array(RunSummarySchema) },
@@ -284,6 +293,13 @@ export interface QaApi {
     /** main 이 선택 창으로 빌드 스크립트를 골라 실행하고 결과물을 등록한다. 취소하면 null. */
     runScript(input: { app: string }): Promise<Build | null>;
     install(input: { buildId: string; deviceId: string }): Promise<InstallResult>;
+    /** 이 Mac 에 연결한 프로젝트와 스킴·구성. prepare 면 생성 전 프로젝트를 만들고 다시 읽는다(ADR 0025) */
+    projectStatus(input: { app: string; prepare?: boolean }): Promise<ProjectStatus>;
+    /** main 이 선택 창으로 프로젝트 폴더를 골라 연결한다. 취소하면 null */
+    linkProject(input: { app: string }): Promise<ProjectStatus | null>;
+    unlinkProject(input: { app: string }): Promise<ProjectStatus>;
+    /** 연결한 프로젝트를 시뮬레이터용으로 빌드해 등록한다(수 분) */
+    buildProject(input: { app: string; scheme: string; configuration: string }): Promise<Build>;
   };
   runs: {
     /** main 이 선택 창으로 플로우 파일을 고른다. 고른 경로만 start 에 쓸 수 있다. 취소하면 null. */

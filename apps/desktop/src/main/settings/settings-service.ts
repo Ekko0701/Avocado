@@ -2,9 +2,11 @@ import {
   APP_SECRET_NAMES,
   applySettingsPatch,
   DEFAULT_SETTINGS,
+  ProjectLinkSchema,
   SecretNameSchema,
   SecretValueSchema,
   SettingsSchema,
+  type ProjectLink,
   type SecretName,
   type SecretStatus,
   type SecretsList,
@@ -85,6 +87,20 @@ export class SettingsService {
 
   updateSettings(patch: SettingsPatch): Settings {
     const next = applySettingsPatch(this.settings, patch);
+    this.writeJson(this.settingsPath, next);
+    this.settings = next;
+    return next;
+  }
+
+  /** 이 Mac 의 iOS 프로젝트 연결(ADR 0025). 렌더러의 settings:update 로는 바꿀 수 없고 빌드 화면의 연결만 부른다 */
+  projectLink(app: string): ProjectLink | null {
+    return this.settings.projects[app]?.ios ?? null;
+  }
+
+  setProjectLink(app: string, link: ProjectLink | null): Settings {
+    const others = Object.fromEntries(Object.entries(this.settings.projects).filter(([name]) => name !== app));
+    const projects = link ? { ...others, [app]: { ...this.settings.projects[app], ios: ProjectLinkSchema.parse(link) } } : others;
+    const next = SettingsSchema.parse({ ...this.settings, projects });
     this.writeJson(this.settingsPath, next);
     this.settings = next;
     return next;

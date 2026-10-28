@@ -40,13 +40,14 @@ interface BuildRow {
   version: string;
   build_number: string;
   commit_sha: string | null;
-  source: "file" | "script";
+  source: Build["source"];
   path: string;
   created_at: string;
+  label: string | null;
 }
 
 /** 오류 메시지에 붙일 로그 마지막 몇 줄. 화면에서 실패 이유를 바로 보게 한다. */
-function logTail(logFile: string, lines = 6, maxChars = 600): string {
+export function logTail(logFile: string, lines = 6, maxChars = 600): string {
   try {
     const tail = readFileSync(logFile, "utf8").trimEnd().split("\n").slice(-lines).join("\n");
     return tail.length > maxChars ? `…${tail.slice(-maxChars)}` : tail;
@@ -67,6 +68,7 @@ function toBuild(r: BuildRow): Build {
     source: r.source,
     path: r.path,
     createdAt: r.created_at,
+    label: r.label,
   };
 }
 
@@ -99,7 +101,11 @@ export class BuildService {
     return toBuild(row);
   }
 
-  async registerPath(app: string, input: string, origin: { source: "file" | "script"; commit: string | null } = { source: "file", commit: null }): Promise<Build> {
+  async registerPath(
+    app: string,
+    input: string,
+    origin: { source: Build["source"]; commit: string | null; label?: string | null } = { source: "file", commit: null },
+  ): Promise<Build> {
     // 폴더 경로 끝의 / 는 떼어 낸다(".app/" 도 .app 으로 본다).
     const path = input.length > 1 ? input.replace(/\/+$/, "") : input;
     if (!isAbsolute(path) || !existsSync(path)) throw new BuildError(`파일이 없다: ${input}`);
@@ -132,12 +138,13 @@ export class BuildService {
         source: origin.source,
         path: dest,
         createdAt: this.now().toISOString(),
+        label: origin.label ?? null,
       };
       this.options.db.db
         .prepare(
-          "INSERT INTO build (id, app, target, app_id, version, build_number, commit_sha, source, path, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO build (id, app, target, app_id, version, build_number, commit_sha, source, path, created_at, label) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
-        .run(build.id, build.app, build.target, build.appId, build.version, build.buildNumber, build.commit, build.source, build.path, build.createdAt);
+        .run(build.id, build.app, build.target, build.appId, build.version, build.buildNumber, build.commit, build.source, build.path, build.createdAt, build.label);
       return build;
     } catch (error) {
       rmSync(dir, { recursive: true, force: true });
@@ -150,13 +157,18 @@ export class BuildService {
    * Finder 로 연 앱에는 사용자 PATH 가 없어 흔한 도구 경로(mise, Homebrew)를 명시적으로 더한다.
    */
   scriptEnv(infoFile: string, app: string): NodeJS.ProcessEnv {
+    return this.toolEnv({ QA_BUILD_INFO: infoFile, QA_APP: app });
+  }
+
+  /** 빌드 도구(스크립트, tuist, pod, xcodebuild) 실행 환경. extra 를 더한다 */
+  toolEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
     const home = this.options.home;
     const env: NodeJS.ProcessEnv = {
       HOME: home,
+      // CocoaPods 는 UTF-8 이 아니면 멈춘다
       LANG: process.env["LANG"] || "en_US.UTF-8",
       PATH: [`${home}/.local/share/mise/shims`, `${home}/.local/bin`, "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"].join(":"),
-      QA_BUILD_INFO: infoFile,
-      QA_APP: app,
+      ...extra,
     };
     // git 원격 접근(SSH 에이전트)과 임시 폴더, 사용자 이름은 그대로 잇는다.
     for (const key of ["USER", "LOGNAME", "TMPDIR", "SSH_AUTH_SOCK", "DEVELOPER_DIR"]) {
@@ -166,15 +178,19 @@ export class BuildService {
     return env;
   }
 
-  async runScript(app: string, scriptPath: string): Promise<Build> {
-    // 같은 빌드 폴더를 두 스크립트가 동시에 쓰면 결과가 섞인다. 한 번에 하나만 실행한다.
-    if (this.scriptRunning) throw new BuildError("이미 빌드 스크립트가 실행 중이다");
+  /** 빌드는 한 번에 하나(스크립트·프로젝트 빌드 합쳐). 같은 빌드 폴더를 동시에 쓰면 결과가 섞인다 */
+  async exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.scriptRunning) throw new BuildError("이미 빌드가 진행 중이다. 끝난 뒤 다시 한다");
     this.scriptRunning = true;
     try {
-      return await this.runScriptOnce(app, scriptPath);
+      return await fn();
     } finally {
       this.scriptRunning = false;
     }
+  }
+
+  runScript(app: string, scriptPath: string): Promise<Build> {
+    return this.exclusive(() => this.runScriptOnce(app, scriptPath));
   }
 
   private async runScriptOnce(app: string, scriptPath: string): Promise<Build> {

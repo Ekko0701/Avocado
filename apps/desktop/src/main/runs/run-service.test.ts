@@ -23,6 +23,7 @@ const BUILD: Build = {
   source: "file",
   path: "/builds/build-1/Settings.app",
   createdAt: "2026-10-21T00:00:00.000Z",
+  label: null,
 };
 
 type Step = FixtureName | ((opts: LoggedProcessOptions) => Promise<LoggedProcessResult>);

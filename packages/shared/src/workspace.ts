@@ -131,7 +131,13 @@ export const AccountRoleEditSchema = z.strictObject({
 export type AccountRoleEdit = z.infer<typeof AccountRoleEditSchema>;
 /** 앱이 만드는 플로우 타깃(workspace 패키지의 TargetSchema 와 같은 값) */
 export const AppTargetSchema = z.enum(["ios", "android", "flutter-ios", "flutter-android"]);
-export const AppTargetEditSchema = z.strictObject({ target: AppTargetSchema, appId: z.string().max(200) });
+export const AppTargetEditSchema = z.strictObject({
+  target: AppTargetSchema,
+  appId: z.string().max(200),
+  /** 프로젝트 폴더로 빌드할 때 팀이 같이 쓰는 스킴·구성(iOS). 비우면 없앤다 */
+  scheme: z.string().max(200).nullable().optional(),
+  configuration: z.string().max(200).nullable().optional(),
+});
 export type AppTargetEdit = z.infer<typeof AppTargetEditSchema>;
 export const ReadAppSettingsInputSchema = z.strictObject({ app: AppIdSchema });
 /** 앱 설정(apps/<앱>/app.yaml + accounts.yaml) 편집용 */

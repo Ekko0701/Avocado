@@ -304,7 +304,7 @@ describe("워크스페이스", () => {
       exists: true,
       name: "Demo",
       locale: "ko_KR",
-      targets: [{ target: "ios", appId: "com.example.demo" }],
+      targets: [{ target: "ios", appId: "com.example.demo", scheme: null, configuration: null }],
       roles: [{ role: "signup", description: expect.any(String), keys: ["DEMO_TEST_PASSWORD"] }],
       branch: null,
     });
@@ -354,6 +354,19 @@ describe("워크스페이스", () => {
     expect(again.branch).toBe(saved.branch);
     expect(git(wsDir(), "log", "--format=%s", `main..${saved.branch}`).split("\n")).toEqual(["app: demo rename package", "app: demo android and member"]);
     expect((await ws.branches()).branches.find((b) => b.name === saved.branch)).toMatchObject({ tcId: null, appSettings: "demo", pending: true, ahead: 2 });
+
+    // 프로젝트 빌드의 팀 스킴·구성(ADR 0025): app.yaml 의 build 에 쓰고 빌드 화면이 읽는다. 빈 값이면 없앤다
+    const ios = doc.targets[0];
+    if (!ios) throw new Error("demo 의 iOS 타깃이 없다");
+    const renamed = { ...android, appId: "com.example.demo.app" };
+    await ws.saveApp({ ...base, targets: [{ ...ios, scheme: "Demo", configuration: "Debug" }, renamed], roles: [signup, member], summary: "build scheme" });
+    const appYaml = () => readFileSync(join(wsDir(), "apps", "demo", "app.yaml"), "utf8");
+    expect(appYaml()).toMatch(/build:\n\s+scheme: Demo\n\s+configuration: Debug/);
+    expect(ws.buildHints("demo")).toEqual({ appId: "com.example.demo", scheme: "Demo", configuration: "Debug" });
+    expect(await ws.readApp("demo")).toMatchObject({ targets: [{ target: "ios", scheme: "Demo", configuration: "Debug" }, { target: "android" }] });
+    await ws.saveApp({ ...base, targets: [{ ...ios, scheme: " ", configuration: null }, renamed], roles: [signup, member], summary: "no scheme" });
+    expect(appYaml()).not.toContain("scheme:");
+    expect(ws.buildHints("demo")).toEqual({ appId: "com.example.demo", scheme: null, configuration: null });
 
     // 예전 계정 역할 브랜치 이름(accounts/<앱>/…)도 그 앱의 앱 설정 범위다
     git(wsDir(), "checkout", "-q", "main");

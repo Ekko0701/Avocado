@@ -28,7 +28,15 @@ export const AppConfigSchema = z.strictObject({
       z.strictObject({
         /** iOS 번들 ID 또는 Android 패키지(플로우의 ${APP_ID}) */
         appId: z.string().min(1),
-        build: z.strictObject({ script: z.string().min(1).optional(), note: z.string().optional() }).optional(),
+        build: z
+          .strictObject({
+            script: z.string().min(1).optional(),
+            note: z.string().optional(),
+            /** 프로젝트 폴더로 빌드할 때 팀이 같이 쓰는 스킴·구성(ADR 0025) */
+            scheme: z.string().min(1).optional(),
+            configuration: z.string().min(1).optional(),
+          })
+          .optional(),
       }),
     )
     .refine((t) => Object.keys(t).length > 0, "타깃이 하나 이상 있어야 한다"),

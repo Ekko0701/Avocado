@@ -18,6 +18,7 @@ const PAGES: [label: string, file: string][] = [
   ["실행", "runs"],
   ["결과", "results"],
   ["기기", "devices"],
+  ["빌드", "builds"],
   ["설정 마법사", "setup"],
   ["설정", "settings"],
 ];

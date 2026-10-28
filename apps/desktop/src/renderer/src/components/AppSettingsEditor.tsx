@@ -25,8 +25,15 @@ interface RoleRow {
 interface Form {
   name: string;
   locale: string;
-  targets: Record<TargetId, { on: boolean; appId: string }>;
+  /** scheme·configuration: 프로젝트로 빌드할 때 팀 기본값(iOS 만 쓴다, ADR 0025) */
+  targets: Record<TargetId, TargetForm>;
   roles: RoleRow[];
+}
+interface TargetForm {
+  on: boolean;
+  appId: string;
+  scheme: string;
+  configuration: string;
 }
 
 const splitKeys = (keys: string) =>
@@ -36,8 +43,8 @@ const splitKeys = (keys: string) =>
     .filter(Boolean);
 
 function toForm(doc: AppSettingsDoc | null): Form {
-  const targets = Object.fromEntries(TARGETS.map((t) => [t.id, { on: false, appId: "" }])) as Record<TargetId, { on: boolean; appId: string }>;
-  for (const t of doc?.targets ?? []) targets[t.target] = { on: true, appId: t.appId };
+  const targets = Object.fromEntries(TARGETS.map((t) => [t.id, { on: false, appId: "", scheme: "", configuration: "" }])) as Record<TargetId, TargetForm>;
+  for (const t of doc?.targets ?? []) targets[t.target] = { on: true, appId: t.appId, scheme: t.scheme ?? "", configuration: t.configuration ?? "" };
   return {
     name: doc?.name ?? "",
     locale: doc?.locale ?? "",
@@ -113,7 +120,7 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
   function patch(next: Partial<Form>) {
     setForm((prev) => (prev ? { ...prev, ...next } : prev));
   }
-  function patchTarget(id: TargetId, next: Partial<{ on: boolean; appId: string }>) {
+  function patchTarget(id: TargetId, next: Partial<TargetForm>) {
     setForm((prev) => (prev ? { ...prev, targets: { ...prev.targets, [id]: { ...prev.targets[id], ...next } } } : prev));
   }
   function patchRole(index: number, next: Partial<RoleRow>) {
@@ -132,7 +139,11 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
         create: creating,
         name: form.name.trim(),
         locale: form.locale.trim() || null,
-        targets: TARGETS.filter((t) => form.targets[t.id].on).map((t) => ({ target: t.id, appId: form.targets[t.id].appId.trim() })),
+        targets: TARGETS.filter((t) => form.targets[t.id].on).map((t) => ({
+          target: t.id,
+          appId: form.targets[t.id].appId.trim(),
+          ...(t.id === "ios" ? { scheme: form.targets.ios.scheme.trim() || null, configuration: form.targets.ios.configuration.trim() || null } : {}),
+        })),
         roles: form.roles.map((row) => ({ role: row.role.trim(), description: row.description.trim(), keys: splitKeys(row.keys) })),
         summary: summary.trim(),
       });
@@ -232,6 +243,13 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
                 <input aria-label={`${t.label} 앱 ID`} value={form.targets[t.id].appId} disabled={!form.targets[t.id].on} onChange={(e) => patchTarget(t.id, { appId: e.target.value })} placeholder={t.hint} />
               </div>
             ))}
+            <div className="target-row" data-testid="app-target-ios-build">
+              <span className="hint">iOS 빌드 기본값</span>
+              <div className="row">
+                <input aria-label="iOS 스킴" value={form.targets.ios.scheme} disabled={!form.targets.ios.on} onChange={(e) => patchTarget("ios", { scheme: e.target.value })} placeholder="스킴(빌드 화면의 프로젝트 빌드)" />
+                <input aria-label="iOS 구성" value={form.targets.ios.configuration} disabled={!form.targets.ios.on} onChange={(e) => patchTarget("ios", { configuration: e.target.value })} placeholder="구성(예: Debug)" />
+              </div>
+            </div>
           </fieldset>
 
           <h3>계정 역할</h3>

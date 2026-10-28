@@ -15,6 +15,8 @@ import { loadToolOverrides } from "./setup/tools";
 import { DeviceService } from "./devices/device-service";
 import { spawnDetached } from "./devices/spawn";
 import { BuildService } from "./builds/build-service";
+import { ProjectBuilds } from "./builds/project-builds";
+import { runToLog } from "./process/run-to-log";
 import { RunService } from "./runs/run-service";
 import { RunQueue } from "./runs/run-queue";
 import { EvidenceService } from "./evidence/evidence-service";
@@ -157,6 +159,8 @@ void app.whenReady().then(() => {
         filters: [{ name: "앱 빌드", extensions: ["app", "apk"] }],
       }),
     pickScript: () => pick({ title: "빌드 스크립트 선택", properties: ["openFile"] }),
+    // 폴더를 고르거나, .xcworkspace·.xcodeproj(패키지)를 파일처럼 고른다
+    pickProject: () => pick({ title: "Xcode 프로젝트 폴더 선택", properties: ["openDirectory", "openFile"], message: "프로젝트 폴더 또는 .xcworkspace·.xcodeproj 를 고릅니다" }),
   };
   const accountSecrets = (appName: string): Record<string, string> => {
     const prefix = `account:${appName}:`;
@@ -347,9 +351,21 @@ void app.whenReady().then(() => {
   });
   // 자동 E2E(패키징 안 된 앱의 테스트 데이터 폴더)에서는 주기 확인을 하지 않는다
   if (!testUserData) update.schedule();
+  // 프로젝트 폴더로 빌드(ADR 0025). 워크스페이스의 앱 설정(앱 ID·팀 스킴)과 이 Mac 의 설정(폴더)을 쓴다
+  const projectBuilds = new ProjectBuilds({
+    run: runCommand,
+    runLogged: runToLog,
+    env: (extra) => builds.toolEnv(extra),
+    logDir: join(app.getPath("userData"), "logs"),
+    derivedDir: join(app.getPath("userData"), "derived"),
+    links: { get: (a) => settings.projectLink(a), set: (a, link) => void settings.setProjectLink(a, link) },
+    hints: (a) => workspace.buildHints(a),
+    register: (a, artifact, origin) => builds.registerPath(a, artifact, origin),
+    exclusive: (fn) => builds.exclusive(fn),
+  });
   registerIpcHandlers(
     ipcMain,
-    createHandlers({ settings, db, setup, devices, builds, buildPickers, runs, runPickers, runQueue: new RunQueue(runs), evidence, upload, remote, workspace, agentJobs, author, judge, claude, update }),
+    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, runPickers, runQueue: new RunQueue(runs), evidence, upload, remote, workspace, agentJobs, author, judge, claude, update }),
     isAllowed,
   );
   createMainWindow();
