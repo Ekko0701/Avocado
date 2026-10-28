@@ -46,6 +46,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Xcode 26 이상(앱 아이콘 .icon 을 actool 로 만든다)
+        run: |
+          set -euo pipefail
+          xcode="$(ls -d /Applications/Xcode_2[6-9]*.app 2>/dev/null | sort -V | tail -1 || true)"
+          if [ -z "${xcode}" ]; then echo "Xcode 26 이상이 없다. 앱 아이콘(build/icon.icon)을 만들 수 없다"; exit 1; fi
+          sudo xcode-select -s "${xcode}/Contents/Developer"
+          xcrun actool --version | grep -A1 short-bundle-version
       - name: pnpm
         run: corepack enable && pnpm --version
       - name: 의존성

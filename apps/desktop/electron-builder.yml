@@ -16,8 +16,9 @@ mac:
     - target: dmg
       arch: [arm64]
   identity: null
-  # 앱 아이콘(buildResources 안의 build/icon.icns). 없으면 기본 Electron 아이콘으로 넘어가지 않고 패키징이 멈춘다
-  icon: icon.icns
+  # 앱 아이콘: Icon Composer 형식(build/icon.icon). electron-builder 가 actool 로 Assets.car(macOS 26 이상, 타일을 꽉 채움)와
+  # 예전 macOS 용 icns 를 만든다. 예전 .icns 만 주면 macOS 26 이상 Dock 이 회색 틀 안에 작게 넣는다. Xcode 26 이상(actool)이 필요하다
+  icon: icon.icon
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
