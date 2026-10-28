@@ -101,6 +101,12 @@ const handlers: IpcHandlers = {
   "builds:buildProject": () => {
     throw new Error("not used");
   },
+  "builds:activity": () => {
+    throw new Error("not used");
+  },
+  "builds:cancel": () => {
+    throw new Error("not used");
+  },
   "runs:pickFlow": () => {
     throw new Error("not used");
   },

@@ -41,6 +41,7 @@ import {
   type IosDeviceOptions,
 } from "../devices";
 import {
+  BuildActivitySchema,
   BuildProjectInputSchema,
   BuildSchema,
   InstallBuildInputSchema,
@@ -51,6 +52,7 @@ import {
   ProjectStatusSchema,
   RunBuildScriptInputSchema,
   type Build,
+  type BuildActivity,
   type InstallResult,
   type ProjectStatus,
 } from "../builds";
@@ -192,6 +194,8 @@ export const ipcContract = {
   "builds:linkProject": { input: ProjectRefSchema, output: ProjectStatusSchema.nullable() },
   "builds:unlinkProject": { input: ProjectRefSchema, output: ProjectStatusSchema },
   "builds:buildProject": { input: BuildProjectInputSchema, output: BuildSchema },
+  "builds:activity": { input: z.undefined(), output: BuildActivitySchema },
+  "builds:cancel": { input: z.undefined(), output: BuildActivitySchema },
   "runs:pickFlow": { input: z.undefined(), output: PickedFlowSchema.nullable() },
   "runs:start": { input: StartRunInputSchema, output: RunSummarySchema },
   "runs:list": { input: z.undefined(), output: z.array(RunSummarySchema) },
@@ -300,6 +304,10 @@ export interface QaApi {
     unlinkProject(input: { app: string }): Promise<ProjectStatus>;
     /** 연결한 프로젝트를 시뮬레이터용으로 빌드해 등록한다(수 분) */
     buildProject(input: { app: string; scheme: string; configuration: string }): Promise<Build>;
+    /** 진행 중인 빌드(단계·로그)와 마지막 결과 */
+    activity(): Promise<BuildActivity>;
+    /** 진행 중인 빌드를 멈춘다(하위 프로세스까지) */
+    cancel(): Promise<BuildActivity>;
   };
   runs: {
     /** main 이 선택 창으로 플로우 파일을 고른다. 고른 경로만 start 에 쓸 수 있다. 취소하면 null. */

@@ -76,7 +76,7 @@ describe.skipIf(!enabled)("프로젝트 폴더로 실제 빌드 (ADR 0025)", () 
         registered.push({ artifact, origin });
         return { id: "b", app, target: "ios", appId: "com.example.probe", version: "", buildNumber: "", commit: origin.commit, source: "project", path: artifact, createdAt: new Date().toISOString(), label: origin.label };
       },
-      exclusive: (fn) => fn(),
+      exclusive: (_info, fn) => fn({ signal: new AbortController().signal, step: () => undefined, log: () => undefined }),
     });
 
     const status = await builds.link("probe", root);
@@ -128,7 +128,7 @@ describe.skipIf(!existing.dir || !existing.scheme || !existing.appId)("이미 �
         registered.push(artifact);
         return { id: "b", app, target: "ios", appId: existing.appId, version: "", buildNumber: "", commit: origin.commit, source: "project", path: artifact, createdAt: new Date().toISOString(), label: origin.label };
       },
-      exclusive: (fn) => fn(),
+      exclusive: (_info, fn) => fn({ signal: new AbortController().signal, step: () => undefined, log: () => undefined }),
     });
     const status = await builds.link("existing", existing.dir);
     expect(status.ios?.problem ?? null).toBeNull();

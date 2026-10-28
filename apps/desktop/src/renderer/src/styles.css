@@ -841,6 +841,15 @@ button.badge.cell:hover:not(:disabled) {
   user-select: none;
 }
 
+/* 빌드 진행 로그(빌드 화면) */
+.build-log {
+  margin: 0;
+  max-height: 320px;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 /* ---- 워크스페이스·TC (T-110, T-111) ---- */
 textarea.editor {
   font-family: var(--mono);

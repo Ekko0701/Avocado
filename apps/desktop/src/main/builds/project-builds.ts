@@ -3,7 +3,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import type { LoggedProcessRunner } from "../process/run-to-log";
 import type { CommandRunner } from "../setup/command";
-import { BuildError, logTail } from "./build-service";
+import { BuildError, logTail, type BuildJob, type BuildJobInfo } from "./build-service";
 import { builtApps, countChanges, looksLikeXcodeProject, parseXcodebuildList, podsOutdated, xcodeLayout, type XcodeLayout } from "./xcode-project";
 
 export interface ProjectBuildsOptions {
@@ -21,8 +21,8 @@ export interface ProjectBuildsOptions {
   /** 워크스페이스 app.yaml 의 iOS 앱 ID 와 팀 스킴·구성 */
   hints: (app: string) => { appId: string | null; scheme: string | null; configuration: string | null };
   register: (app: string, artifact: string, origin: { source: "project"; commit: string | null; label: string }) => Promise<Build>;
-  /** 빌드 스크립트와 합쳐 한 번에 하나만 */
-  exclusive: <T>(fn: () => Promise<T>) => Promise<T>;
+  /** 빌드 스크립트와 합쳐 한 번에 하나만. 단계·로그를 알리고 취소 신호를 받는다(BuildService.exclusive) */
+  exclusive: <T>(info: BuildJobInfo, fn: (job: BuildJob) => Promise<T>) => Promise<T>;
   now?: () => Date;
   /** 단계마다 제한 시간. 기본 45분(ADR 0008) */
   stepTimeoutMs?: number;
@@ -38,7 +38,7 @@ export class ProjectBuilds {
   async status(app: string, opts: { prepare?: boolean } = {}): Promise<ProjectStatus> {
     const link = this.options.links.get(app);
     if (!link) return { app, ios: null };
-    if (opts.prepare && existsSync(link.path)) await this.options.exclusive(() => this.prepare(app, link.path, { always: false }));
+    if (opts.prepare && existsSync(link.path)) await this.options.exclusive({ app, kind: "prepare", label: "프로젝트 준비" }, (job) => this.prepare(app, link.path, { always: false }, job));
     return { app, ios: await this.describe(app, link) };
   }
 
@@ -51,7 +51,7 @@ export class ProjectBuilds {
     const previous = this.options.links.get(app);
     const same = previous?.path === path;
     this.options.links.set(app, { path, scheme: same ? previous.scheme : null, configuration: same ? previous.configuration : null });
-    if (!layout.container) await this.options.exclusive(() => this.prepare(app, path, { always: false }));
+    if (!layout.container) await this.options.exclusive({ app, kind: "prepare", label: "프로젝트 준비" }, (job) => this.prepare(app, path, { always: false }, job));
     return this.status(app);
   }
 
@@ -61,12 +61,12 @@ export class ProjectBuilds {
   }
 
   build(app: string, scheme: string, configuration: string): Promise<Build> {
-    return this.options.exclusive(async () => {
+    return this.options.exclusive({ app, kind: "project", label: `${scheme} · ${configuration}` }, async (job) => {
       const link = this.options.links.get(app);
       if (!link) throw new BuildError("프로젝트를 먼저 연결한다");
       if (!existsSync(link.path)) throw new BuildError(`프로젝트 폴더가 없다: ${link.path}`);
       // 생성 파일(Project.swift·project.yml)이 바뀌었을 수 있어 빌드할 때마다 다시 만든다
-      const logFile = await this.prepare(app, link.path, { always: true });
+      const logFile = await this.prepare(app, link.path, { always: true }, job);
       const layout = xcodeLayout(link.path);
       if (!layout.container) throw new BuildError(`.xcworkspace·.xcodeproj 를 찾지 못했다. 로그: ${logFile}`);
       const derived = join(this.options.derivedDir, app, "ios");
@@ -86,11 +86,16 @@ export class ProjectBuilds {
           // 명령줄 빌드에는 매크로·패키지 플러그인 승인 창이 없다(사용자가 고른 자기 프로젝트, ADR 0025)
           "-skipMacroValidation",
           "-skipPackagePluginValidation",
+          // Avocado 는 Apple Silicon 만 지원한다. 시뮬레이터용 x86_64 까지 만들면 빌드 시간이 두 배다
+          "ARCHS=arm64",
+          "ONLY_ACTIVE_ARCH=NO",
           "build",
         ],
         layout,
         logFile,
+        job,
       );
+      job.step("결과 등록");
       const artifact = await this.findApp(app, join(derived, "Build", "Products", `${configuration}-iphonesimulator`), logFile);
       const git = await this.git(layout.root);
       this.options.links.set(app, { ...link, scheme, configuration });
@@ -106,21 +111,24 @@ export class ProjectBuilds {
   }
 
   /** Tuist·XcodeGen 생성(always 가 아니면 컨테이너가 없을 때만)과 필요할 때 pod install. 로그 파일을 돌려준다 */
-  private async prepare(app: string, path: string, opts: { always: boolean }): Promise<string> {
+  private async prepare(app: string, path: string, opts: { always: boolean }, job: BuildJob): Promise<string> {
     const layout = xcodeLayout(path);
     const logFile = this.logFile(app);
+    job.log(logFile);
     const generate = opts.always || !layout.container;
     if (generate && layout.tools.includes("tuist")) {
-      await this.step("tuist", ["install"], layout, logFile);
-      await this.step("tuist", ["generate", "--no-open"], layout, logFile);
+      await this.step("tuist", ["install"], layout, logFile, job);
+      await this.step("tuist", ["generate", "--no-open"], layout, logFile, job);
     }
-    if (generate && layout.tools.includes("xcodegen")) await this.step("xcodegen", ["generate"], layout, logFile);
-    if (podsOutdated(layout.root)) await this.step("pod", ["install"], layout, logFile);
+    if (generate && layout.tools.includes("xcodegen")) await this.step("xcodegen", ["generate"], layout, logFile, job);
+    if (podsOutdated(layout.root)) await this.step("pod", ["install"], layout, logFile, job);
     return logFile;
   }
 
-  private async step(file: string, args: string[], layout: XcodeLayout, logFile: string): Promise<void> {
-    const name = `${file.split("/").pop() ?? file} ${args[0] ?? ""}`.trim();
+  private async step(file: string, args: string[], layout: XcodeLayout, logFile: string, job: BuildJob): Promise<void> {
+    // 단계 이름: 도구와 하위 명령(옵션은 빼고). 예: tuist generate, xcodebuild
+    const name = [file.split("/").pop() ?? file, ...(args[0] && !args[0].startsWith("-") ? [args[0]] : [])].join(" ");
+    job.step(name);
     appendFileSync(logFile, `\n== ${name} ==\n`, { mode: 0o600 });
     const result = await this.options.runLogged(file, {
       args,
@@ -129,7 +137,9 @@ export class ProjectBuilds {
       env: this.options.env({ MISE_TRUSTED_CONFIG_PATHS: layout.root }),
       logFile,
       timeoutMs: this.options.stepTimeoutMs ?? 45 * 60_000,
+      signal: job.signal,
     });
+    if (result.canceled) throw new BuildError(`${name} 중에 빌드를 취소했다`);
     if (result.timedOut) throw new BuildError(`${name} 이 시간 초과로 중단됐다. 로그: ${logFile}`);
     if (result.code === 0) return;
     const tail = logTail(logFile);

@@ -28,6 +28,8 @@ interface FakeOptions {
   team?: { scheme: string | null; configuration: string | null };
   changes?: number;
   notGit?: boolean;
+  /** 빌드 작업의 취소 신호(취소 시험) */
+  signal?: AbortSignal;
 }
 
 /** 프로젝트 폴더·도구·xcodebuild 를 흉내 낸다. 실제 명령은 실행하지 않는다 */
@@ -58,6 +60,7 @@ function setup(opts: FakeOptions) {
   const runLogged = async (file: string, o: LoggedProcessOptions): Promise<LoggedProcessResult> => {
     const name = [file.split("/").pop(), ...(o.args ?? [])].join(" ");
     logged.push(name);
+    if (o.signal?.aborted) return { code: -1, timedOut: false, canceled: true };
     if (opts.missing && file === opts.missing) {
       appendFileSync(o.logFile, `\n[qa] 실행 실패: spawn ${file} ENOENT\n`);
       return { code: -1, timedOut: false, canceled: false };
@@ -85,6 +88,8 @@ function setup(opts: FakeOptions) {
   };
   const links = new Map<string, ProjectLink>();
   const registered: { app: string; artifact: string; origin: unknown }[] = [];
+  const steps: string[] = [];
+  const jobs: string[] = [];
   let running = false;
   const builds = new ProjectBuilds({
     run,
@@ -98,17 +103,18 @@ function setup(opts: FakeOptions) {
       registered.push({ app, artifact, origin });
       return { id: "b1", app, target: "ios", appId: "com.example.demo", version: "1.0", buildNumber: "1", commit: origin.commit, source: origin.source, path: artifact, createdAt: "2026-10-28T00:00:00.000Z", label: origin.label } satisfies Build;
     },
-    exclusive: async (fn) => {
+    exclusive: async (info, fn) => {
       if (running) throw new BuildError("이미 빌드가 진행 중이다");
       running = true;
+      jobs.push(`${info.kind}:${info.label}`);
       try {
-        return await fn();
+        return await fn({ signal: opts.signal ?? new AbortController().signal, step: (s) => steps.push(s), log: () => undefined });
       } finally {
         running = false;
       }
     },
   });
-  return { root, builds, logged, quick, links, registered };
+  return { root, builds, logged, quick, links, registered, steps, jobs };
 }
 
 describe("프로젝트 연결 (ADR 0025)", () => {
@@ -165,13 +171,25 @@ describe("프로젝트 빌드", () => {
     expect(f.logged).toEqual([
       "tuist install",
       "tuist generate --no-open",
-      `xcodebuild -workspace ${join(f.root, "Demo.xcworkspace")} -scheme Demo -configuration Debug -destination generic/platform=iOS Simulator -derivedDataPath ${derived} -skipMacroValidation -skipPackagePluginValidation build`,
+      `xcodebuild -workspace ${join(f.root, "Demo.xcworkspace")} -scheme Demo -configuration Debug -destination generic/platform=iOS Simulator -derivedDataPath ${derived} -skipMacroValidation -skipPackagePluginValidation ARCHS=arm64 ONLY_ACTIVE_ARCH=NO build`,
     ]);
     expect(f.registered).toEqual([
       { app: "demo", artifact: join(derived, "Build", "Products", "Debug-iphonesimulator", "Demo.app"), origin: { source: "project", commit: SHA, label: "Demo · Debug · 커밋 안 한 변경 3개" } },
     ]);
     expect(build).toMatchObject({ source: "project", label: "Demo · Debug · 커밋 안 한 변경 3개" });
     expect(f.links.get("demo")).toEqual({ path: f.root, scheme: "Demo", configuration: "Debug" });
+    // 빌드 화면에 보이는 작업 이름과 단계
+    expect(f.jobs).toEqual(["prepare:프로젝트 준비", "project:Demo · Debug"]);
+    expect(f.steps.slice(-4)).toEqual(["tuist install", "tuist generate", "xcodebuild", "결과 등록"]);
+  });
+
+  it("취소하면 그 단계에서 멈추고 등록하지 않는다", async () => {
+    const controller = new AbortController();
+    const f = setup({ entries: ["Demo.xcodeproj/"], signal: controller.signal });
+    await f.builds.link("demo", f.root);
+    controller.abort();
+    await expect(f.builds.build("demo", "Demo", "Debug")).rejects.toThrow("xcodebuild 중에 빌드를 취소했다");
+    expect(f.registered).toEqual([]);
   });
 
   it("Pods 가 최신이 아닐 때만 pod install 을 한다", async () => {
@@ -190,7 +208,7 @@ describe("프로젝트 빌드", () => {
     await f.builds.link("demo", f.root);
     const error = await f.builds.build("demo", "Demo", "Debug").catch((e: unknown) => e);
     expect(error).toBeInstanceOf(BuildError);
-    expect((error as Error).message).toMatch(/^xcodebuild -project 실패\(코드 65\)/);
+    expect((error as Error).message).toMatch(/^xcodebuild 실패\(코드 65\)/);
     expect((error as Error).message).toContain("error: cannot find 'foo' in scope");
     expect((error as Error).message).toMatch(/로그: .*project-build-demo-.*\.log/);
     expect(f.registered).toEqual([]);

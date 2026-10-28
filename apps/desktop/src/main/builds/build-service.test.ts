@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AppDatabase } from "../db/database";
 import { runCommand, type CommandRunner } from "../setup/command";
-import { BuildError, BuildService } from "./build-service";
+import { BuildError, BuildService, readLogTail } from "./build-service";
 import { BuildFormatError } from "./metadata";
 import { makeFakeApp, makeScript } from "../../../test-support/fake-builds";
 
@@ -139,6 +139,42 @@ describe("빌드 스크립트", () => {
     const first = s.runScript("sample", makeScript(dir, `sleep 0.5\nprintf 'ARTIFACT=%s\\n' "${app}" > "$QA_BUILD_INFO"`));
     await expect(s.runScript("sample", makeScript(join(dir, "out"), "true"))).rejects.toThrow(/이미 빌드가 진행 중이다/);
     await expect(first).resolves.toMatchObject({ source: "script" });
+  });
+
+  it("진행 중인 빌드의 단계·로그를 보여 주고, 취소하면 하위 프로세스까지 멈추고 마지막 결과에 남긴다", async () => {
+    const s = service();
+    expect(s.activity()).toEqual({ running: null, last: null });
+    const run = s.runScript("sample", makeScript(dir, "echo step-one\necho step-two\nsleep 30 &\nwait"));
+    const deadline = Date.now() + 5000;
+    while (!s.activity().running?.log.includes("step-two") && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
+    expect(s.activity().running).toMatchObject({ app: "sample", kind: "script", label: "build.sh", step: "빌드 스크립트", startedAt: "2026-10-21T09:00:00.000Z" });
+    const started = Date.now();
+    s.cancel();
+    await expect(run).rejects.toThrow("빌드 스크립트를 취소했다");
+    expect(Date.now() - started).toBeLessThan(5000);
+    expect(s.activity()).toMatchObject({ running: null, last: { app: "sample", kind: "script", ok: false, canceled: true, error: "빌드 스크립트를 취소했다", build: null } });
+    expect(s.activity().last?.log).toContain("step-two");
+  });
+
+  it("성공한 빌드는 마지막 결과에 등록한 빌드를 남긴다", async () => {
+    const app = makeFakeApp(join(dir, "out"));
+    const s = service();
+    await s.runScript("sample", makeScript(dir, `printf 'ARTIFACT=%s\\n' "${app}" > "$QA_BUILD_INFO"`));
+    expect(s.activity().last).toMatchObject({ ok: true, canceled: false, error: null, build: { app: "sample", source: "script", label: null } });
+  });
+
+  it("로그 끝부분은 마지막 줄들만, 큰 파일은 끝 64KB 만 읽고 잘린 첫 줄은 버린다", () => {
+    const small = join(dir, "small.log");
+    writeFileSync(small, "a\nb\nc\n");
+    expect(readLogTail(small, 2)).toBe("b\nc");
+    const big = join(dir, "big.log");
+    writeFileSync(big, `${"x".repeat(100_000)}\n${Array.from({ length: 100 }, (_, i) => `line ${i}`).join("\n")}\n`);
+    const tail = readLogTail(big, 40, 1024);
+    expect(tail.split("\n")).toHaveLength(40);
+    expect(tail.endsWith("line 99")).toBe(true);
+    expect(tail).not.toContain("xxx");
+    expect(readLogTail(join(dir, "none.log"))).toBe("");
+    expect(readLogTail(null)).toBe("");
   });
 
   it("제한 시간을 넘기면 하위 프로세스까지 끝내고 오류를 낸다", async () => {

@@ -95,3 +95,38 @@ test("프로젝트 빌드 IPC 는 입력을 검사하고, 선택 창을 취소�
   expect(result.unlinked).toContain("프로젝트를 먼저 연결한다");
   await app.close();
 });
+
+// 진행 중인 빌드는 main 이 들고 있어 화면을 떠났다 돌아와도 보인다. 취소하면 마지막 결과(취소함)와 로그가 남는다
+test("빌드 진행: 진행 중인 빌드의 단계·로그를 보여 주고, 취소하면 마지막 결과로 바뀐다", async () => {
+  const { app, page } = await launchApp();
+  await app.evaluate(({ ipcMain }) => {
+    const started = new Date(Date.now() - 125_000).toISOString();
+    let canceled = false;
+    const running = { app: "demo", kind: "project", label: "Demo-Dev · Debug", step: "xcodebuild", startedAt: started, log: "CompileSwift normal arm64 App.swift\nLd Demo" };
+    const last = { app: "demo", kind: "project", label: "Demo-Dev · Debug", startedAt: started, finishedAt: new Date().toISOString(), ok: false, canceled: true, error: "xcodebuild 중에 빌드를 취소했다", build: null, log: "CompileSwift normal arm64 App.swift\n[qa] 사용자가 취소함" };
+    const swap = (channel: string, handler: () => unknown) => {
+      ipcMain.removeHandler(channel);
+      ipcMain.handle(channel, handler);
+    };
+    swap("builds:activity", () => (canceled ? { running: null, last } : { running, last: null }));
+    swap("builds:cancel", () => {
+      canceled = true;
+      return { running: null, last };
+    });
+  });
+  await page.getByRole("button", { name: "빌드", exact: true }).click();
+  const card = page.getByTestId("build-activity");
+  await expect(card.getByRole("heading", { name: "빌드 중" })).toBeVisible();
+  await expect(card.getByTestId("build-activity-running")).toHaveText("demo · 프로젝트 빌드 · Demo-Dev · Debug · 지금 단계: xcodebuild");
+  await expect(card.getByTestId("build-activity-log")).toContainText("Ld Demo");
+  await expect(card).toContainText(/2분 \d+초/);
+  // 다른 빌드는 시작하지 못하게 막는다
+  await page.getByLabel("앱 ID").fill("demo");
+  await expect(page.getByRole("button", { name: "파일로 등록" })).toBeDisabled();
+
+  await card.getByRole("button", { name: "빌드 취소" }).click();
+  await expect(card.getByRole("heading", { name: "마지막 빌드: 취소함" })).toBeVisible();
+  await expect(card).toContainText("xcodebuild 중에 빌드를 취소했다");
+  await expect(page.getByRole("button", { name: "파일로 등록" })).toBeEnabled();
+  await app.close();
+});

@@ -37,6 +37,8 @@ const api: QaApi = {
     linkProject: (input) => invoke("builds:linkProject", input),
     unlinkProject: (input) => invoke("builds:unlinkProject", input),
     buildProject: (input) => invoke("builds:buildProject", input),
+    activity: () => invoke("builds:activity", undefined),
+    cancel: () => invoke("builds:cancel", undefined),
   },
   runs: {
     pickFlow: () => invoke("runs:pickFlow", undefined),

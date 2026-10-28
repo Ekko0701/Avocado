@@ -1,12 +1,45 @@
-import type { Build, InstallResult } from "@qa/shared";
+import { BuildSchema, type Build, type BuildActivity, type BuildJobKind, type InstallResult } from "@qa/shared";
 import { randomUUID } from "node:crypto";
-import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { accessSync, closeSync, constants, copyFileSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import type { AppDatabase } from "../db/database";
 import type { DeviceService } from "../devices/device-service";
 import type { CommandRunner } from "../setup/command";
 import { BuildFormatError, readApkMetadata, readIosAppMetadata } from "./metadata";
 import { runToLog, type LoggedProcessRunner } from "../process/run-to-log";
+
+/** 진행 중인 빌드 작업 하나. 단계와 로그 파일을 알리고, 취소 신호를 하위 프로세스에 넘긴다 */
+export interface BuildJob {
+  signal: AbortSignal;
+  /** 지금 단계(예: tuist generate, xcodebuild) */
+  step(name: string): void;
+  /** 이 작업의 출력 로그 파일 */
+  log(file: string): void;
+}
+export interface BuildJobInfo {
+  app: string;
+  kind: BuildJobKind;
+  /** "스킴 · 구성" 또는 스크립트 이름 */
+  label: string;
+}
+
+/** 로그 파일의 끝부분(마지막 lines 줄, 최대 64KB 만 읽는다). xcodebuild 로그는 수십 MB 가 되어 통째로 읽지 않는다 */
+export function readLogTail(logFile: string | null, lines = 40, maxBytes = 64 * 1024): string {
+  if (!logFile || !existsSync(logFile)) return "";
+  const fd = openSync(logFile, "r");
+  try {
+    const size = fstatSync(fd).size;
+    const length = Math.min(size, maxBytes);
+    const buffer = Buffer.alloc(length);
+    readSync(fd, buffer, 0, length, size - length);
+    const text = buffer.toString("utf8").replace(/\r/g, "");
+    // 잘린 첫 줄은 버린다(파일 전체를 읽었으면 그대로)
+    const all = (length < size ? text.slice(text.indexOf("\n") + 1) : text).trimEnd().split("\n");
+    return all.slice(-lines).join("\n");
+  } finally {
+    closeSync(fd);
+  }
+}
 
 export class BuildError extends Error {
   constructor(message: string) {
@@ -82,7 +115,9 @@ export class BuildService {
   private readonly now: () => Date;
   private readonly newId: () => string;
   private readonly scriptRunner: LoggedProcessRunner;
-  private scriptRunning = false;
+  /** 진행 중인 빌드 작업(한 번에 하나)과 마지막으로 끝난 작업. 앱을 다시 켜면 비어 있다 */
+  private job: { info: BuildJobInfo; startedAt: string; step: string | null; logFile: string | null; controller: AbortController } | null = null;
+  private lastJob: (NonNullable<BuildActivity["last"]> & { logFile: string | null }) | null = null;
 
   constructor(private readonly options: BuildServiceOptions) {
     this.now = options.now ?? (() => new Date());
@@ -178,22 +213,72 @@ export class BuildService {
     return env;
   }
 
-  /** 빌드는 한 번에 하나(스크립트·프로젝트 빌드 합쳐). 같은 빌드 폴더를 동시에 쓰면 결과가 섞인다 */
-  async exclusive<T>(fn: () => Promise<T>): Promise<T> {
-    if (this.scriptRunning) throw new BuildError("이미 빌드가 진행 중이다. 끝난 뒤 다시 한다");
-    this.scriptRunning = true;
+  /**
+   * 빌드는 한 번에 하나(스크립트·프로젝트 빌드·준비 합쳐). 같은 빌드 폴더를 동시에 쓰면 결과가 섞인다.
+   * 진행 단계·로그·결과를 화면에 보여 주고(activity), 취소할 수 있게(cancel) 작업을 기록한다
+   */
+  async exclusive<T>(info: BuildJobInfo, fn: (job: BuildJob) => Promise<T>): Promise<T> {
+    if (this.job) throw new BuildError(`이미 빌드가 진행 중이다(${this.job.info.app} · ${this.job.info.label}). 빌드 화면에서 진행 상황을 보거나 취소한다`);
+    const job = { info, startedAt: this.now().toISOString(), step: null as string | null, logFile: null as string | null, controller: new AbortController() };
+    this.job = job;
+    const finish = (ok: boolean, error: string | null, build: Build | null) => {
+      this.lastJob = { ...info, startedAt: job.startedAt, finishedAt: this.now().toISOString(), ok, canceled: job.controller.signal.aborted, error, build, log: "", logFile: job.logFile };
+    };
     try {
-      return await fn();
+      const result = await fn({
+        signal: job.controller.signal,
+        step: (name) => {
+          job.step = name;
+        },
+        log: (file) => {
+          job.logFile = file;
+        },
+      });
+      const built = BuildSchema.safeParse(result);
+      finish(true, null, built.success ? built.data : null);
+      return result;
+    } catch (error) {
+      finish(false, error instanceof Error ? error.message : String(error), null);
+      throw error;
     } finally {
-      this.scriptRunning = false;
+      this.job = null;
     }
   }
 
-  runScript(app: string, scriptPath: string): Promise<Build> {
-    return this.exclusive(() => this.runScriptOnce(app, scriptPath));
+  /** 진행 중인 빌드(단계·로그 끝부분)와 마지막 결과 */
+  activity(): BuildActivity {
+    const job = this.job;
+    const last = this.lastJob;
+    return {
+      running: job ? { ...job.info, step: job.step, startedAt: job.startedAt, log: readLogTail(job.logFile) } : null,
+      last: last
+        ? {
+            app: last.app,
+            kind: last.kind,
+            label: last.label,
+            startedAt: last.startedAt,
+            finishedAt: last.finishedAt,
+            ok: last.ok,
+            canceled: last.canceled,
+            error: last.error,
+            build: last.build,
+            log: readLogTail(last.logFile),
+          }
+        : null,
+    };
   }
 
-  private async runScriptOnce(app: string, scriptPath: string): Promise<Build> {
+  /** 진행 중인 빌드를 멈춘다. 실행기(runToLog)가 하위 프로세스 그룹까지 끝낸다 */
+  cancel(): BuildActivity {
+    this.job?.controller.abort();
+    return this.activity();
+  }
+
+  runScript(app: string, scriptPath: string): Promise<Build> {
+    return this.exclusive({ app, kind: "script", label: basename(scriptPath) }, (job) => this.runScriptOnce(app, scriptPath, job));
+  }
+
+  private async runScriptOnce(app: string, scriptPath: string, job: BuildJob): Promise<Build> {
     if (!isAbsolute(scriptPath) || !existsSync(scriptPath) || !statSync(scriptPath).isFile()) throw new BuildError(`스크립트가 없다: ${scriptPath}`);
     try {
       accessSync(scriptPath, constants.X_OK);
@@ -205,12 +290,16 @@ export class BuildService {
     const infoFile = join(this.options.logDir, `build-${stamp}.info`);
     const logFile = join(this.options.logDir, `build-${stamp}.log`);
     writeFileSync(infoFile, "", { mode: 0o600 });
+    job.log(logFile);
+    job.step("빌드 스크립트");
     const result = await this.scriptRunner(scriptPath, {
       env: this.scriptEnv(infoFile, app),
       cwd: dirname(scriptPath),
       logFile,
       timeoutMs: this.options.scriptTimeoutMs ?? 45 * 60_000,
+      signal: job.signal,
     });
+    if (result.canceled) throw new BuildError("빌드 스크립트를 취소했다");
     if (result.timedOut) throw new BuildError(`빌드 스크립트가 시간 초과로 중단됐다. 로그: ${logFile}`);
     if (result.code !== 0) throw new BuildError(`빌드 스크립트 실패(코드 ${result.code}): ${logTail(logFile)} 로그: ${logFile}`);
     const info = Object.fromEntries(

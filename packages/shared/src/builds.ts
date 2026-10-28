@@ -66,3 +66,41 @@ export type ProjectStatus = z.infer<typeof ProjectStatusSchema>;
 export const ProjectStatusInputSchema = z.strictObject({ app: AppIdSchema, prepare: z.boolean().optional() });
 export const ProjectRefSchema = z.strictObject({ app: AppIdSchema });
 export const BuildProjectInputSchema = z.strictObject({ app: AppIdSchema, scheme: XcodeNameSchema, configuration: XcodeNameSchema });
+
+/** 빌드 작업 종류: 빌드 스크립트, 프로젝트 빌드, 프로젝트 준비(Tuist·XcodeGen 생성, pod install) */
+export const BuildJobKindSchema = z.enum(["script", "project", "prepare"]);
+export type BuildJobKind = z.infer<typeof BuildJobKindSchema>;
+/**
+ * 지금 진행 중인 빌드와 마지막으로 끝난 빌드(한 번에 하나, main 이 들고 있다).
+ * 화면을 떠났다 돌아와도 진행 단계·로그·결과를 다시 보여 준다. 로그는 마지막 몇십 줄만 준다
+ */
+export const BuildActivitySchema = z.strictObject({
+  running: z
+    .strictObject({
+      app: z.string(),
+      kind: BuildJobKindSchema,
+      /** "스킴 · 구성" 또는 스크립트 이름 */
+      label: z.string(),
+      /** 지금 단계(tuist install, xcodebuild …) */
+      step: z.string().nullable(),
+      startedAt: z.iso.datetime(),
+      log: z.string(),
+    })
+    .nullable(),
+  last: z
+    .strictObject({
+      app: z.string(),
+      kind: BuildJobKindSchema,
+      label: z.string(),
+      startedAt: z.iso.datetime(),
+      finishedAt: z.iso.datetime(),
+      ok: z.boolean(),
+      canceled: z.boolean(),
+      error: z.string().nullable(),
+      /** 등록한 빌드(성공한 빌드 작업) */
+      build: BuildSchema.nullable(),
+      log: z.string(),
+    })
+    .nullable(),
+});
+export type BuildActivity = z.infer<typeof BuildActivitySchema>;

@@ -10,7 +10,9 @@ type BuildChannel =
   | "builds:projectStatus"
   | "builds:linkProject"
   | "builds:unlinkProject"
-  | "builds:buildProject";
+  | "builds:buildProject"
+  | "builds:activity"
+  | "builds:cancel";
 
 export interface BuildPickers {
   /** main 의 파일 선택 창. 취소하면 null */
@@ -41,5 +43,7 @@ export function createBuildHandlers(builds: BuildService, pickers: BuildPickers,
     },
     "builds:unlinkProject": ({ app }) => projects.unlink(app),
     "builds:buildProject": ({ app, scheme, configuration }) => projects.build(app, scheme, configuration),
+    "builds:activity": () => builds.activity(),
+    "builds:cancel": () => builds.cancel(),
   };
 }

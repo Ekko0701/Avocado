@@ -1,6 +1,7 @@
 import type { Build, Device } from "@qa/shared";
 import { AppIdSchema } from "@qa/shared";
 import { useCallback, useEffect, useState } from "react";
+import { BuildActivityCard } from "../components/BuildActivityCard";
 import { ProjectBuildPanel } from "../components/ProjectBuildPanel";
 import { errorMessage, formatDateTime } from "../lib/errors";
 
@@ -16,6 +17,8 @@ export function BuildsPage() {
   const [listError, setListError] = useState<string | null>(null);
   const [apps, setApps] = useState<string[]>([]);
   const [projectBusy, setProjectBusy] = useState(false);
+  /** main 에서 빌드가 진행 중이다(이 화면에서 시작하지 않았거나 화면을 떠났다 돌아온 경우도) */
+  const [buildRunning, setBuildRunning] = useState(false);
 
   // 빌드 목록과 기기 목록은 따로 불러온다. 기기 조회가 실패해도 빌드 목록은 보여야 한다.
   const reload = useCallback(async () => {
@@ -58,6 +61,7 @@ export function BuildsPage() {
   return (
     <>
       <h1>빌드</h1>
+      <BuildActivityCard onRunningChange={setBuildRunning} onFinished={reload} />
       <section className="card stack" aria-label="빌드 등록">
         <p className="hint">
           시뮬레이터용 .app 또는 .apk 를 등록합니다. 빌드 스크립트를 고르면 실행한 뒤, 스크립트가 QA_BUILD_INFO 파일에 적은 ARTIFACT 경로를 등록합니다.
@@ -73,10 +77,10 @@ export function BuildsPage() {
         </label>
         {app !== "" && !appValid ? <p className="error">소문자·숫자·하이픈만, 40자 이하</p> : null}
         <div className="row">
-          <button type="button" disabled={busy !== null || projectBusy || !appValid} onClick={() => void act("등록", async () => registered(await window.qa.builds.pickAndRegister({ app })))}>
+          <button type="button" disabled={busy !== null || projectBusy || buildRunning || !appValid} onClick={() => void act("등록", async () => registered(await window.qa.builds.pickAndRegister({ app })))}>
             {busy === "등록" ? "등록 중" : "파일로 등록"}
           </button>
-          <button type="button" disabled={busy !== null || projectBusy || !appValid} onClick={() => void act("빌드", async () => registered(await window.qa.builds.runScript({ app })))}>
+          <button type="button" disabled={busy !== null || projectBusy || buildRunning || !appValid} onClick={() => void act("빌드", async () => registered(await window.qa.builds.runScript({ app })))}>
             {busy === "빌드" ? "빌드 중 (수십 분 걸릴 수 있음)" : "빌드 스크립트 실행"}
           </button>
           <button type="button" className="secondary" disabled={busy !== null} onClick={() => void reload()}>
@@ -92,7 +96,7 @@ export function BuildsPage() {
       {appValid ? (
         <ProjectBuildPanel
           app={app}
-          disabled={busy !== null}
+          disabled={busy !== null || buildRunning}
           onBusy={setProjectBusy}
           onBuilt={() => void reload()}
         />

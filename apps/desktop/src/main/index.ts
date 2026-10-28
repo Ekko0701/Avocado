@@ -361,7 +361,7 @@ void app.whenReady().then(() => {
     links: { get: (a) => settings.projectLink(a), set: (a, link) => void settings.setProjectLink(a, link) },
     hints: (a) => workspace.buildHints(a),
     register: (a, artifact, origin) => builds.registerPath(a, artifact, origin),
-    exclusive: (fn) => builds.exclusive(fn),
+    exclusive: (info, fn) => builds.exclusive(info, fn),
   });
   registerIpcHandlers(
     ipcMain,

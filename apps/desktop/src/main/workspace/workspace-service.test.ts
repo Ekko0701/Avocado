@@ -66,7 +66,8 @@ afterAll(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-describe("워크스페이스", () => {
+// 실제 git 명령을 수십 번 돌리는 시험이라 기본 5초는 바쁜 Mac(빌드·스왑 중)에서 모자란다
+describe("워크스페이스", { timeout: 30_000 }, () => {
   it("연결: clone 하고 상태와 TC 목록을 보여 준다", async () => {
     expect(await ws.status()).toMatchObject({ connected: false, repo: "acme/qa-workspace" });
     // 연결 전에는 계정 키 목록이 비어 있다(설정 화면은 직접 입력만 보인다)
