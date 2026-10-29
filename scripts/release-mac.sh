@@ -2,7 +2,7 @@
 # 이 Mac 에서 Developer ID 로 서명·공증한 배포용 dmg 를 만든다(T-116, ADR 0020). Releases 에 올리지는 않는다.
 #
 # 사용법: scripts/release-mac.sh [--no-notarize | --dmg-only]
-#   기본: 빌드 → 서명 → .app 공증·스테이플 → dmg 서명·공증·스테이플 → 확인 → .sha256
+#   기본: 빌드 → 서명 → .app 공증·스테이플 → dmg 서명·공증·스테이플 → 확인 → 업데이트용 .zip(ADR 0027) → 각 .sha256
 #   --no-notarize: 서명까지만 하고 Apple 에 공증을 제출하지 않는다(서명 확인용, 배포하지 않는다)
 #   --dmg-only: 빌드하지 않고 dist 에 이미 만든 .app 을 확인한 뒤 dmg 공증부터 한다(중간에 멈췄을 때)
 #
@@ -119,5 +119,21 @@ for f in dist/*.dmg; do
   (cd dist && shasum -a 256 "$(basename "$f")" > "$(basename "$f").sha256")
 done
 
+echo "== 업데이트용 zip"
+# 앱 안에서 받아 재시작으로 적용하는 업데이트(ADR 0027)가 받는 파일. 공증·스테이플한 .app 을 ditto 로 묶는다(심볼릭 링크·서명 보존)
+zip="dist/Avocado-$VERSION-arm64.zip"
+rm -f "$zip" "$zip.sha256"
+ditto -c -k --sequesterRsrc --keepParent "$app" "$zip"
+# 앱이 받아서 하는 확인과 같다: 풀린 앱이 이 버전이고, 공증된 이 팀의 서명이다
+check="$(mktemp -d)"
+ditto -x -k "$zip" "$check"
+inside="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$check/Avocado.app/Contents/Info.plist")"
+[ "$inside" = "$VERSION" ] || die "zip 안 앱의 버전($inside)이 v$VERSION 이 아니다"
+assess="$(spctl --assess --type exec -vv "$check/Avocado.app" 2>&1)" || die "zip 안 앱을 Gatekeeper 가 거부했다: $assess"
+grep -q "source=Notarized Developer ID" <<<"$assess" || die "zip 안 앱이 공증된 Developer ID 로 인정되지 않는다"
+codesign --verify "-R=anchor apple generic and certificate leaf[subject.OU] = \"$TEAM_ID\"" "$check/Avocado.app" || die "zip 안 앱이 팀 $TEAM_ID 의 서명이 아니다"
+rm -rf "$check"
+(cd dist && shasum -a 256 "$(basename "$zip")" > "$(basename "$zip").sha256")
+
 echo "== 완료"
-ls -l dist/*.dmg dist/*.dmg.sha256
+ls -l dist/*.dmg dist/*.dmg.sha256 dist/*.zip dist/*.zip.sha256

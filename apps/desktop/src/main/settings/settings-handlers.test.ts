@@ -186,6 +186,9 @@ function setup() {
     "update:check": () => {
       throw new Error("not used");
     },
+    "update:install": () => {
+      throw new Error("not used");
+    },
     "update:download": () => {
       throw new Error("not used");
     },

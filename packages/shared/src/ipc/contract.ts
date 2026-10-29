@@ -243,6 +243,7 @@ export const ipcContract = {
   "update:status": { input: z.undefined(), output: UpdateStatusSchema },
   "update:check": { input: z.undefined(), output: UpdateStatusSchema },
   "update:download": { input: z.undefined(), output: UpdateStatusSchema },
+  "update:install": { input: z.undefined(), output: UpdateStatusSchema },
 } as const satisfies Record<string, { input: z.ZodType; output: z.ZodType }>;
 
 export type IpcContract = typeof ipcContract;
@@ -393,11 +394,12 @@ export interface QaApi {
     /** Claude 데스크톱 앱 설정에 Avocado 를 등록한다(다른 항목은 그대로, 사본을 남긴다) */
     connectDesktop(): Promise<ClaudeConnection>;
   };
-  /** 새 버전 확인과 .dmg 받기(SHA-256·서명 확인 뒤에만 연다) */
+  /** 새 버전 확인과 받기(SHA-256·서명 확인 뒤에만 연다). 받은 .zip 은 재시작으로 적용한다(ADR 0027) */
   update: {
     status(): Promise<UpdateStatus>;
     check(): Promise<UpdateStatus>;
     download(): Promise<UpdateStatus>;
+    install(): Promise<UpdateStatus>;
   };
   setup: {
     check(): Promise<SetupReport>;

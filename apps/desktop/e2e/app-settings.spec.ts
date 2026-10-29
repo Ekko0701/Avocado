@@ -45,7 +45,7 @@ test("앱 설정: 워크스페이스 화면에서 타깃·계정 역할을 고�
     expect(remote.git(remote.bare, "show", "qa/qa-bot/app/demo/android-and-member:apps/demo/accounts.yaml")).toContain("keys: [DEMO_MEMBER_EMAIL, DEMO_MEMBER_PASSWORD]");
 
     // TC 편집 화면에 android 타깃과 member 역할이 나온다
-    await nav.getByRole("button", { name: "TC", exact: true }).click();
+    await nav.getByRole("button", { name: "테스트 케이스", exact: true }).click();
     await page.getByRole("button", { name: "demo/TC-0101" }).click();
     const tcForm = page.getByTestId("tc-form");
     await expect(tcForm.getByLabel("android", { exact: true })).toBeVisible();
@@ -66,8 +66,8 @@ test("앱 설정: 워크스페이스 화면에서 타깃·계정 역할을 고�
     await expect(page.getByTestId("app-settings-message")).toContainText("새 앱을 워크스페이스에 더했습니다");
     await expect(panel.getByLabel("설정할 앱")).toHaveValue("notes");
     await expect(panel.getByLabel("앱 이름")).toHaveValue("Notes");
-    await nav.getByRole("button", { name: "TC", exact: true }).click();
-    await expect(page.getByLabel("새 TC 앱").locator("option", { hasText: "Notes" })).toHaveCount(1);
+    await nav.getByRole("button", { name: "테스트 케이스", exact: true }).click();
+    await expect(page.getByLabel("새 테스트 케이스 앱").locator("option", { hasText: "Notes" })).toHaveCount(1);
     await app.close();
   } finally {
     await remote.close();

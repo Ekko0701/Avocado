@@ -268,14 +268,14 @@ export function ResultsPage(props: { initialRunId?: string | null }) {
         </p>
       ) : null}
 
-      <section className="card stack" aria-label="TC 별 최신 결과">
-        <h2>TC × 타깃</h2>
+      <section className="card stack" aria-label="테스트 케이스별 최신 결과">
+        <h2>테스트 케이스 × 타깃</h2>
         {matrix.length === 0 ? <p className="hint">실행 기록이 없습니다.</p> : null}
         {matrix.length > 0 ? (
           <table className="matrix">
             <thead>
               <tr>
-                <th>TC</th>
+                <th>테스트 케이스</th>
                 <th>iOS</th>
                 <th>Android</th>
               </tr>

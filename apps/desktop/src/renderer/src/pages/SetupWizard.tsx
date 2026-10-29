@@ -161,7 +161,7 @@ function WorkspaceStep(props: { tokenStored: boolean; onBack: () => void; onNext
   return (
     <section className="card stack" aria-label="워크스페이스 단계">
       <p className="hint">
-        토큰으로 볼 수 있는 저장소 목록에서 워크스페이스(TC·플로우)와 연도별 증적 저장소를 고르고, 연결을 확인한 뒤 워크스페이스를 받습니다. 토큰이 없으면 건너뛰고 나중에
+        토큰으로 볼 수 있는 저장소 목록에서 워크스페이스(테스트 케이스·플로우)와 연도별 증적 저장소를 고르고, 연결을 확인한 뒤 워크스페이스를 받습니다. 토큰이 없으면 건너뛰고 나중에
         합니다. 목록에 없는 저장소는 설정의 GitHub 에서 직접 입력할 수 있습니다.
       </p>
       {github ? (

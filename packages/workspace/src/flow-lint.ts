@@ -106,7 +106,7 @@ export function lintFlow(text: string, ctx: FlowLintContext): LintIssue[] {
     }
   }
   if (assertions === 0) add("error", "flow-assertions", "결과 단언(assertVisible·extendedWaitUntil)이 없다");
-  else if (assertions < ctx.expectations) add("warning", "flow-assertions", `TC 의 기대 ${ctx.expectations}개보다 결과 단언(${assertions}개)이 적다`);
+  else if (assertions < ctx.expectations) add("warning", "flow-assertions", `테스트 케이스의 기대 ${ctx.expectations}개보다 결과 단언(${assertions}개)이 적다`);
 
   deepChecks(text, [header, seq], { envKeys: ctx.envKeys, subflows: ctx.subflows }, lines, issues);
   return issues;

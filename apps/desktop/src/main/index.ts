@@ -28,6 +28,7 @@ import { ClaudeConnectService } from "./claude/claude-connect";
 import { createAvocadoMcpServer, routeMcpPorts } from "./claude/mcp-server";
 import { McpSocketHost } from "./claude/socket-host";
 import { JudgeService } from "./agent/judge-service";
+import { createSquirrelInstaller } from "./update/native-updater";
 import { UpdateService } from "./update/update-service";
 import { UPDATE_RELEASE_REPO, UPDATE_SIGNER_TEAM_ID } from "./update/trust";
 import { UploadService } from "./evidence/upload-service";
@@ -348,6 +349,8 @@ void app.whenReady().then(() => {
     openPath: (path) => shell.openPath(path),
     showItemInFolder: (path) => shell.showItemInFolder(path),
     signerTeamId: UPDATE_SIGNER_TEAM_ID,
+    installer: createSquirrelInstaller(),
+    busy: () => authorBusy() ?? (runs.activeCount() > 0 ? "플로우 실행이 진행 중이다" : null) ?? (builds.activity().running ? "빌드가 진행 중이다" : null),
   });
   // 자동 E2E(패키징 안 된 앱의 테스트 데이터 폴더)에서는 주기 확인을 하지 않는다
   if (!testUserData) update.schedule();

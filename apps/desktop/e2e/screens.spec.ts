@@ -13,7 +13,7 @@ const TOKEN = "github_pat_E2ESCREENS_0123456789abcdefghijklmn";
 const PAGES: [label: string, file: string][] = [
   ["홈", "home"],
   ["워크스페이스", "workspace"],
-  ["TC", "tc"],
+  ["테스트 케이스", "tc"],
   ["플로우 만들기", "author"],
   ["실행", "runs"],
   ["결과", "results"],

@@ -314,7 +314,7 @@ function GitHubSection(props: { settings: Settings; tokenStored: boolean; onSave
     <form className="card stack" onSubmit={save} aria-labelledby="github-title">
       <h2 id="github-title">GitHub</h2>
       <p className="hint">
-        TC·플로우는 워크스페이스 저장소, 증적 요약은 연도별 증적 저장소에 둡니다. 토큰은 위의 &quot;GitHub 토큰&quot;에 저장하고, git 에는 URL·설정 파일 대신 인증 도우미로만
+        테스트 케이스·플로우는 워크스페이스 저장소, 증적 요약은 연도별 증적 저장소에 둡니다. 토큰은 위의 &quot;GitHub 토큰&quot;에 저장하고, git 에는 URL·설정 파일 대신 인증 도우미로만
         넘깁니다.
       </p>
       <GitHubRepoPicker

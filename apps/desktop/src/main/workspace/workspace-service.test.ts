@@ -111,7 +111,7 @@ describe("워크스페이스", { timeout: 30_000 }, () => {
   it("형식이 틀리거나 위치가 다른 TC, 경로를 벗어나는 id 는 커밋하지 않는다", async () => {
     const head = git(wsDir(), "rev-parse", "HEAD");
     const before = readFileSync(join(wsDir(), "testcases", "demo", "TC-0101.md"), "utf8");
-    await expect(ws.saveTestcase({ app: "demo", id: "TC-0101", text: "## 스텝\n1. x", summary: "broken" })).rejects.toThrow(/TC 형식 오류/);
+    await expect(ws.saveTestcase({ app: "demo", id: "TC-0101", text: "## 스텝\n1. x", summary: "broken" })).rejects.toThrow(/테스트 케이스 형식 오류/);
     // 린트 차단(PLAN 4.2): 기대 없는 스텝, accounts.yaml 에 없는 역할
     await expect(ws.saveTestcase({ app: "demo", id: "TC-0101", text: before.replace(/ {3}- 기대: 홈 화면.*\n/, ""), summary: "no expected" })).rejects.toThrow(/린트 오류.*기대/);
     await expect(ws.saveTestcase({ app: "demo", id: "TC-0101", text: before.replace("account: signup", "account: admin"), summary: "bad role" })).rejects.toThrow(/린트 오류.*admin/);
@@ -319,11 +319,11 @@ describe("워크스페이스", { timeout: 30_000 }, () => {
     await expect(ws.saveApp({ ...base, roles: [signup, { ...member, role: "Member" }] })).rejects.toThrow(/역할 이름은 소문자/);
     await expect(ws.saveApp({ ...base, roles: [signup, { ...member, keys: ["lower"] }] })).rejects.toThrow(/키 이름은 대문자/);
     await expect(ws.saveApp({ ...base, roles: [signup, signup] })).rejects.toThrow("같은 역할 이름이 두 번 있다: signup");
-    await expect(ws.saveApp({ ...base, roles: [member] })).rejects.toThrow(/TC 가 쓰는 역할은 지울 수 없다: signup\(TC-0101/);
+    await expect(ws.saveApp({ ...base, roles: [member] })).rejects.toThrow(/테스트 케이스가 쓰는 역할은 지울 수 없다: signup\(TC-0101/);
     await expect(ws.saveApp({ ...base, roles: [{ ...signup, keys: ["DEMO_OTHER"] }] })).rejects.toThrow(
       "플로우가 쓰는 키는 지울 수 없다: DEMO_TEST_PASSWORD(flows/demo/ios/TC-0101.yaml)",
     );
-    await expect(ws.saveApp({ ...base, targets: [android] })).rejects.toThrow(/TC·플로우가 쓰는 타깃은 지울 수 없다: ios\(TC-0101/);
+    await expect(ws.saveApp({ ...base, targets: [android] })).rejects.toThrow(/테스트 케이스·플로우가 쓰는 타깃은 지울 수 없다: ios\(TC-0101/);
     await expect(ws.saveApp({ ...base, targets: [...doc.targets, { target: "android", appId: "com example" }] })).rejects.toThrow("android 앱 ID 를 공백 없이 쓴다");
     await expect(ws.saveApp({ ...base, targets: [...doc.targets, ...doc.targets] })).rejects.toThrow("같은 타깃이 두 번 있다: ios");
     await expect(ws.saveApp({ ...base, locale: "korean" })).rejects.toThrow(/앱 설정 형식 오류/);

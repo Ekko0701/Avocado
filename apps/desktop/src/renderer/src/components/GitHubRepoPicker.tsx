@@ -67,7 +67,7 @@ export function GitHubRepoPicker(props: { github: GitHubSettings; tokenStored: b
         <>
           <div className="grid">
             <label>
-              워크스페이스(TC·플로우)
+              워크스페이스(테스트 케이스·플로우)
               <select
                 value={workspace}
                 onChange={(e) => {

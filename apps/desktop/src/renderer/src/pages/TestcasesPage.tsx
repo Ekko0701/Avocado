@@ -180,7 +180,7 @@ export function TestcasesPage() {
       const current = await window.qa.agent.currentAuthor();
       setAuthorJob(current);
       if (authoringTc(current, editing) && !ackAuthoring) {
-        setMessage("이 TC 로 플로우 만들기가 진행 중입니다. 아래 경고를 확인한 뒤 저장합니다.");
+        setMessage("이 테스트 케이스로 플로우 만들기가 진행 중입니다. 아래 경고를 확인한 뒤 저장합니다.");
         return;
       }
       const r = await window.qa.workspace.saveTestcase({ app: editing.app, id: editing.id, text, summary: summary.trim() });
@@ -189,7 +189,7 @@ export function TestcasesPage() {
       setEditing({ ...editing, isNew: false });
       // 저장한 TC 의 작업 브랜치를 PR 작성 대상으로 둔다(다른 TC 의 브랜치였다면 제목도 새로)
       setReview((prev) =>
-        prev.title && reviewBranch === r.branch ? prev : { title: `${editing.id} ${summary.trim()}`, body: `## 변경\n\n- TC: ${editing.id}\n- 요약: ${summary.trim()}\n` },
+        prev.title && reviewBranch === r.branch ? prev : { title: `${editing.id} ${summary.trim()}`, body: `## 변경\n\n- 테스트 케이스: ${editing.id}\n- 요약: ${summary.trim()}\n` },
       );
       setReviewBranch(r.branch);
       setStatus(r.status);
@@ -245,7 +245,7 @@ export function TestcasesPage() {
   if (status && !status.connected) {
     return (
       <>
-        <h1>TC</h1>
+        <h1>테스트 케이스</h1>
         <p className="hint">워크스페이스를 먼저 연결합니다(메뉴 "워크스페이스").</p>
       </>
     );
@@ -256,14 +256,14 @@ export function TestcasesPage() {
 
   return (
     <>
-      <h1>TC</h1>
+      <h1>테스트 케이스</h1>
       {message ? (
         <p role="status" data-testid="tc-message">
           {message}
         </p>
       ) : null}
 
-      <section className="card stack" aria-label="TC 목록">
+      <section className="card stack" aria-label="테스트 케이스 목록">
         <div className="row">
           <select aria-label="앱 필터" value={filter.app} onChange={(e) => setFilter({ ...filter, app: e.target.value })}>
             <option value="">모든 앱</option>
@@ -287,12 +287,12 @@ export function TestcasesPage() {
               <option key={t}>{t}</option>
             ))}
           </select>
-          <input className="grow" aria-label="TC 검색" placeholder="id·제목" value={filter.q} onChange={(e) => setFilter({ ...filter, q: e.target.value })} />
+          <input className="grow" aria-label="테스트 케이스 검색" placeholder="id·제목" value={filter.q} onChange={(e) => setFilter({ ...filter, q: e.target.value })} />
         </div>
         <table className="matrix">
           <thead>
             <tr>
-              <th>TC</th>
+              <th>테스트 케이스</th>
               <th>제목</th>
               <th>상태</th>
               <th>타깃</th>
@@ -316,7 +316,7 @@ export function TestcasesPage() {
           </tbody>
         </table>
         <div className="row">
-          <select aria-label="새 TC 앱" value={newApp} onChange={(e) => setNewApp(e.target.value)}>
+          <select aria-label="새 테스트 케이스 앱" value={newApp} onChange={(e) => setNewApp(e.target.value)}>
             {list?.apps.map((a) => (
               <option key={a.app} value={a.app}>
                 {a.name}
@@ -324,7 +324,7 @@ export function TestcasesPage() {
             ))}
           </select>
           <button type="button" className="secondary" disabled={!list?.apps.length} onClick={createNew}>
-            새 TC(템플릿)
+            새 테스트 케이스(템플릿)
           </button>
         </div>
       </section>
@@ -333,8 +333,8 @@ export function TestcasesPage() {
         <section className="card stack" aria-label="작업 브랜치" data-testid="work-branches">
           <h2>작업 브랜치</h2>
           <p className="hint">
-            TC 하나에 작업 브랜치 하나, PR 하나입니다. 저장하면 그 TC 의 작업 브랜치로 옮겨 커밋하고, 다른 TC 의 브랜치에는 섞지 않습니다. 위 목록은 지금 브랜치(
-            <code>{status?.branch}</code>)의 내용입니다. 다른 TC 의 변경은 그 브랜치를 보면 나옵니다.
+            테스트 케이스 하나에 작업 브랜치 하나, PR 하나입니다. 저장하면 그 테스트 케이스의 작업 브랜치로 옮겨 커밋하고, 다른 테스트 케이스의 브랜치에는 섞지 않습니다. 위 목록은 지금 브랜치(
+            <code>{status?.branch}</code>)의 내용입니다. 다른 테스트 케이스의 변경은 그 브랜치를 보면 나옵니다.
           </p>
           <table className="matrix">
             <thead>
@@ -353,7 +353,7 @@ export function TestcasesPage() {
                 </td>
                 <td>-</td>
                 <td>-</td>
-                <td className="hint">승인된 TC·플로우</td>
+                <td className="hint">승인된 테스트 케이스·플로우</td>
                 <td>
                   {status?.onMain ? null : (
                     <button type="button" className="secondary" disabled={busy} onClick={() => void checkout("main")}>
@@ -389,14 +389,14 @@ export function TestcasesPage() {
               ))}
             </tbody>
           </table>
-          {branches.branches.length === 0 ? <p className="hint">아직 작업 브랜치가 없습니다. TC 를 저장하거나 플로우를 만들면 생깁니다.</p> : null}
+          {branches.branches.length === 0 ? <p className="hint">아직 작업 브랜치가 없습니다. 테스트 케이스를 저장하거나 플로우를 만들면 생깁니다.</p> : null}
         </section>
       ) : null}
 
       {editing ? (
-        <form className="card stack" onSubmit={save} aria-label="TC 편집">
+        <form className="card stack" onSubmit={save} aria-label="테스트 케이스 편집">
           <h2>
-            {editing.app}/{editing.id} {editing.isNew ? <span className="badge">새 TC</span> : null}
+            {editing.app}/{editing.id} {editing.isNew ? <span className="badge">새 테스트 케이스</span> : null}
           </h2>
           <div className="row" role="tablist" aria-label="편집 방식">
             <button type="button" role="tab" aria-selected={mode === "form"} className={mode === "form" ? "" : "secondary"} onClick={() => switchMode("form")}>
@@ -499,7 +499,7 @@ export function TestcasesPage() {
               </label>
             </div>
           ) : (
-            <textarea className="editor" aria-label="TC 원문" value={text} onChange={(e) => setText(e.target.value)} rows={24} spellCheck={false} />
+            <textarea className="editor" aria-label="테스트 케이스 원문" value={text} onChange={(e) => setText(e.target.value)} rows={24} spellCheck={false} />
           )}
 
           <LintPanel issues={lint?.issues ?? []} />
@@ -507,7 +507,7 @@ export function TestcasesPage() {
           {authoringTc(authorJob, editing) ? (
             <div role="alert" className="warning stack" data-testid="tc-authoring-warning">
               <p>
-                이 TC 로 플로우 만들기가 진행 중입니다({authorJob?.target}). 작업은 시작할 때 읽은 TC 로 플로우를 만들어서, 지금 저장하는 변경은 그 플로우에 반영되지
+                이 테스트 케이스로 플로우 만들기가 진행 중입니다({authorJob?.target}). 작업은 시작할 때 읽은 테스트 케이스로 플로우를 만들어서, 지금 저장하는 변경은 그 플로우에 반영되지
                 않습니다. 끝난 뒤 저장하거나, 플로우 만들기에서 작업을 취소하고 저장한 뒤 다시 시작합니다.
               </p>
               <label className="row">

@@ -39,7 +39,7 @@ export function WorkspacePage() {
     <>
       <h1>워크스페이스</h1>
       <section className="card stack" aria-label="워크스페이스 상태">
-        <p className="hint">TC·플로우를 팀이 공유하는 GitHub 저장소입니다. 저장하면 작업 브랜치에 커밋하고, PR 작성을 누르면 PR 을 만듭니다. main 에 직접 올리지 않습니다.</p>
+        <p className="hint">테스트 케이스·플로우를 팀이 공유하는 GitHub 저장소입니다. 저장하면 작업 브랜치에 커밋하고, PR 작성을 누르면 PR 을 만듭니다. main 에 직접 올리지 않습니다.</p>
         {status ? (
           <dl data-testid="workspace-status">
             <dt>저장소</dt>
@@ -94,7 +94,7 @@ export function WorkspacePage() {
         </section>
       ) : null}
 
-      {status?.connected ? <p className="hint">TC 목록·편집·PR 작성은 메뉴 "TC"에서 합니다.</p> : null}
+      {status?.connected ? <p className="hint">테스트 케이스 목록·편집·PR 작성은 메뉴 "테스트 케이스"에서 합니다.</p> : null}
     </>
   );
 }

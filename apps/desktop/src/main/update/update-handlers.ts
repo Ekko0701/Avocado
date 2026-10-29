@@ -1,10 +1,11 @@
 import type { IpcHandlers } from "@qa/shared";
 import type { UpdateService } from "./update-service";
 
-export function createUpdateHandlers(update: UpdateService): Pick<IpcHandlers, "update:status" | "update:check" | "update:download"> {
+export function createUpdateHandlers(update: UpdateService): Pick<IpcHandlers, "update:status" | "update:check" | "update:download" | "update:install"> {
   return {
     "update:status": () => update.status(),
     "update:check": () => update.check(),
     "update:download": () => update.download(),
+    "update:install": () => update.install(),
   };
 }

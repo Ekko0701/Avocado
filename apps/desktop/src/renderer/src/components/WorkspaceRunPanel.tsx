@@ -60,7 +60,7 @@ export function WorkspaceRunPanel(props: { builds: Build[]; devices: Device[]; o
     }
   }
 
-  if (listError) return <p className="hint">워크스페이스를 연결하면 TC·태그로 실행할 수 있습니다. ({listError})</p>;
+  if (listError) return <p className="hint">워크스페이스를 연결하면 테스트 케이스·태그로 실행할 수 있습니다. ({listError})</p>;
   if (!list) return null;
 
   return (
@@ -111,8 +111,8 @@ export function WorkspaceRunPanel(props: { builds: Build[]; devices: Device[]; o
         </label>
       </div>
       <div className="row">
-        <select aria-label="실행할 TC" value={tcId} onChange={(e) => setTcId(e.target.value)}>
-          <option value="">TC 선택({runnable.length})</option>
+        <select aria-label="실행할 테스트 케이스" value={tcId} onChange={(e) => setTcId(e.target.value)}>
+          <option value="">테스트 케이스 선택({runnable.length})</option>
           {runnable.map((t) => (
             <option key={t.id} value={t.id}>
               {t.id} {t.title ?? ""}
@@ -120,7 +120,7 @@ export function WorkspaceRunPanel(props: { builds: Build[]; devices: Device[]; o
           ))}
         </select>
         <button type="button" disabled={!ready || !tcId} onClick={() => void start({ tcId })}>
-          TC 실행
+          테스트 케이스 실행
         </button>
         <select aria-label="실행할 태그" value={tag} onChange={(e) => setTag(e.target.value)}>
           <option value="">태그 선택</option>

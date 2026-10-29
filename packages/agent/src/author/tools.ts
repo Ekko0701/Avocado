@@ -11,7 +11,7 @@ import type { Budget } from "../budget";
  */
 export const SubmitFlowSchema = z.strictObject({
   yaml: z.string().describe("플로우 전체(머리 + --- + 명령 목록)"),
-  screenshotsPlan: z.array(z.strictObject({ stepIndex: z.number().describe("TC 스텝 번호(1부터)"), screenKey: z.string() })),
+  screenshotsPlan: z.array(z.strictObject({ stepIndex: z.number().describe("테스트 케이스 스텝 번호(1부터)"), screenKey: z.string() })),
   missingIdentifiers: z.array(z.strictObject({ screenKey: z.string(), description: z.string(), fallbackSelector: z.string() })),
   questions: z.array(z.string()),
   confidence: z.number().describe("0~1"),
@@ -48,7 +48,7 @@ export class AuthorSession {
       strict(
         betaZodTool({
           name: "begin_step",
-          description: "TC 스텝을 시작할 때 부른다(1부터, 차례대로). 스텝마다 도구 호출 상한이 다시 센다.",
+          description: "테스트 케이스 스텝을 시작할 때 부른다(1부터, 차례대로). 스텝마다 도구 호출 상한이 다시 센다.",
           inputSchema: z.strictObject({ step: z.number() }),
           run: ({ step }) => {
             if (!Number.isInteger(step) || step < 1 || step > this.totalSteps) throw new ToolError(`스텝 번호는 1~${this.totalSteps} 이다`);
@@ -63,7 +63,7 @@ export class AuthorSession {
       strict(
         betaZodTool({
           name: "ask_planner",
-          description: "TC 가 모호하거나 화면이 TC 와 다를 때 기획자에게 남길 질문. 답을 기다리지 않으니 보수적으로 계속한다.",
+          description: "테스트 케이스가 모호하거나 화면이 테스트 케이스와 다를 때 기획자에게 남길 질문. 답을 기다리지 않으니 보수적으로 계속한다.",
           inputSchema: z.strictObject({ question: z.string() }),
           run: ({ question }) => {
             const q = question.trim();

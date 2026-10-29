@@ -51,7 +51,7 @@ export function AuthorPage(props: { onOpenResults?: (runId: string) => void }) {
       window.qa.claude.status(),
     ]);
     if (tc.status === "fulfilled") setTestcases(tc.value.testcases.filter((t) => t.valid));
-    else setMessage(`TC 목록을 읽지 못했습니다: ${errorMessage(tc.reason)}`);
+    else setMessage(`테스트 케이스 목록을 읽지 못했습니다: ${errorMessage(tc.reason)}`);
     if (d.status === "fulfilled") setDevices(d.value.devices.filter((x) => x.state === "booted"));
     if (b.status === "fulfilled") setBuilds(b.value);
     if (s.status === "fulfilled") setKeyStored(s.value.items.some((i) => i.name === "anthropicApiKey" && i.stored));
@@ -132,7 +132,7 @@ export function AuthorPage(props: { onOpenResults?: (runId: string) => void }) {
           job.submission?.questions.length ? `\n기획자 질문:\n${job.submission.questions.map((q) => `- ${q}`).join("\n")}` : "",
         ].join(""),
       });
-      setMessage(pr.existing ? `이 TC 의 열린 PR #${pr.number} 에 올렸습니다: ${pr.url}` : `PR #${pr.number} 을 만들었습니다: ${pr.url}`);
+      setMessage(pr.existing ? `이 테스트 케이스의 열린 PR #${pr.number} 에 올렸습니다: ${pr.url}` : `PR #${pr.number} 을 만들었습니다: ${pr.url}`);
     } catch (e) {
       setMessage(`PR 을 만들지 못했습니다: ${errorMessage(e)}`);
     }
@@ -143,7 +143,7 @@ export function AuthorPage(props: { onOpenResults?: (runId: string) => void }) {
       <h1>플로우 만들기</h1>
       <section className="card stack" aria-label="플로우 만들기 준비">
         <p className="hint">
-          에이전트가 TC 를 기기에서 따라가며 Maestro 플로우를 만들고, 앱이 규약 검사와 2회 재생으로 확인한 뒤 작업 브랜치에 커밋합니다. 계정 값은 키 이름으로만 에이전트에게
+          에이전트가 테스트 케이스를 기기에서 따라가며 Maestro 플로우를 만들고, 앱이 규약 검사와 2회 재생으로 확인한 뒤 작업 브랜치에 커밋합니다. 계정 값은 키 이름으로만 에이전트에게
           보입니다.
           {viaClaude ? " 탐색은 각자의 Claude 앱(데스크톱·Code)이 합니다. 시작하면 Claude 에 붙여 넣을 요청이 나오고, 사용량은 각자의 Claude 요금제 한도에서 나갑니다." : null}
         </p>
@@ -164,7 +164,7 @@ export function AuthorPage(props: { onOpenResults?: (runId: string) => void }) {
         ) : null}
         <div className="grid">
           <label>
-            TC
+            테스트 케이스
             <select value={tcKey} onChange={(e) => setTcKey(e.target.value)}>
               <option value="">선택</option>
               {testcases.map((t) => (

@@ -82,11 +82,11 @@ test("저장소 고르기: 사용자마다 다른 저장소 이름을 토큰으�
 
     await picker.getByRole("button", { name: "저장소 목록 불러오기" }).click();
     // 연도로 끝나는 증적 저장소가 없는 주인을 고르면 알려 준다
-    await picker.getByLabel("워크스페이스(TC·플로우)").selectOption("other/no-year");
+    await picker.getByLabel("워크스페이스(테스트 케이스·플로우)").selectOption("other/no-year");
     await expect(picker.getByTestId("github-picker-no-evidence")).toContainText("연도로 끝나는 증적 저장소");
     await expect(picker.getByRole("button", { name: "고른 저장소로 저장" })).toBeDisabled();
 
-    await picker.getByLabel("워크스페이스(TC·플로우)").selectOption("me/Avocado-workspace");
+    await picker.getByLabel("워크스페이스(테스트 케이스·플로우)").selectOption("me/Avocado-workspace");
     await picker.getByLabel("증적(연도별)").selectOption(`Avocado-qa-evidence-${year}`);
     await picker.getByRole("button", { name: "고른 저장소로 저장" }).click();
     await expect(github.getByLabel("GitHub 조직")).toHaveValue("me");

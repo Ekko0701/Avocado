@@ -21,7 +21,7 @@ const NAV: { group: string | null; items: { id: Page; label: string; icon: IconN
   {
     group: "작성",
     items: [
-      { id: "testcases", label: "TC", icon: "doc" },
+      { id: "testcases", label: "테스트 케이스", icon: "doc" },
       { id: "author", label: "플로우 만들기", icon: "sparkle" },
     ],
   },

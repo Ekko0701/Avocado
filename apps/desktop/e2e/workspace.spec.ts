@@ -28,12 +28,12 @@ test("워크스페이스: 앱에서 TC 를 고쳐 저장하면 작업 브랜치�
     await expect(page.getByTestId("workspace-status")).toContainText("바뀐 파일");
 
     // TC 화면에서 원문으로 고친다
-    await page.getByRole("button", { name: "TC", exact: true }).click();
+    await page.getByRole("button", { name: "테스트 케이스", exact: true }).click();
     await expect(page.getByTestId("tc-demo-TC-0101")).toContainText("이메일로 회원가입하면 홈 화면이 열린다");
     await expect(page.getByTestId("tc-demo-TC-0101")).toContainText("ios");
     await page.getByTestId("tc-demo-TC-0101").getByRole("button", { name: "demo/TC-0101" }).click();
     await page.getByRole("tab", { name: "원문" }).click();
-    const editor = page.getByLabel("TC 원문");
+    const editor = page.getByLabel("테스트 케이스 원문");
     const original = await editor.inputValue();
     await editor.fill(original.replace("홈 화면이 열리고", "홈 화면(홈)이 열리고"));
     await page.getByLabel("변경 요약").fill("connect screen wording");
@@ -76,9 +76,9 @@ test("워크스페이스에서 실행: TC·태그를 고르면 main 이 플로�
     const panel = page.getByTestId("workspace-run");
     await expect(panel).toBeVisible();
     await panel.getByLabel("실행할 앱").selectOption("demo");
-    await panel.getByLabel("실행할 TC").selectOption("TC-0101");
+    await panel.getByLabel("실행할 테스트 케이스").selectOption("TC-0101");
     // 실행 중인 기기가 없으면 시작할 수 없다
-    await expect(panel.getByRole("button", { name: "TC 실행" })).toBeDisabled();
+    await expect(panel.getByRole("button", { name: "테스트 케이스 실행" })).toBeDisabled();
     await panel.getByLabel("실행할 태그").selectOption("smoke");
     await expect(panel.getByRole("button", { name: /태그로 차례 실행 \(1개\)/ })).toBeDisabled();
 
@@ -110,7 +110,7 @@ test("홈: 워크스페이스 상태, 최근 실행, 내 PR 이 보인다 (PLAN 
       await window.qa.workspace.saveTestcase({ app: "demo", id: "TC-0101", text: tc.text.replace("홈 화면이 열리고", "홈 화면(홈)이 열리고"), summary: "home check" });
       await window.qa.workspace.requestReview({ title: "TC-0101 문구", body: "홈 화면 확인" });
     });
-    await page.getByRole("button", { name: "TC", exact: true }).click();
+    await page.getByRole("button", { name: "테스트 케이스", exact: true }).click();
     await page.getByRole("button", { name: "홈", exact: true }).click();
     await expect(page.getByTestId("home-workspace")).toContainText("acme/qa-workspace");
     await expect(page.getByTestId("home-workspace")).toContainText("qa/qa-bot/TC-0101-home-check");

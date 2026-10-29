@@ -100,6 +100,7 @@ const api: QaApi = {
     status: () => invoke("update:status", undefined),
     check: () => invoke("update:check", undefined),
     download: () => invoke("update:download", undefined),
+    install: () => invoke("update:install", undefined),
   },
   setup: {
     check: () => invoke("setup:check", undefined),

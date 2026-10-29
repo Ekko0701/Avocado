@@ -23,6 +23,15 @@ export const UpdateStatusSchema = z.strictObject({
       opened: z.boolean(),
     })
     .nullable(),
+  /** 받아서 재시작으로 적용하는 업데이트(ADR 0027). 할 수 없으면 .dmg 를 받아 연다 */
+  autoInstall: z.strictObject({
+    /** 릴리스에 이 Mac 용 .zip·.sha256 이 있고, 이 앱이 스스로 바꿔 끼울 수 있다 */
+    possible: z.boolean(),
+    /** possible 이 아닌 이유 */
+    reason: z.string().nullable(),
+    /** 받아서 확인을 마쳤다. 재시작하면 적용된다 */
+    ready: z.boolean(),
+  }),
   busy: z.boolean(),
 });
 export type UpdateStatus = z.infer<typeof UpdateStatusSchema>;

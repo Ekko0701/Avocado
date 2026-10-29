@@ -16,6 +16,6 @@ export function testcaseTemplate(input: { id: string; app: string; targets: Targ
       { action: "'버튼 이름'을 탭한다", expected: ["그 결과 화면에 보여야 할 것을 쓴다"] },
       { action: "'입력란 이름'에 값을 입력하고 '버튼 이름'을 탭한다", expected: ["다음 화면과 보여야 할 문구"] },
     ],
-    doneCriteria: ["TC 가 끝났다고 볼 화면 상태"],
+    doneCriteria: ["테스트 케이스가 끝났다고 볼 화면 상태"],
   });
 }

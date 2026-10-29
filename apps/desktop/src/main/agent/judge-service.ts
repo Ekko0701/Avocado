@@ -367,7 +367,7 @@ export class JudgeService {
       "Avocado 가 실행한 자동 테스트의 화면 캡처를 판정한다. Avocado 도구(get_judge_capture, submit_judgement)로만 진행한다. 이 작업에는 셸·파일·웹 같은 다른 도구를 쓰지 않는다.",
       JUDGE_SYSTEM_PROMPT,
       "## 진행\n- 아래 캡처마다 get_judge_capture 로 캡처와 기대 결과를 보고, submit_judgement 로 판정을 낸다(캡처마다 한 번).\n- 판정 결과는 배지로만 보이고 실행 결과를 바꾸지 않는다.\n- 모든 캡처를 내면 작업이 끝난다.",
-      `# 판정할 캡처 (TC ${job.tcId}, ${pending.length}/${job.captures.length}장 남음)`,
+      `# 판정할 캡처 (테스트 케이스 ${job.tcId}, ${pending.length}/${job.captures.length}장 남음)`,
       ...pending.map((c) => `- ${c.id}: ${redactText(c.step, job.secretSet).text}`),
     ].join("\n\n");
   }

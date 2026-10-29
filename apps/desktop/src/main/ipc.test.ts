@@ -203,6 +203,9 @@ const handlers: IpcHandlers = {
   "update:download": () => {
     throw new Error("not used");
   },
+  "update:install": () => {
+    throw new Error("not used");
+  },
   "agent:judge": () => {
     throw new Error("not used");
   },

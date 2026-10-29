@@ -44,12 +44,12 @@ test("플로우 만들기: 화면을 다시 열면 진행 중인 작업을 이�
     await expect(page.getByTestId("author-job")).toBeVisible();
     await expect(page.getByTestId("author-claude-request-text")).toContainText("job-e2e");
     await expect(page.getByRole("button", { name: "Claude 로 플로우 만들기" })).toBeDisabled();
-    await nav.getByRole("button", { name: "TC", exact: true }).click();
+    await nav.getByRole("button", { name: "테스트 케이스", exact: true }).click();
     await nav.getByRole("button", { name: "플로우 만들기", exact: true }).click();
     await expect(page.getByTestId("author-claude-request-text")).toContainText("job-e2e");
 
     // 작업 중인 TC 를 열면 경고가 보이고, 확인하지 않으면 저장하지 않는다
-    await nav.getByRole("button", { name: "TC", exact: true }).click();
+    await nav.getByRole("button", { name: "테스트 케이스", exact: true }).click();
     await page.getByRole("button", { name: "demo/TC-0101" }).click();
     const warning = page.getByTestId("tc-authoring-warning");
     await expect(warning).toContainText("플로우 만들기가 진행 중입니다");

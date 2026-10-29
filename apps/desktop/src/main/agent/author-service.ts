@@ -179,7 +179,7 @@ const CONTROL_TOOLS: McpToolDefinition[] = [
   {
     name: "attach_author",
     description:
-      "사용자가 Avocado 의 '플로우 만들기'에서 시작한 작업을 이 대화가 맡는다. 다른 Avocado 도구보다 먼저 부른다. 결과로 지시문과 작업 입력(TC·env 키 이름·서브플로우)을 받는다.",
+      "사용자가 Avocado 의 '플로우 만들기'에서 시작한 작업을 이 대화가 맡는다. 다른 Avocado 도구보다 먼저 부른다. 결과로 지시문과 작업 입력(테스트 케이스·env 키 이름·서브플로우)을 받는다.",
     inputSchema: { type: "object", properties: { jobId: { type: "string", description: "Avocado 요청 문장에 있는 작업 id. 비우면 진행 중인 작업" } }, additionalProperties: false },
   },
   {
@@ -621,7 +621,7 @@ export class AuthorService {
         live.lint = [];
         live.problems = problems;
         this.setPhase(live, live.claude ? "preparing" : "exploring");
-        this.log(live, attempt === 1 ? "기기에서 TC 를 따라가며 플로우를 만든다" : `다시 시도한다: ${problems.slice(0, 3).join(" / ")}`);
+        this.log(live, attempt === 1 ? "기기에서 테스트 케이스를 따라가며 플로우를 만든다" : `다시 시도한다: ${problems.slice(0, 3).join(" / ")}`);
         const previous = previousYaml ? { yaml: previousYaml, problems } : null;
         let raw: SubmitFlow | null;
         if (live.claude) {

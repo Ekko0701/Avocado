@@ -15,7 +15,7 @@ test("TC 작성: 기획자가 템플릿으로 새 TC 를 쓰고, 린트를 통�
     await page.getByRole("button", { name: "연결(clone)" }).click();
     await expect(page.getByTestId("workspace-status")).toContainText("main");
 
-    await page.getByRole("button", { name: "TC", exact: true }).click();
+    await page.getByRole("button", { name: "테스트 케이스", exact: true }).click();
     // 필터: 태그 smoke 는 두 앱 모두, 앱 Demo 는 하나
     await page.getByLabel("태그 필터").selectOption("smoke");
     await expect(page.locator("tr[data-testid^='tc-']")).toHaveCount(2);
@@ -23,8 +23,8 @@ test("TC 작성: 기획자가 템플릿으로 새 TC 를 쓰고, 린트를 통�
     await expect(page.locator("tr[data-testid^='tc-']")).toHaveCount(1);
 
     // 템플릿으로 새 TC(다음 번호: TC-0102)
-    await page.getByLabel("새 TC 앱").selectOption("demo");
-    await page.getByRole("button", { name: "새 TC(템플릿)" }).click();
+    await page.getByLabel("새 테스트 케이스 앱").selectOption("demo");
+    await page.getByRole("button", { name: "새 테스트 케이스(템플릿)" }).click();
     const form = page.getByTestId("tc-form");
     await expect(page.getByRole("heading", { name: /demo\/TC-0102/ })).toBeVisible();
     await expect(page.getByTestId("tc-lint")).toContainText("린트 문제 없음");

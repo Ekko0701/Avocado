@@ -332,14 +332,14 @@ export class WorkspaceService {
       .filter((target) => !(target in targets))
       .map((target) => [target, [...tcs.filter((t) => t.doc?.frontMatter.targets.some((x) => x === target)).map((t) => t.id), ...this.flowFiles(`flows/${app}/${target}`)]] as const)
       .filter(([, users]) => users.length > 0);
-    if (lostTargets.length > 0) throw new WorkspaceError(`TC·플로우가 쓰는 타깃은 지울 수 없다: ${lostTargets.map(([t, users]) => `${t}(${users.join(", ")})`).join(" / ")}`);
+    if (lostTargets.length > 0) throw new WorkspaceError(`테스트 케이스·플로우가 쓰는 타깃은 지울 수 없다: ${lostTargets.map(([t, users]) => `${t}(${users.join(", ")})`).join(" / ")}`);
     const usedRoles = new Map<string, string[]>();
     for (const t of tcs) {
       const role = t.doc?.frontMatter.account;
       if (role) usedRoles.set(role, [...(usedRoles.get(role) ?? []), t.id]);
     }
     const lostRoles = [...usedRoles].filter(([role]) => !nextAccounts[role]);
-    if (lostRoles.length > 0) throw new WorkspaceError(`TC 가 쓰는 역할은 지울 수 없다: ${lostRoles.map(([r, ids]) => `${r}(${ids.join(", ")})`).join(" / ")}`);
+    if (lostRoles.length > 0) throw new WorkspaceError(`테스트 케이스가 쓰는 역할은 지울 수 없다: ${lostRoles.map(([r, ids]) => `${r}(${ids.join(", ")})`).join(" / ")}`);
     const knownKeys = new Set(Object.values({ ...(ws.apps[app]?.accounts ?? {}), ...source.accounts }).flatMap((r) => r.keys));
     const nextKeys = new Set(Object.values(nextAccounts).flatMap((r) => r.keys));
     const lostKeys = [...this.flowKeyUses(app, knownKeys)].filter(([key]) => !nextKeys.has(key));
@@ -472,13 +472,13 @@ export class WorkspaceService {
       if (flow) out.push({ tcId: t.id, path: join(dir, flow.path) });
     }
     if (input.tcId && out.length === 0) throw new WorkspaceError(`${input.tcId} 의 ${input.target} 플로우가 없다(flows/${input.app}/${input.target}/${input.tcId}.yaml)`);
-    if (!input.tcId && out.length === 0) throw new WorkspaceError(`태그 ${input.tag ?? ""} 인 active TC 중 ${input.target} 플로우가 있는 것이 없다`);
+    if (!input.tcId && out.length === 0) throw new WorkspaceError(`태그 ${input.tag ?? ""} 인 active 테스트 케이스 중 ${input.target} 플로우가 있는 것이 없다`);
     // 빌드 없이(기기에 설치된 앱으로) 돌릴 때 ${APP_ID} 에 넣을 값
     return { appId: ws.apps[input.app]?.config?.targets[input.target]?.appId ?? null, flows: out };
   }
 
   private testcasePath(app: string, id: string): string {
-    if (!AppIdSchema.safeParse(app).success || !TC_ID.test(id)) throw new WorkspaceError("앱 id 또는 TC id 형식이 아니다");
+    if (!AppIdSchema.safeParse(app).success || !TC_ID.test(id)) throw new WorkspaceError("앱 id 또는 테스트 케이스 id 형식이 아니다");
     return `testcases/${app}/${id}.md`;
   }
 
@@ -486,7 +486,7 @@ export class WorkspaceService {
     if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
     const path = this.testcasePath(app, id);
     const abs = join(this.target().dir, path);
-    if (!existsSync(abs)) throw new WorkspaceError(`TC 가 없다: ${path}`);
+    if (!existsSync(abs)) throw new WorkspaceError(`테스트 케이스가 없다: ${path}`);
     return { path, text: readFileSync(abs, "utf8") };
   }
 
@@ -499,12 +499,12 @@ export class WorkspaceService {
     // 화면과 같은 린트(PLAN 4.2)를 저장할 때 다시 한다. 차단 항목이 있으면 저장하지 않는다
     const appInfo = ws.apps[input.app];
     const lint = lintTestcase(input.text, { accountRoles: Object.keys(appInfo?.accounts ?? {}), appTargets: Object.keys(appInfo?.config?.targets ?? {}) }, path);
-    if (!lint.doc) throw new WorkspaceError(`TC 형식 오류: ${lint.issues.map((i) => i.message).join(" / ")}`);
+    if (!lint.doc) throw new WorkspaceError(`테스트 케이스 형식 오류: ${lint.issues.map((i) => i.message).join(" / ")}`);
     if (lint.doc.frontMatter.id !== input.id || lint.doc.frontMatter.app !== input.app) {
       throw new WorkspaceError(`front matter 의 id·app(${lint.doc.frontMatter.id}, ${lint.doc.frontMatter.app})이 저장 위치와 다르다`);
     }
     if (hasBlocking(lint.issues)) {
-      throw new WorkspaceError(`TC 린트 오류: ${lint.issues.filter((i) => i.level === "error").map((i) => i.message).join(" / ")}`);
+      throw new WorkspaceError(`테스트 케이스 린트 오류: ${lint.issues.filter((i) => i.level === "error").map((i) => i.message).join(" / ")}`);
     }
 
     const login = await this.whoami();
@@ -521,14 +521,14 @@ export class WorkspaceService {
     if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
     const { dir } = this.target();
     const tcPath = this.testcasePath(app, id);
-    if (!existsSync(join(dir, tcPath))) throw new WorkspaceError(`TC 가 없다: ${tcPath}`);
+    if (!existsSync(join(dir, tcPath))) throw new WorkspaceError(`테스트 케이스가 없다: ${tcPath}`);
     const ws = loadWorkspace(dir);
     const appInfo = ws.apps[app];
     if (!ws.config?.apps.includes(app) || !appInfo?.config) throw new WorkspaceError(`워크스페이스에 앱 설정이 없다: apps/${app}/app.yaml`);
     const text = readFileSync(join(dir, tcPath), "utf8");
     const lint = lintTestcase(text, { accountRoles: Object.keys(appInfo.accounts), appTargets: Object.keys(appInfo.config.targets) }, tcPath);
     if (!lint.doc || hasBlocking(lint.issues)) {
-      throw new WorkspaceError(`TC 린트 오류를 먼저 고친다: ${lint.issues.filter((i) => i.level === "error").map((i) => i.message).join(" / ")}`);
+      throw new WorkspaceError(`테스트 케이스 린트 오류를 먼저 고친다: ${lint.issues.filter((i) => i.level === "error").map((i) => i.message).join(" / ")}`);
     }
     const fm = lint.doc.frontMatter;
     if (!fm.targets.includes(target)) throw new WorkspaceError(`${id} 의 targets 에 ${target} 가 없다`);
@@ -746,7 +746,7 @@ export class WorkspaceService {
     if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
     const current = await this.currentBranch();
     const branch = input.branch ?? current;
-    if (branch === MAIN || branch === "HEAD") throw new WorkspaceError("main 에서는 PR 을 만들지 않는다. TC 를 저장하면 작업 브랜치가 생긴다");
+    if (branch === MAIN || branch === "HEAD") throw new WorkspaceError("main 에서는 PR 을 만들지 않는다. 테스트 케이스를 저장하면 작업 브랜치가 생긴다");
     const login = await this.whoami();
     if (!(await this.myBranches(login)).includes(branch)) throw new WorkspaceError(`내 작업 브랜치가 아니다: ${branch}`);
     if (branch === current) {

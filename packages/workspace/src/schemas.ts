@@ -8,7 +8,7 @@ export const TargetSchema = z.enum(["ios", "android", "flutter-ios", "flutter-an
 export type Target = z.infer<typeof TargetSchema>;
 
 export const TC_ID = /^TC-\d{4,}$/;
-export const TcIdSchema = z.string().regex(TC_ID, "TC id 는 TC-0001 형식");
+export const TcIdSchema = z.string().regex(TC_ID, "테스트 케이스 id 는 TC-0001 형식");
 
 export const WorkspaceConfigSchema = z.strictObject({
   schemaVersion: z.literal(1),

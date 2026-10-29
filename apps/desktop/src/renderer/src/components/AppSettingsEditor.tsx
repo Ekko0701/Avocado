@@ -188,8 +188,8 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
     <form className="card stack" aria-label="앱 설정" data-testid="app-settings" onSubmit={(e) => void save(e)}>
       <h2>앱 설정</h2>
       <p className="hint">
-        테스트할 앱의 이름·언어·타깃별 앱 ID 와, TC 가 고르는 계정 역할입니다(apps/&lt;앱&gt;/app.yaml, accounts.yaml). 저장하면 그 앱의 앱 설정 작업 브랜치에
-        커밋하고, PR 작성을 누르면 PR 을 만듭니다. 계정 값은 여기서 넣지 않고 설정 → 테스트 계정 값에서 넣습니다. TC·플로우가 쓰는 타깃·역할·키는 지울 수 없습니다.
+        테스트할 앱의 이름·언어·타깃별 앱 ID 와, 테스트 케이스가 고르는 계정 역할입니다(apps/&lt;앱&gt;/app.yaml, accounts.yaml). 저장하면 그 앱의 앱 설정 작업 브랜치에
+        커밋하고, PR 작성을 누르면 PR 을 만듭니다. 계정 값은 여기서 넣지 않고 설정 → 테스트 계정 값에서 넣습니다. 테스트 케이스·플로우가 쓰는 타깃·역할·키는 지울 수 없습니다.
       </p>
       <div className="row">
         <label>
