@@ -33,7 +33,11 @@ test("비밀 저장: 상태만 보이고 값은 화면·파일 어디에도 없�
   await expect(row.getByTestId("secret-status")).toHaveText("저장됨");
   await expect(row.getByLabel("Anthropic API 키 입력")).toHaveValue("");
 
-  // 테스트 계정 값 추가
+  // 테스트 계정 값은 검증 → 테스트 계정에서 넣는다. 설정에는 안내만 있다
+  await expect(page.getByTestId("account-values")).toHaveCount(0);
+  await expect(page.getByText("플로우가 쓰는 테스트 계정 값은 사이드바 검증 → 테스트 계정에서 넣습니다.")).toBeVisible();
+  await page.getByRole("button", { name: "테스트 계정", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "테스트 계정", level: 1 })).toBeVisible();
   const add = page.getByRole("form", { name: "테스트 계정 값 추가" });
   await add.getByLabel("앱 ID").fill("sample");
   await add.getByLabel("키 이름").fill("SAMPLE_TEST_STUDENT_PW");
@@ -150,8 +154,10 @@ test("테스트 계정 값: 워크스페이스 accounts.yaml 의 앱·키 이름
     // 예전에 넣었지만 지금 워크스페이스에는 없는 키
     await page.evaluate(() => window.qa.secrets.set({ name: "account:old-app:OLD_KEY", value: "old-value-1234" }));
 
-    // 연결 전: 직접 추가만 보인다
-    await page.getByRole("button", { name: "설정", exact: true }).click();
+    // 연결 전: 직접 추가만 보인다. 사이드바 배지도 없다
+    const nav = page.getByRole("navigation", { name: "주 메뉴" });
+    await nav.getByRole("button", { name: "테스트 계정", exact: true }).click();
+    await expect(nav.getByTestId("nav-badge-accounts")).toHaveCount(0);
     const section = page.getByTestId("account-values");
     await expect(section).toContainText("워크스페이스를 연결하면");
     await expect(section.getByRole("form", { name: "테스트 계정 값 추가" })).toBeVisible();
@@ -159,10 +165,11 @@ test("테스트 계정 값: 워크스페이스 accounts.yaml 의 앱·키 이름
     await page.getByRole("button", { name: "워크스페이스", exact: true }).click();
     await page.getByRole("button", { name: "연결(clone)" }).click();
     await expect(page.getByTestId("workspace-status")).toContainText("main");
-    await page.getByRole("button", { name: "설정", exact: true }).click();
+    await nav.getByRole("button", { name: "테스트 계정", exact: true }).click();
 
-    // 앱마다 accounts.yaml 의 키가 줄로 나온다(Demo 1개 + Sample 2개)
+    // 앱마다 accounts.yaml 의 키가 줄로 나온다(Demo 1개 + Sample 2개). 사이드바에 빈 값 수가 보인다
     await expect(section.getByTestId("account-values-summary")).toHaveText("아직 넣지 않은 값 3개");
+    await expect(nav.getByTestId("nav-badge-accounts")).toHaveText("3");
     const demo = section.getByTestId("account-app-demo");
     await expect(demo).toContainText("signup 역할");
     const row = demo.getByTestId("secret-account:demo:DEMO_TEST_PASSWORD");
@@ -174,6 +181,7 @@ test("테스트 계정 값: 워크스페이스 accounts.yaml 의 앱·키 이름
     await row.getByRole("button", { name: "저장" }).click();
     await expect(row.getByTestId("secret-status")).toHaveText("저장됨");
     await expect(section.getByTestId("account-values-summary")).toHaveText("아직 넣지 않은 값 2개");
+    await expect(nav.getByTestId("nav-badge-accounts")).toHaveText("2");
 
     // 워크스페이스에 없는 키는 따로, 직접 추가는 접혀 있다
     await expect(section.getByTestId("account-values-others")).toContainText("old-app · OLD_KEY");

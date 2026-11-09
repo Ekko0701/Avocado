@@ -1,5 +1,6 @@
 import { accountSecretName, type SecretName, type SecretStatus, type WorkspaceAccounts } from "@qa/shared";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { missingAccountValues } from "../lib/account-values";
 import { errorMessage } from "../lib/errors";
 import { SecretRow } from "./SecretRow";
 
@@ -38,7 +39,7 @@ export function AccountValues(props: { secrets: SecretStatus[]; locked: boolean;
     return { ...a, keys: [...keys.entries()].map(([key, info]) => ({ key, name: accountSecretName(a.app, key), ...info })) };
   });
   const needed = new Set(apps.flatMap((a) => a.keys.map((k) => k.name)));
-  const missing = apps.flatMap((a) => a.keys).filter((k) => !status(k.name).stored).length;
+  const missing = accounts ? missingAccountValues(accounts, props.secrets).length : 0;
   const others = props.secrets.filter((s) => s.name.startsWith("account:") && s.stored && !needed.has(s.name));
 
   return (

@@ -11,6 +11,7 @@ import { runToLog, type LoggedProcessRunner } from "../process/run-to-log";
 import type { CommandRunner } from "../setup/command";
 import { maestroEnv } from "../setup/setup-service";
 import { cleanupDrivers } from "./drivers";
+import { referencedEnvNames } from "./flow-env";
 import { isLiteralAppId, readFlowInfo, type FlowInfo } from "./flow-file";
 
 export class RunError extends Error {
@@ -27,6 +28,8 @@ export interface RunServiceOptions {
   tools: { maestroBin(): string | null; javaHome(): string | null };
   /** 앱의 테스트 계정 값(KEY → 값). maestro 에 -e 로 넘긴다 */
   accountSecrets(app: string): Record<string, string>;
+  /** 워크스페이스 accounts.yaml 에 있는 이 앱의 계정 키. 플로우가 쓰는데 값이 없으면 실행을 시작하지 않는다 */
+  accountKeys(app: string): readonly string[];
   /** 가릴 값 전체(계정 값 + 앱 비밀). 증적 가림과 잔존 검사에 쓴다 */
   redactionSecrets(): string[];
   /** userData/evidence */
@@ -183,6 +186,14 @@ export class RunService {
     } else if (!isLiteralAppId(flow.appId) && !options.appId) {
       throw new RunError(`플로우의 appId 가 변수(${flow.appId})라 빌드를 골라야 한다`);
     }
+    // 값이 없는 계정 키를 쓰면 Maestro 가 ${KEY} 를 글자 undefined 로 입력하고 엉뚱한 스텝에서 실패한다. 시작하기 전에 막는다
+    const accountKeys = new Set(this.options.accountKeys(input.app));
+    const used = [...referencedEnvNames(flowPath)].filter((name) => accountKeys.has(name)).sort();
+    const stored = this.options.accountSecrets(input.app);
+    const notInRole = used.filter((k) => options.envKeys && !options.envKeys.includes(k));
+    if (notInRole.length > 0) throw new RunError(`이 테스트 케이스의 계정 역할에 없는 키를 플로우가 쓴다: ${notInRole.join(", ")}. 테스트 케이스의 계정 역할이나 플로우를 고친다`);
+    const missing = used.filter((k) => !stored[k]);
+    if (missing.length > 0) throw new RunError(`계정 값이 없다: ${missing.map((k) => `${input.app} · ${k}`).join(", ")}. 검증 → 테스트 계정에서 저장한다`);
     const deviceKey = `${device.platform}:${device.id}`;
     const busy = this.busyDevices.get(deviceKey);
     if (busy) throw new RunError(`이 기기에서 이미 실행 중이다: ${busy}`);

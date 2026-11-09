@@ -33,6 +33,7 @@ import { UpdateService } from "./update/update-service";
 import { UPDATE_RELEASE_REPO, UPDATE_SIGNER_TEAM_ID } from "./update/trust";
 import { UploadService } from "./evidence/upload-service";
 import { EvidenceRetention } from "./evidence/retention";
+import { rescrubEvidence } from "./evidence/rescrub";
 import { createSipsJpegConverter, createSipsShrinker } from "./agent/image";
 import { cleanupDrivers } from "./runs/drivers";
 import { maestroEnv } from "./setup/setup-service";
@@ -181,6 +182,8 @@ void app.whenReady().then(() => {
     builds,
     tools: installer,
     accountSecrets,
+    // RunService 보다 뒤에 만든 워크스페이스를 실행할 때 읽는다
+    accountKeys: (appId: string): readonly string[] => workspace.accounts().apps.find((entry) => entry.app === appId)?.roles.flatMap((role) => role.keys) ?? [],
     redactionSecrets: () =>
       settings
         .listSecrets()
@@ -208,6 +211,19 @@ void app.whenReady().then(() => {
     },
   });
   if (!testUserData) retention.schedule();
+  // 가림 규칙이 바뀌었으면 이미 저장한 가린 사본에도 한 번 다시 적용한다(창이 뜬 뒤, 큰 로그가 있어도 시작을 늦추지 않게)
+  setTimeout(() => {
+    const logEvidence = (entry: Record<string, unknown>) => {
+      mkdirSync(join(app.getPath("userData"), "logs"), { recursive: true });
+      appendFileSync(join(app.getPath("userData"), "logs", "evidence.log"), `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`, { mode: 0o600 });
+    };
+    try {
+      const r = rescrubEvidence(join(app.getPath("userData"), "evidence"));
+      if (!r.skipped) logEvidence({ service: "evidence-rescrub", ...r });
+    } catch (error) {
+      logEvidence({ service: "evidence-rescrub", error: error instanceof Error ? error.message : String(error) });
+    }
+  }, 3000);
   const agentJobs = new AgentJobStore(db);
   agentJobs.recoverInterrupted();
   // GitHub 요청 기록: JSON 한 줄씩, 메서드·경로·상태·시간만(토큰·헤더·본문 없음, CLAUDE.md 4·6장)

@@ -1,9 +1,15 @@
 import type { ReactNode } from "react";
 
-export type IconName = "home" | "folder" | "doc" | "sparkle" | "play" | "chart" | "phone" | "box" | "wand" | "gear" | "sync" | "branch";
+export type IconName = "home" | "folder" | "doc" | "sparkle" | "play" | "chart" | "phone" | "box" | "wand" | "gear" | "sync" | "branch" | "key";
 
 /** 24×24 선 아이콘(직접 그림). 글자색을 따른다 */
 const PATHS: Record<IconName, ReactNode> = {
+  key: (
+    <>
+      <circle cx="8" cy="15" r="4" />
+      <path d="M11 12l9-9M16 7l3 3M13.5 9.5l2.5 2.5" />
+    </>
+  ),
   home: (
     <>
       <path d="M3 10.5 12 3l9 7.5" />

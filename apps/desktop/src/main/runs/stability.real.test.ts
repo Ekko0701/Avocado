@@ -31,6 +31,7 @@ describe.skipIf(!enabled)("플로우 반복 안정성(실기기)", () => {
       builds: { get: () => { throw new Error("빌드 없이 돈다"); }, install: async () => ({ installed: true }) },
       tools: { maestroBin: () => env("QA_MAESTRO_BIN"), javaHome: () => env("QA_JAVA_HOME") },
       accountSecrets: () => ({ [env("QA_STABILITY_SECRET_KEY")]: secret }),
+      accountKeys: () => [env("QA_STABILITY_SECRET_KEY")],
       redactionSecrets: () => [secret],
       evidenceRoot: join(dir, "evidence"),
       trustedFlowRoots: [dirname(flow)],

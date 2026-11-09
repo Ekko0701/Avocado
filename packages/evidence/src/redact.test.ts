@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseExecution } from "./parse";
-import { buildSecretSet, findSecretResidue, MASK, redactExecutionDir, redactText, secretVariants } from "./redact";
+import { buildSecretSet, findResidueInFiles, findSecretResidue, MASK, redactExecutionDir, redactText, rescrubRedactedDir, secretVariants } from "./redact";
 import { listFiles } from "./walk";
 import { copyFixture, FAKE_ACCOUNT_ID, FAKE_ACCOUNT_PW, FAKE_SECRETS, fixtureDir, FIXTURE_NAMES } from "./test-fixtures";
 
@@ -32,6 +32,36 @@ describe("표기 변형과 문자열 가림", () => {
     const set = buildSecretSet(["홍길동 계정"]);
     const r = redactText(`a ${"홍길동 계정".normalize("NFD")} b ${"홍길동_계정".normalize("NFC")}`, set);
     expect(r.text).toBe(`a ${MASK} b ${MASK}`);
+  });
+
+  it("드라이버가 첫 글자와 나머지로 나눠 적은 입력 글자는 값 목록에 없어도 가린다", () => {
+    const set = buildSecretSet(["Fake-Pw-2026!"]);
+    const log = [
+      "2026-11-09 22:50:11.30 Runner[1:2] [TextInputHelper] first character: F",
+      "2026-11-09 22:50:12.04 Runner[1:2] [TextInputHelper] remaining text: ake-Pw-2026!",
+      "\tType string 'ake-Pw-2026!'",
+      "2026-11-09 22:50:12.54 Runner[1:2] [InputTextRouteHandler] Text input duration took 2.48",
+    ].join("\n");
+    const r = redactText(log, set);
+    expect(r.text).not.toContain("ake-Pw");
+    expect(r.text).toContain(`[TextInputHelper] first character: ${MASK}`);
+    expect(r.text).toContain(`[TextInputHelper] remaining text: ${MASK}`);
+    expect(r.text).toContain(`Type string '${MASK}'`);
+    expect(r.text).toContain("Text input duration took 2.48");
+    expect(r.patterns).toEqual({ "typed-text": 2, "typed-string": 1 });
+    // 이미 가린 사본은 잔존으로 보지 않고, 가리지 않은 줄은 잔존으로 본다
+    expect(findResidueInFiles([{ path: "x.log", content: Buffer.from(r.text) }], [])).toEqual([]);
+    expect(findResidueInFiles([{ path: "x.log", content: Buffer.from(log) }], [])).toEqual([{ path: "x.log", occurrences: 0, inPath: false, patternMatches: 3 }]);
+  });
+
+  it("이미 만든 가린 사본에 지금 규칙을 다시 적용한다. 두 번 돌려도 같다", () => {
+    const dir = tmp("redacted");
+    mkdirSync(join(dir, "maestro"), { recursive: true });
+    writeFileSync(join(dir, "maestro", "xctest_runner.log"), "[TextInputHelper] first character: x\n[TextInputHelper] remaining text: yz-fake-0000\n");
+    writeFileSync(join(dir, "maestro", "shot.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x01]));
+    expect(rescrubRedactedDir(dir)).toBe(1);
+    expect(readFileSync(join(dir, "maestro", "xctest_runner.log"), "utf8")).toBe(`[TextInputHelper] first character: ${MASK}\n[TextInputHelper] remaining text: ${MASK}\n`);
+    expect(rescrubRedactedDir(dir)).toBe(0);
   });
 
   it("3자 미만 비밀은 가리지 못한 개수로 보고한다", () => {

@@ -6,7 +6,7 @@ import { doctor, startRun } from "./harness";
 // 화면 둘러보기(읽기 전용): 사이드바의 모든 화면을 라이트·다크로 찍는다. 스타일을 바꾼 뒤 한눈에 보려고 쓴다.
 // page.screenshot 은 웹 내용만 찍어 macOS 재질(vibrancy)이 비치는 곳은 비어 보인다.
 // QA_VERIFY_NATIVE=1 이면 screencapture 로 실제 창(신호등·재질 포함)도 찍는다(화면 기록 권한 필요).
-const PAGES = ["홈", "테스트 케이스", "플로우 만들기", "실행", "결과", "기기", "빌드", "워크스페이스", "설정 마법사", "설정"];
+const PAGES = ["홈", "테스트 케이스", "플로우 만들기", "실행", "결과", "테스트 계정", "기기", "빌드", "워크스페이스", "설정 마법사", "설정"];
 
 test("screens: 모든 화면 라이트·다크", async () => {
   test.setTimeout(120_000);

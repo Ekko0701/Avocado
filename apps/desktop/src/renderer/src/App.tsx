@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Icon, type IconName } from "./components/Icon";
 import { Toolbar } from "./components/Toolbar";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -12,8 +12,11 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { TestcasesPage } from "./pages/TestcasesPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { SetupWizard } from "./pages/SetupWizard";
+import { TestAccountsPage } from "./pages/TestAccountsPage";
+import { missingAccountValues } from "./lib/account-values";
+import { onWorkspaceChanged } from "./lib/workspace-events";
 
-type Page = "home" | "workspace" | "testcases" | "author" | "runs" | "results" | "devices" | "builds" | "settings" | "setup";
+type Page = "home" | "workspace" | "testcases" | "author" | "runs" | "results" | "accounts" | "devices" | "builds" | "settings" | "setup";
 
 /** 사이드바 구역(Fork 의 Branches·Remotes 처럼 작은 머리글로 묶는다). 머리글은 제목 요소가 아니다 */
 const NAV: { group: string | null; items: { id: Page; label: string; icon: IconName }[] }[] = [
@@ -30,6 +33,8 @@ const NAV: { group: string | null; items: { id: Page; label: string; icon: IconN
     items: [
       { id: "runs", label: "실행", icon: "play" },
       { id: "results", label: "결과", icon: "chart" },
+      // 플로우가 ${KEY} 로 쓰는 값. 실행하려면 갖춰야 해서 실행·결과 옆에 둔다
+      { id: "accounts", label: "테스트 계정", icon: "key" },
     ],
   },
   {
@@ -62,6 +67,27 @@ export function App() {
       .catch(() => setPage("home"));
   }, []);
 
+  // 사이드바 테스트 계정 배지: accounts.yaml 에 키가 있는데 값이 없는 수
+  const [missingAccounts, setMissingAccounts] = useState(0);
+  const refreshMissing = useCallback(() => {
+    Promise.all([window.qa.workspace.accounts(), window.qa.secrets.list()]).then(
+      ([accounts, secrets]) => setMissingAccounts(missingAccountValues(accounts, secrets.items).length),
+      () => setMissingAccounts(0),
+    );
+  }, []);
+  useEffect(() => {
+    refreshMissing();
+    const timer = setInterval(refreshMissing, 8000);
+    const off = onWorkspaceChanged(refreshMissing);
+    window.addEventListener("focus", refreshMissing);
+    return () => {
+      clearInterval(timer);
+      off();
+      window.removeEventListener("focus", refreshMissing);
+    };
+  }, [refreshMissing]);
+  useEffect(refreshMissing, [page, refreshMissing]);
+
   function go(next: Page) {
     setResultsRunId(null);
     setPage(next);
@@ -86,6 +112,11 @@ export function App() {
                 >
                   <Icon name={item.icon} />
                   {item.label}
+                  {item.id === "accounts" && missingAccounts > 0 ? (
+                    <span className="nav-badge" data-testid="nav-badge-accounts" title={`값을 넣지 않은 테스트 계정 키 ${missingAccounts}개`} aria-hidden="true">
+                      {missingAccounts}
+                    </span>
+                  ) : null}
                 </button>
               ))}
             </div>
@@ -116,6 +147,7 @@ export function App() {
             />
           ) : null}
           {page === "results" ? <ResultsPage key={resultsRunId ?? "none"} initialRunId={resultsRunId} /> : null}
+          {page === "accounts" ? <TestAccountsPage onOpenWorkspace={() => go("workspace")} onChanged={refreshMissing} /> : null}
           {page === "devices" ? <DevicesPage /> : null}
           {page === "builds" ? <BuildsPage /> : null}
           {page === "settings" ? <SettingsPage /> : null}

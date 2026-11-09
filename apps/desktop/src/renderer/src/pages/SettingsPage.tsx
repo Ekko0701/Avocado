@@ -1,5 +1,4 @@
 import type { AgentUsage, RemoteVerify, SecretsList, Settings, SettingsState, UpdateStatus } from "@qa/shared";
-import { AccountValues } from "../components/AccountValues";
 import { ClaudeConnectionPanel } from "../components/ClaudeConnectionPanel";
 import { GitHubRepoPicker } from "../components/GitHubRepoPicker";
 import { SecretRow } from "../components/SecretRow";
@@ -45,7 +44,6 @@ export function SettingsPage() {
   // Claude 앱 방식(D17)에서는 Anthropic API 키를 묻지 않는다. 이미 저장한 키는 지울 수 있게 보인다
   const viaClaude = state.settings.agent.provider === "claude-app";
   const appSecrets = secrets.items.filter((s) => !s.name.startsWith("account:") && !(viaClaude && s.name === "anthropicApiKey" && !s.stored));
-  const accountSecrets = secrets.items.filter((s) => s.name.startsWith("account:"));
   const locked = !secrets.encryptionAvailable;
 
   return (
@@ -68,9 +66,9 @@ export function SettingsPage() {
         {appSecrets.map((s) => (
           <SecretRow key={s.name} status={s} label={APP_SECRET_LABELS[s.name] ?? s.name} disabled={locked} onChanged={reload} />
         ))}
+        <p className="hint">플로우가 쓰는 테스트 계정 값은 사이드바 검증 → 테스트 계정에서 넣습니다.</p>
       </section>
 
-      <AccountValues secrets={accountSecrets} locked={locked} onChanged={reload} />
 
       <section className="card stack" aria-labelledby="claude-title">
         <h2 id="claude-title">Claude 연결</h2>

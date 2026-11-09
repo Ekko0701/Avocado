@@ -13,6 +13,8 @@ export {
   redactText,
   flowEnvValues,
   redactExecutionDir,
+  rescrubRedactedDir,
+  PATTERN_RULES_VERSION,
   findSecretResidue,
   findResidueInFiles,
   type SecretSet,

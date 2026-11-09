@@ -80,7 +80,7 @@ function formProblems(form: Form, newApp: { id: string; taken: boolean } | null)
 
 /**
  * 앱 설정(apps/<앱>/app.yaml·accounts.yaml): 이름·언어·타깃별 앱 ID 와 계정 역할. 새 앱도 여기서 만든다.
- * 저장하면 그 앱의 앱 설정 작업 브랜치에 커밋하고, PR 작성으로 PR 을 만든다. 계정 값은 설정 → 테스트 계정 값에서 넣는다.
+ * 저장하면 그 앱의 앱 설정 작업 브랜치에 커밋하고, PR 작성으로 PR 을 만든다. 계정 값은 검증 → 테스트 계정에서 넣는다.
  * TC·플로우가 쓰는 타깃·역할·키는 main 이 지우지 못하게 막는다.
  */
 export function AppSettingsEditor(props: { apps: { app: string; name: string }[] }) {
@@ -149,7 +149,7 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
       });
       setSaved({ app, branch: r.branch });
       setMessage(
-        `${r.branch} 에 커밋했습니다(${r.commit}).${creating ? " 새 앱을 워크스페이스에 더했습니다." : ""} 계정 값은 설정 → 테스트 계정 값에서 넣습니다.`,
+        `${r.branch} 에 커밋했습니다(${r.commit}).${creating ? " 새 앱을 워크스페이스에 더했습니다." : ""} 계정 값은 검증 → 테스트 계정에서 넣습니다.`,
       );
       notifyWorkspaceChanged();
       if (creating) {
@@ -189,7 +189,7 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
       <h2>앱 설정</h2>
       <p className="hint">
         테스트할 앱의 이름·언어·타깃별 앱 ID 와, 테스트 케이스가 고르는 계정 역할입니다(apps/&lt;앱&gt;/app.yaml, accounts.yaml). 저장하면 그 앱의 앱 설정 작업 브랜치에
-        커밋하고, PR 작성을 누르면 PR 을 만듭니다. 계정 값은 여기서 넣지 않고 설정 → 테스트 계정 값에서 넣습니다. 테스트 케이스·플로우가 쓰는 타깃·역할·키는 지울 수 없습니다.
+        커밋하고, PR 작성을 누르면 PR 을 만듭니다. 계정 값은 여기서 넣지 않고 검증 → 테스트 계정에서 넣습니다. 테스트 케이스·플로우가 쓰는 타깃·역할·키는 지울 수 없습니다.
       </p>
       <div className="row">
         <label>

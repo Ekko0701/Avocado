@@ -47,7 +47,14 @@ const PATTERN_RULES: { name: string; re: RegExp; replace: string }[] = [
     re: /("(?:access_?token|refresh_?token|id_?token|password|passwd|secret|api_?key)"\s*:\s*")(?:[^"\\]|\\.)+(")/gi,
     replace: `$1${MASK}$2`,
   },
+  // Maestro iOS 드라이버와 XCTest 는 입력한 글자를 첫 글자와 나머지로 나눠 적는다. 값 전체가 한 덩어리로 나오지 않아
+  // 값 목록으로는 찾지 못한다(2026-11-09 비밀번호가 가린 사본에 남은 것을 발견). 입력한 글자는 모두 가린다
+  { name: "typed-text", re: /(\[TextInputHelper\] (?:first character|remaining text): )[^\n]+/g, replace: `$1${MASK}` },
+  { name: "typed-string", re: /(Type string ')[^\n]*(')/g, replace: `$1${MASK}$2` },
 ];
+
+/** 모양 규칙이 바뀌면 올린다. 앱이 저장해 둔 가린 사본에 새 규칙을 한 번 다시 적용한다(rescrubRedactedDir) */
+export const PATTERN_RULES_VERSION = 2;
 
 export interface SecretSet {
   /** 모든 파일·경로에서 가릴 표기(긴 것부터) */
@@ -240,6 +247,26 @@ export function redactExecutionDir(rawDir: string, outDir: string, options: Reda
     writeFileSync(dest, r.text, { mode: 0o600 });
   }
   return report;
+}
+
+/**
+ * 이미 만든 가린 사본(redacted) 폴더에 지금의 모양 규칙을 다시 적용한다. 값 목록은 쓰지 않는다(원본이 없어도 된다).
+ * 텍스트 파일만 고치고, 바뀐 파일 수를 돌려준다. 두 번 돌려도 결과가 같다
+ */
+export function rescrubRedactedDir(dir: string): number {
+  const empty = buildSecretSet([]);
+  let changed = 0;
+  for (const file of listFiles(resolve(dir))) {
+    const content = readFileSync(file);
+    if (!isTextFile(file, content)) continue;
+    const text = content.toString("utf8");
+    const r = redactText(text, empty);
+    if (r.text !== text) {
+      writeFileSync(file, r.text, { mode: 0o600 });
+      changed += 1;
+    }
+  }
+  return changed;
 }
 
 export interface Residue {

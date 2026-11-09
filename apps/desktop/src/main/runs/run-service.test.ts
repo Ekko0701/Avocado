@@ -92,6 +92,7 @@ function service(runner: LoggedProcessRunner, overrides: Partial<RunServiceOptio
     },
     tools: { maestroBin: () => "/tools/maestro/bin/maestro", javaHome: () => "/tools/jre/Contents/Home" },
     accountSecrets: () => ({ QA_FIXTURE_ACCOUNT_ID: FAKE_ACCOUNT_ID, QA_FIXTURE_ACCOUNT_PW: FAKE_ACCOUNT_PW }),
+    accountKeys: () => ["QA_FIXTURE_ACCOUNT_ID", "QA_FIXTURE_ACCOUNT_PW"],
     redactionSecrets: () => [...FAKE_SECRETS],
     evidenceRoot: join(dir, "evidence"),
     trustedFlowRoots: [join(dir, "workspaces")],
@@ -283,6 +284,24 @@ describe("실행 전 확인", () => {
     expect(args).toEqual(expect.arrayContaining(["-e", "APP_ID=com.example.demo", `QA_FIXTURE_ACCOUNT_ID=${FAKE_ACCOUNT_ID}`]));
     expect(args.some((a) => a.startsWith("QA_FIXTURE_ACCOUNT_PW="))).toBe(false);
     expect((db.db.prepare("SELECT trigger FROM run WHERE id = ?").get(started.id) as { trigger: string }).trigger).toBe("author");
+  });
+
+  it("플로우와 그 서브플로우가 쓰는 앱 계정 키에 값이 없거나 TC 역할에 없으면 maestro 를 띄우지 않고 거부한다", async () => {
+    mkdirSync(join(dir, "flows", "common"));
+    writeFileSync(join(dir, "flows", "common", "login.yaml"), "appId: ${APP_ID}\n---\n- inputText: ${QA_FIXTURE_ACCOUNT_PW}\n- inputText: ${MAESTRO_FILENAME}\n");
+    writeFileSync(flowPath, "appId: ${APP_ID}\nname: TC-0002\ntags: [TC-0002]\n---\n- runFlow: common/login.yaml\n- inputText: ${QA_FIXTURE_ACCOUNT_ID}\n");
+    const m = fakeMaestro(["ios-pass"]);
+    const noValue = service(m.runner, { accountSecrets: () => ({ QA_FIXTURE_ACCOUNT_ID: FAKE_ACCOUNT_ID }) });
+    await expect(startDefault(noValue)).rejects.toThrow("계정 값이 없다: sample · QA_FIXTURE_ACCOUNT_PW. 검증 → 테스트 계정에서 저장한다");
+    const s = service(m.runner);
+    await expect(s.start({ app: "sample", flowPath, deviceId: UDID, buildId: BUILD.id }, { envKeys: ["QA_FIXTURE_ACCOUNT_ID"] })).rejects.toThrow(
+      "이 테스트 케이스의 계정 역할에 없는 키를 플로우가 쓴다: QA_FIXTURE_ACCOUNT_PW",
+    );
+    expect(m.calls).toEqual([]);
+    // 계정 키가 아닌 이름(MAESTRO_FILENAME 등)은 보지 않고, 값이 다 있으면 실행한다
+    const ok = await startDefault(s);
+    await s.wait(ok.id);
+    expect(m.calls).toHaveLength(1);
   });
 
   it("같은 기기에서 동시에 두 실행을 하지 않는다", async () => {
