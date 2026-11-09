@@ -395,6 +395,63 @@ describe("워크스페이스", { timeout: 30_000 }, () => {
     git(wsDir(), "checkout", "-q", "main");
   });
 
+  it("공통 서브플로우: 부르는 플로우와 함께 읽고, 규약을 검사해 그 앱의 앱 설정 브랜치에 그 파일만 커밋한다. 있는 파일만 고친다", async () => {
+    git(wsDir(), "checkout", "-q", "main");
+    const list = await ws.subflows("sample");
+    // 앞 시험이 남긴 이 앱의 예전 계정 역할 브랜치가 진행 중이다. 앱 범위 브랜치는 하나라 서브플로우도 거기서 읽고 거기에 쌓는다
+    const scope = "qa/qa-bot/accounts/sample/old-roles";
+    expect(list.branch).toBe(scope);
+    expect(list.subflows.map((s) => [s.path, s.usedBy])).toEqual([
+      ["flows/sample/ios/common/close-keyboard.yaml", ["TC-0002"]],
+      ["flows/sample/ios/common/dismiss-system-prompts.yaml", ["TC-0002"]],
+      ["flows/sample/ios/common/launch-clean.yaml", ["TC-0002"]],
+    ]);
+    const launch = list.subflows.find((s) => s.name === "launch-clean.yaml");
+    if (!launch) throw new Error("launch-clean.yaml 이 없다");
+    expect(launch.text).toBe(readFileSync(join(EXAMPLE, "flows/sample/ios/common/launch-clean.yaml"), "utf8"));
+    const base = { app: "sample", target: "ios" as const, name: "launch-clean.yaml", summary: "longer wait" };
+
+    // 규약·대상·진행 중 검사는 브랜치를 옮기기 전에 막는다
+    const head = git(wsDir(), "rev-parse", "HEAD");
+    const branchesBefore = git(wsDir(), "branch", "--list", "qa/*");
+    await expect(ws.saveSubflow({ ...base, text: launch.text })).rejects.toThrow("바뀐 내용이 없다");
+    await expect(ws.saveSubflow({ ...base, text: launch.text.replace("appId: ${APP_ID}", "appId: com.example.sample") })).rejects.toThrow(/서브플로우 규약 오류: .*appId: \$\{APP_ID\}/);
+    await expect(ws.saveSubflow({ ...base, text: `${launch.text}- runScript: x.js\n` })).rejects.toThrow(/runScript 는 쓰지 않는다/);
+    await expect(ws.saveSubflow({ ...base, text: `${launch.text}- inputText: \${OTHER_PW}\n` })).rejects.toThrow(/쓸 수 없는 env 키다: OTHER_PW/);
+    await expect(ws.saveSubflow({ ...base, text: `${launch.text}- runFlow: launch-clean.yaml\n` })).rejects.toThrow(/없는 서브플로우다: launch-clean.yaml/);
+    await expect(ws.saveSubflow({ ...base, name: "new.yaml", text: launch.text })).rejects.toThrow("없는 서브플로우다: flows/sample/ios/common/new.yaml");
+    await expect(ws.saveSubflow({ ...base, name: "../TC-0002.yaml", text: launch.text })).rejects.toThrow(/서브플로우 파일 이름/);
+    await expect(ws.saveSubflow({ ...base, app: "nope", text: launch.text })).rejects.toThrow("workspace.yaml 에 없는 앱이다: nope");
+    busyReason = "플로우 만들기가 진행 중이다";
+    await expect(ws.saveSubflow({ ...base, text: `${launch.text}# x\n` })).rejects.toThrow("플로우 만들기가 진행 중이다. 끝난 뒤 서브플로우를 고친다");
+    busyReason = null;
+    expect(git(wsDir(), "rev-parse", "HEAD")).toBe(head);
+    expect(git(wsDir(), "rev-parse", "--abbrev-ref", "HEAD")).toBe("main");
+    expect(git(wsDir(), "branch", "--list", "qa/*")).toBe(branchesBefore);
+
+    // 이 앱의 앱 설정 브랜치로 옮겨 그 파일만 커밋한다. 같은 폴더의 다른 서브플로우를 부를 수 있다
+    const edited = `${launch.text.replace("timeout: 15000", "timeout: 30000")}- runFlow: dismiss-system-prompts.yaml\n`;
+    const saved = await ws.saveSubflow({ ...base, text: edited });
+    expect(saved.branch).toBe(scope);
+    expect(git(wsDir(), "show", "--name-only", "--format=%s", "HEAD").split("\n").filter(Boolean)).toEqual([
+      "subflow: sample/ios launch-clean.yaml longer wait",
+      "flows/sample/ios/common/launch-clean.yaml",
+    ]);
+    expect(readFileSync(join(wsDir(), "flows/sample/ios/common/launch-clean.yaml"), "utf8")).toBe(edited);
+
+    // 다른 브랜치로 옮겨도 진행 중인 앱 설정 브랜치에서 읽고, 다시 저장하면 그 브랜치에 쌓는다
+    await ws.checkout("main");
+    const again = await ws.subflows("sample");
+    expect(again.branch).toBe(saved.branch);
+    expect(again.subflows.find((s) => s.name === "launch-clean.yaml")?.text).toBe(edited);
+    const second = await ws.saveSubflow({ ...base, text: `${edited}# 마지막 줄 메모\n`, summary: "add note" });
+    expect(second.branch).toBe(saved.branch);
+    expect(git(wsDir(), "log", "-2", "--format=%s", saved.branch).split("\n")).toEqual([
+      "subflow: sample/ios launch-clean.yaml add note",
+      "subflow: sample/ios launch-clean.yaml longer wait",
+    ]);
+  });
+
   it("브랜치 요약: 영문 소문자·숫자·하이픈, 한글만 있으면 edit", () => {
     expect(branchSlug("Fix: Signup  Expected!")).toBe("fix-signup-expected");
     expect(branchSlug("기대 결과 수정")).toBe("edit");

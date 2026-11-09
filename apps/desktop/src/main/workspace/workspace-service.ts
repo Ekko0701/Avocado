@@ -1,7 +1,7 @@
-import type { AccountRoleEdit, AppSettingsDoc, GitHubSettings, RequestReviewResult, SaveAppSettingsInput, SaveAppSettingsResult, SaveTestcaseResult, TestcaseHistory, TestcaseList, WorkBranch, WorkBranchList, WorkspaceAccounts, WorkspaceStatus } from "@qa/shared";
-import { AppIdSchema, AppTargetSchema } from "@qa/shared";
+import type { AccountRoleEdit, AppSettingsDoc, GitHubSettings, RequestReviewResult, SaveAppSettingsInput, SaveAppSettingsResult, SaveSubflowInput, SaveSubflowResult, SaveTestcaseResult, Subflow, SubflowList, TestcaseHistory, TestcaseList, WorkBranch, WorkBranchList, WorkspaceAccounts, WorkspaceStatus } from "@qa/shared";
+import { AppIdSchema, AppTargetSchema, SaveSubflowInputSchema } from "@qa/shared";
 import { runGit, type AskpassServer, type RemoteProvider } from "@qa/remote";
-import { AccountsSchema, AppConfigSchema, hasBlocking, lintTestcase, loadWorkspace, TC_ID, WorkspaceConfigSchema, type Accounts, type AppConfig } from "@qa/workspace";
+import { AccountsSchema, AppConfigSchema, hasBlocking, lintSubflow, lintTestcase, loadWorkspace, TC_ID, WorkspaceConfigSchema, type Accounts, type AppConfig } from "@qa/workspace";
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
 import { Document, isSeq, parse as parseYaml, parseDocument, visit } from "yaml";
@@ -154,7 +154,8 @@ export class WorkspaceService {
     return { owner: g.owner, repo: g.workspaceRepo, dir: join(this.options.root, g.workspaceRepo) };
   }
 
-  private async git(args: string[], opts: { auth?: boolean; cwd?: string } = {}): Promise<string> {
+  /** raw: 출력을 자르지 않는다(파일 내용을 읽을 때) */
+  private async git(args: string[], opts: { auth?: boolean; cwd?: string; raw?: boolean } = {}): Promise<string> {
     const token = this.options.token();
     let session: ReturnType<AskpassServer["session"]> | undefined;
     if (opts.auth) {
@@ -164,7 +165,7 @@ export class WorkspaceService {
     try {
       const r = await runGit(args, { cwd: opts.cwd ?? this.target().dir, askpass: session, secrets: token ? [token] : [], home: this.options.home, timeoutMs: 180_000 });
       if (r.code !== 0) throw new WorkspaceError(`git ${args[0] ?? ""} 실패: ${(r.stderr || r.stdout).trim().split("\n").slice(-3).join(" ")}`);
-      return r.stdout.trim();
+      return opts.raw ? r.stdout : r.stdout.trim();
     } finally {
       session?.dispose();
     }
@@ -382,11 +383,7 @@ export class WorkspaceService {
     accountsText: string | null;
     workspaceText: string | null;
   }> {
-    const login = await this.whoami();
-    const current = await this.currentBranch();
-    const scope = appScope(app);
-    const branch = workBranchScope(current, login) === scope ? current : await this.scopeBranch(login, scope);
-    const ref = branch && branch !== current ? `refs/heads/${branch}` : null;
+    const { branch, ref } = await this.appEditBase(app);
     const workspaceText = await this.readAt(ref, "workspace.yaml");
     const wsConfig = workspaceText ? WorkspaceConfigSchema.safeParse(parseYaml(workspaceText)) : null;
     if (wsConfig && !wsConfig.success) throw new WorkspaceError(`workspace.yaml 형식 오류: ${wsConfig.error.issues.map((i) => i.message).join(" / ")}`);
@@ -407,6 +404,88 @@ export class WorkspaceService {
     };
   }
 
+  /** 앱 범위(앱 설정·공통 서브플로우)의 편집 기준: 이 앱의 진행 중인 앱 설정 브랜치. 지금 브랜치가 아니면 그 ref 에서 읽는다. 없으면 지금 작업 폴더 */
+  private async appEditBase(app: string): Promise<{ branch: string | null; ref: string | null }> {
+    const login = await this.whoami();
+    const current = await this.currentBranch();
+    const scope = appScope(app);
+    const branch = workBranchScope(current, login) === scope ? current : await this.scopeBranch(login, scope);
+    return { branch, ref: branch && branch !== current ? `refs/heads/${branch}` : null };
+  }
+
+  /** 폴더 아래 YAML 파일(워크스페이스 기준 경로). ref 가 있으면 그 브랜치에서, 없으면 지금 작업 폴더에서 찾는다 */
+  private async yamlFilesAt(ref: string | null, rel: string): Promise<string[]> {
+    if (!ref) return this.flowFiles(rel);
+    const out = await this.git(["ls-tree", "-r", "--name-only", ref, "--", `${rel}/`]);
+    return out.split("\n").filter((p) => /\.ya?ml$/.test(p));
+  }
+
+  /** 앱의 공통 서브플로우와 그것을 부르는 TC 플로우(같은 타깃). 진행 중인 앱 설정 브랜치가 있으면 거기서 읽는다 */
+  async subflows(app: string): Promise<SubflowList> {
+    if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
+    const appId = AppIdSchema.parse(app);
+    const { branch, ref } = await this.appEditBase(appId);
+    const files = await this.yamlFilesAt(ref, `flows/${appId}`);
+    const flows = files.flatMap((path) => {
+      const m = /^flows\/[^/]+\/([^/]+)\/(TC-\d{4,})\.yaml$/.exec(path);
+      return m ? [{ path, target: m[1] ?? "", tcId: m[2] ?? "" }] : [];
+    });
+    // 플로우마다 runFlow·file 로 부르는 경로(플로우 폴더 기준)
+    const calls = new Map<string, Set<string>>();
+    for (const f of flows) {
+      const text = (await this.readAt(ref, f.path)) ?? "";
+      calls.set(f.path, new Set([...text.matchAll(/^\s*(?:-\s*)?(?:runFlow|file):\s*["']?([^"'\s#]+)/gm)].map((m) => m[1] ?? "")));
+    }
+    const subflows: Subflow[] = [];
+    for (const path of files) {
+      const m = /^flows\/[^/]+\/([^/]+)\/common\/([^/]+)$/.exec(path);
+      const target = AppTargetSchema.safeParse(m?.[1]);
+      if (!m || !target.success) continue;
+      const name = m[2] ?? "";
+      const usedBy = flows.filter((f) => f.target === target.data && calls.get(f.path)?.has(`common/${name}`)).map((f) => f.tcId);
+      subflows.push({ target: target.data, name, path, text: (await this.readAt(ref, path)) ?? "", usedBy: [...new Set(usedBy)].sort() });
+    }
+    subflows.sort((a, b) => a.path.localeCompare(b.path));
+    return { app: appId, branch, subflows };
+  }
+
+  /**
+   * 공통 서브플로우 한 개를 고친다. 있는 파일만 고치고(새로 만들거나 지우지 않는다), 서브플로우 규약(lintSubflow)을 통과해야 한다.
+   * 그 앱의 앱 설정 작업 브랜치에 그 파일만 커밋한다. 실행·플로우 만들기가 서브플로우를 읽고 있으면 거절한다
+   */
+  async saveSubflow(input: SaveSubflowInput): Promise<SaveSubflowResult> {
+    if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
+    const { app, target, name, summary } = SaveSubflowInputSchema.parse(input);
+    const busy = this.options.busy?.();
+    if (busy) throw new WorkspaceError(`${busy}. 끝난 뒤 서브플로우를 고친다`);
+    const commonDir = `flows/${app}/${target}/common`;
+    const path = `${commonDir}/${name}`;
+    const source = await this.appSource(app);
+    if (!source.exists) throw new WorkspaceError(`workspace.yaml 에 없는 앱이다: ${app}`);
+    const { ref } = await this.appEditBase(app);
+    const before = await this.readAt(ref, path);
+    if (before === null) throw new WorkspaceError(`없는 서브플로우다: ${path}`);
+    const text = input.text.endsWith("\n") ? input.text : `${input.text}\n`;
+    if (text === before) throw new WorkspaceError("바뀐 내용이 없다");
+    // 서브플로우는 여러 TC 가 같이 부르므로 이 앱 계정 역할의 키를 모두 쓸 수 있다
+    const envKeys = [...new Set(Object.values(source.accounts).flatMap((r) => r.keys))];
+    const siblings = (await this.yamlFilesAt(ref, commonDir)).map((p) => p.slice(commonDir.length + 1)).filter((n) => n !== name && !n.includes("/"));
+    const errors = lintSubflow(text, { envKeys, subflows: siblings }).filter((i) => i.level === "error");
+    if (errors.length > 0) throw new WorkspaceError(`서브플로우 규약 오류: ${errors.map((i) => (i.line ? `${i.line}행 ${i.message}` : i.message)).join(" / ")}`);
+
+    const login = await this.whoami();
+    const { branch } = await this.workBranch(appScope(app), summary, "user");
+    const { dir } = this.target();
+    // 심볼릭 링크를 따라 워크스페이스 밖에 쓰지 않는다
+    const abs = join(dir, path);
+    if (!lstatSync(join(dir, commonDir)).isDirectory() || !lstatSync(abs).isFile()) throw new WorkspaceError(`일반 파일이 아니다: ${path}`);
+    writeFileSync(abs, text);
+    await this.git(["add", "--", path]);
+    if ((await this.git(["diff", "--cached", "--name-only", "--", path])) === "") throw new WorkspaceError("바뀐 내용이 없다");
+    await this.git(["-c", `user.name=${login}`, "-c", `user.email=${login}@users.noreply.github.com`, "commit", "--quiet", "-m", `subflow: ${app}/${target} ${name} ${summary}`, "--", path]);
+    return { status: await this.status(), branch, commit: await this.git(["rev-parse", "--short", "HEAD"]) };
+  }
+
   /** 브랜치(ref)나 지금 작업 폴더의 파일 내용. 없으면 null */
   private async readAt(ref: string | null, path: string): Promise<string | null> {
     const { dir } = this.target();
@@ -415,7 +494,7 @@ export class WorkspaceService {
       () => true,
       () => false,
     );
-    return exists ? this.git(["show", `${ref}:${path}`]) : null;
+    return exists ? this.git(["show", `${ref}:${path}`], { raw: true }) : null;
   }
 
   /** 폴더 아래 YAML 파일(워크스페이스 기준 경로). 심볼릭 링크는 따라가지 않는다 */

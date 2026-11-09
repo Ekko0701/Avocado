@@ -156,6 +156,12 @@ function setup() {
     "workspace:saveApp": () => {
       throw new Error("not used");
     },
+    "workspace:subflows": () => {
+      throw new Error("not used");
+    },
+    "workspace:saveSubflow": () => {
+      throw new Error("not used");
+    },
     "workspace:history": () => {
       throw new Error("not used");
     },

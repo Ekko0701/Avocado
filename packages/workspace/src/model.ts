@@ -7,4 +7,4 @@ export { parseTestcase, type Issue, type ParseResult, type TestcaseDoc, type Tes
 export { serializeTestcase, type TestcaseContent } from "./serialize";
 export { lintTestcase, hasBlocking, type LintContext, type LintIssue } from "./lint";
 export { nextTestcaseId, testcaseTemplate } from "./template";
-export { ensureFlowHeader, lintFlow, lintCommandsYaml, type FlowLintContext } from "./flow-lint";
+export { ensureFlowHeader, lintFlow, lintCommandsYaml, lintSubflow, type FlowLintContext } from "./flow-lint";

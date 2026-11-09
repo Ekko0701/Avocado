@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ensureFlowHeader, lintCommandsYaml, lintFlow, type FlowLintContext } from "./flow-lint";
+import { ensureFlowHeader, lintCommandsYaml, lintFlow, lintSubflow, type FlowLintContext } from "./flow-lint";
 
 const FLOWS = resolve(__dirname, "../../../examples/qa-workspace/flows");
 const ctx: FlowLintContext = { tcId: "TC-0101", envKeys: ["DEMO_TEST_PASSWORD"], subflows: ["common/launch-clean.yaml"], expectations: 2 };
@@ -87,6 +87,37 @@ describe("lintCommandsYaml (탐색 중 maestro_run)", () => {
     expect(rules("- inputText: ${OTHER_PW}\n")).toEqual(["flow-env"]);
     expect(rules(`- inputText: "${"x".repeat(30_000)}"\n`)).toEqual(["flow-size"]);
     expect(rules("just text\n")).toEqual(["flow-commands"]);
+  });
+});
+
+describe("lintSubflow (공통 서브플로우)", () => {
+  const sub = { envKeys: ["DEMO_TEST_PASSWORD"], subflows: ["close-keyboard.yaml"] };
+  const rules = (t: string) => lintSubflow(t, sub).map((i) => `${i.level}:${i.rule}`);
+
+  it("예시 워크스페이스의 서브플로우는 규약을 지킨다. name·tags·캡처·단언 규칙은 보지 않는다", () => {
+    for (const path of ["demo/ios/common/launch-clean.yaml", "sample/ios/common/launch-clean.yaml", "sample/ios/common/close-keyboard.yaml", "sample/ios/common/dismiss-system-prompts.yaml"]) {
+      expect(lintSubflow(readFileSync(resolve(FLOWS, path), "utf8"), sub), path).toEqual([]);
+    }
+    expect(rules("appId: ${APP_ID}\n---\n- launchApp\n- takeScreenshot: home\n")).toEqual([]);
+  });
+
+  it("머리의 appId 자리표시, 두 문서, 명령 목록을 요구한다", () => {
+    expect(rules("appId: com.example.demo\n---\n- launchApp\n")).toEqual(["error:flow-header"]);
+    expect(rules("name: x\n---\n- launchApp\n")).toEqual(["error:flow-header"]);
+    expect(rules("- launchApp\n")).toEqual(["error:flow-parse"]);
+    expect(rules("appId: ${APP_ID}\n---\n")).toEqual(["error:flow-commands"]);
+    expect(rules("appId: ${APP_ID}\n---\n- tapOn: [a\n")).toEqual(["error:flow-parse"]);
+  });
+
+  it("코드 실행, 계정 역할에 없는 env 키, 좌표, 웹 주소, 없는 서브플로우는 TC 플로우처럼 막는다", () => {
+    const head = "appId: ${APP_ID}\n---\n";
+    expect(rules(`${head}- runScript: x.js\n`)).toEqual(["error:flow-forbidden"]);
+    expect(rules(`${head}- inputText: \${OTHER_PW}\n`)).toEqual(["error:flow-env"]);
+    expect(rules(`${head}- inputText: \${DEMO_TEST_PASSWORD}\n- runFlow: close-keyboard.yaml\n`)).toEqual([]);
+    expect(rules(`${head}- tapOn:\n    point: "50%,50%"\n`)).toEqual(["error:flow-coordinates"]);
+    expect(rules(`${head}- openLink: https://example.com\n`)).toEqual(["error:flow-link"]);
+    expect(rules(`${head}- runFlow: launch-clean.yaml\n`)).toEqual(["error:flow-subflow"]);
+    expect(rules(`${head}- runFlow: ../ios/TC-0101.yaml\n`)).toEqual(["error:flow-subflow"]);
   });
 });
 

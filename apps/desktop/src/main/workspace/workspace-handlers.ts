@@ -14,6 +14,8 @@ type WorkspaceChannel =
   | "workspace:checkout"
   | "workspace:readApp"
   | "workspace:saveApp"
+  | "workspace:subflows"
+  | "workspace:saveSubflow"
   | "workspace:history"
   | "workspace:myPulls";
 
@@ -31,6 +33,8 @@ export function createWorkspaceHandlers(ws: WorkspaceService): Pick<IpcHandlers,
     "workspace:checkout": ({ branch }) => ws.checkout(branch),
     "workspace:readApp": ({ app }) => ws.readApp(app),
     "workspace:saveApp": (input) => ws.saveApp(input),
+    "workspace:subflows": ({ app }) => ws.subflows(app),
+    "workspace:saveSubflow": (input) => ws.saveSubflow(input),
     "workspace:history": ({ app, id }) => ws.history(app, id),
     "workspace:myPulls": () => ws.myPullRequests(),
   };

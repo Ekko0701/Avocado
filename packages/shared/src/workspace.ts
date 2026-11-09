@@ -168,6 +168,36 @@ export type SaveAppSettingsInput = z.infer<typeof SaveAppSettingsInputSchema>;
 export const SaveAppSettingsResultSchema = SaveTestcaseResultSchema;
 export type SaveAppSettingsResult = SaveTestcaseResult;
 
+/** 공통 서브플로우 파일 이름(flows/<앱>/<타깃>/common/ 바로 아래). 경로 문자는 받지 않는다 */
+export const SubflowNameSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.ya?ml$/, "서브플로우 파일 이름은 영문·숫자·-·_ 와 .yaml 이다");
+export const SubflowSchema = z.strictObject({
+  target: AppTargetSchema,
+  name: z.string(),
+  path: z.string(),
+  text: z.string(),
+  /** 같은 타깃에서 이 서브플로우를 runFlow 로 부르는 TC 플로우 */
+  usedBy: z.array(z.string()),
+});
+export type Subflow = z.infer<typeof SubflowSchema>;
+export const SubflowListSchema = z.strictObject({
+  app: z.string(),
+  /** 읽은 곳: 이 앱의 진행 중인 앱 설정 브랜치. 없으면 null(지금 브랜치) */
+  branch: z.string().nullable(),
+  subflows: z.array(SubflowSchema),
+});
+export type SubflowList = z.infer<typeof SubflowListSchema>;
+export const SaveSubflowInputSchema = z.strictObject({
+  app: AppIdSchema,
+  target: AppTargetSchema,
+  name: SubflowNameSchema,
+  text: z.string().min(1).max(100_000),
+  /** 커밋 메시지와 브랜치 이름에 쓰는 짧은 설명 */
+  summary: z.string().min(1).max(80),
+});
+export type SaveSubflowInput = z.infer<typeof SaveSubflowInputSchema>;
+export const SaveSubflowResultSchema = SaveTestcaseResultSchema;
+export type SaveSubflowResult = SaveTestcaseResult;
+
 export const TestcaseHistorySchema = z.array(
   z.strictObject({ commit: z.string(), date: z.iso.datetime({ offset: true }), author: z.string(), subject: z.string() }),
 );

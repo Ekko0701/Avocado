@@ -38,23 +38,11 @@ export function lintFlow(text: string, ctx: FlowLintContext): LintIssue[] {
     issues.push({ level, rule, message, line: lineOf(node), step: null });
   };
 
-  const docs = parseAllDocuments(text, { lineCounter: lines });
-  if (!Array.isArray(docs)) {
-    add("error", "flow-parse", "YAML 문서가 없다");
-    return issues;
-  }
-  for (const doc of docs) {
-    for (const e of doc.errors) issues.push({ level: "error", rule: "flow-parse", message: `YAML 오류: ${e.message.split("\n")[0] ?? ""}`, line: lines.linePos(e.pos[0]).line, step: null });
-  }
-  if (issues.length > 0) return issues;
-  if (docs.length !== 2) {
-    add("error", "flow-parse", "머리(appId·name·tags)와 명령 목록을 --- 로 나눈 두 문서여야 한다");
-    return issues;
-  }
-  const [headerDoc, commandsDoc] = docs as [(typeof docs)[number], (typeof docs)[number]];
+  const split = splitFlowDocs(text, lines, issues, "appId·name·tags");
+  if (!split) return issues;
+  const { header, seq } = split;
 
   // 머리
-  const header = headerDoc.contents;
   if (!isMap(header)) {
     add("error", "flow-header", "머리는 appId·name·tags 맵이어야 한다", header);
   } else {
@@ -71,20 +59,8 @@ export function lintFlow(text: string, ctx: FlowLintContext): LintIssue[] {
   }
 
   // 명령
-  const seq = commandsDoc.contents;
-  if (!isSeq(seq) || seq.items.length === 0) {
-    add("error", "flow-commands", "명령 목록이 비어 있다", seq);
-    return issues;
-  }
-  const commands: Command[] = [];
-  for (const item of seq.items) {
-    const node = item as Node;
-    if (isScalar(node) && typeof node.value === "string") commands.push({ name: node.value, value: null, node });
-    else if (isMap(node) && node.items.length === 1 && isScalar(node.items[0]?.key)) {
-      const pair = node.items[0];
-      commands.push({ name: String((pair?.key as { value: unknown }).value), value: (pair?.value as Node | null) ?? null, node });
-    } else add("error", "flow-commands", "명령은 이름 하나 또는 '이름: 값' 하나여야 한다", node);
-  }
+  const commands = commandList(seq, add);
+  if (!commands) return issues;
 
   const first = commands[0];
   if (first && !(first.name === "runFlow" && isScalar(first.value) && String(first.value.value).startsWith("common/"))) {
@@ -110,6 +86,63 @@ export function lintFlow(text: string, ctx: FlowLintContext): LintIssue[] {
 
   deepChecks(text, [header, seq], { envKeys: ctx.envKeys, subflows: ctx.subflows }, lines, issues);
   return issues;
+}
+
+/**
+ * 공통 서브플로우(flows/<앱>/<타깃>/common/*.yaml) 규약. 여러 TC 플로우가 runFlow 로 부르므로 머리는 appId 만 요구하고,
+ * 캡처 이름·대기·결과 단언 규칙은 TC 플로우에만 둔다. 위험한 명령·env 키·좌표·웹 주소 검사는 TC 플로우와 같다.
+ * subflows 는 같은 common 폴더의 다른 파일 이름이다(Maestro 는 runFlow 경로를 부르는 파일 기준으로 푼다).
+ */
+export function lintSubflow(text: string, ctx: { envKeys: readonly string[]; subflows: readonly string[] }): LintIssue[] {
+  const issues: LintIssue[] = [];
+  const lines = new LineCounter();
+  const add = (level: LintIssue["level"], rule: string, message: string, node?: Node | null) => {
+    issues.push({ level, rule, message, line: node?.range ? lines.linePos(node.range[0]).line : null, step: null });
+  };
+  const split = splitFlowDocs(text, lines, issues, "appId");
+  if (!split) return issues;
+  const { header, seq } = split;
+  const appId = isMap(header) ? header.get("appId", true) : null;
+  if (!isScalar(appId) || appId.value !== "${APP_ID}") add("error", "flow-header", "머리에 appId: ${APP_ID} 를 둔다(타깃별 앱 id 는 앱이 넣는다)", appId ?? header);
+  if (!commandList(seq, add)) return issues;
+  deepChecks(text, [header, seq], { envKeys: ctx.envKeys, subflows: ctx.subflows }, lines, issues);
+  return issues;
+}
+
+/** 머리와 명령 목록 두 문서로 나눈다. YAML 오류나 문서 수가 틀리면 issues 에 쓰고 null */
+function splitFlowDocs(text: string, lines: LineCounter, issues: LintIssue[], headerKeys: string): { header: Node | null; seq: Node | null } | null {
+  const docs = parseAllDocuments(text, { lineCounter: lines });
+  if (!Array.isArray(docs)) {
+    issues.push({ level: "error", rule: "flow-parse", message: "YAML 문서가 없다", line: null, step: null });
+    return null;
+  }
+  for (const doc of docs) {
+    for (const e of doc.errors) issues.push({ level: "error", rule: "flow-parse", message: `YAML 오류: ${e.message.split("\n")[0] ?? ""}`, line: lines.linePos(e.pos[0]).line, step: null });
+  }
+  if (issues.length > 0) return null;
+  if (docs.length !== 2) {
+    issues.push({ level: "error", rule: "flow-parse", message: `머리(${headerKeys})와 명령 목록을 --- 로 나눈 두 문서여야 한다`, line: null, step: null });
+    return null;
+  }
+  return { header: (docs[0]?.contents as Node | null) ?? null, seq: (docs[1]?.contents as Node | null) ?? null };
+}
+
+/** 명령 목록의 각 항목은 이름 하나나 '이름: 값' 하나다. 목록이 아니거나 비었으면 null */
+function commandList(seq: Node | null, add: (level: LintIssue["level"], rule: string, message: string, node?: Node | null) => void): Command[] | null {
+  if (!isSeq(seq) || seq.items.length === 0) {
+    add("error", "flow-commands", "명령 목록이 비어 있다", seq);
+    return null;
+  }
+  const commands: Command[] = [];
+  for (const item of seq.items) {
+    const node = item as Node;
+    if (isScalar(node) && typeof node.value === "string") commands.push({ name: node.value, value: null, node });
+    else if (isMap(node) && node.items.length === 1 && isScalar(node.items[0]?.key)) {
+      const pair = node.items[0];
+      commands.push({ name: String((pair?.key as { value: unknown }).value), value: (pair?.value as Node | null) ?? null, node });
+    } else add("error", "flow-commands", "명령은 이름 하나 또는 '이름: 값' 하나여야 한다", node);
+  }
+  return commands;
 }
 
 /**

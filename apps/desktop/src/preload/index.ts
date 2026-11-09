@@ -78,6 +78,8 @@ const api: QaApi = {
     checkout: (input) => invoke("workspace:checkout", input),
     readApp: (input) => invoke("workspace:readApp", input),
     saveApp: (input) => invoke("workspace:saveApp", input),
+    subflows: (input) => invoke("workspace:subflows", input),
+    saveSubflow: (input) => invoke("workspace:saveSubflow", input),
     history: (input) => invoke("workspace:history", input),
   },
   agent: {

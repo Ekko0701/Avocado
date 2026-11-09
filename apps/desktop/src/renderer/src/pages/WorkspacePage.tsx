@@ -1,6 +1,7 @@
 import type { TestcaseList, WorkspaceStatus } from "@qa/shared";
 import { useCallback, useEffect, useState } from "react";
 import { AppSettingsEditor } from "../components/AppSettingsEditor";
+import { SubflowEditor } from "../components/SubflowEditor";
 import { errorMessage } from "../lib/errors";
 import { notifyWorkspaceChanged, onWorkspaceChanged } from "../lib/workspace-events";
 
@@ -76,6 +77,8 @@ export function WorkspacePage() {
       </section>
 
       {status?.connected && list ? <AppSettingsEditor apps={list.apps} /> : null}
+
+      {status?.connected && list ? <SubflowEditor apps={list.apps} /> : null}
 
       {list && list.issues.length > 0 ? (
         <section className="card stack" aria-label="워크스페이스 문제">
