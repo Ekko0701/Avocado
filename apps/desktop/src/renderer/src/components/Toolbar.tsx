@@ -5,8 +5,8 @@ import { notifyWorkspaceChanged, onWorkspaceChanged } from "../lib/workspace-eve
 import { Icon } from "./Icon";
 
 /**
- * 창 위쪽 툴바(Fork 처럼). 왼쪽 신호등 버튼 자리 옆에 동기화, 가운데에 워크스페이스·브랜치, 오른쪽에 Claude 연결 상태.
- * 툴바 전체가 창 끌기 영역이고 버튼만 누를 수 있다. 상태는 8초마다, 창에 돌아올 때, 다른 화면이 바꿨다고 알릴 때 다시 읽는다.
+ * 본문 위에 뜬 툴바(Liquid Glass). 바 자체는 투명하고 항목은 유리 캡슐이다. 왼쪽 동기화, 가운데 워크스페이스·브랜치, 오른쪽 Claude 연결 상태.
+ * 본문은 툴바 밑으로 스크롤된다. 툴바 전체가 창 끌기 영역이고 버튼만 누를 수 있다. 상태는 8초마다, 창에 돌아올 때, 다른 화면이 바꿨다고 알릴 때 다시 읽는다.
  */
 export function Toolbar(props: { page: string | null; onNavigate: (page: "workspace" | "settings") => void }) {
   const [ws, setWs] = useState<WorkspaceStatus | null>(null);
@@ -69,21 +69,20 @@ export function Toolbar(props: { page: string | null; onNavigate: (page: "worksp
 
   return (
     <header className="toolbar" aria-label="툴바">
-      <div className="toolbar-lead" />
-      <div className="toolbar-actions">
+      <div className="toolbar-actions glass capsule">
         <button type="button" className="tool" aria-label="워크스페이스 동기화" disabled={!ws?.connected || syncing} onClick={() => void sync()}>
-          <Icon name="sync" size={18} className={syncing ? "spin" : undefined} />
+          <Icon name="sync" size={16} className={syncing ? "spin" : undefined} />
           <span>{syncing ? "받는 중" : "동기화"}</span>
         </button>
       </div>
       <button
         type="button"
-        className="context"
+        className="context glass capsule"
         data-testid="toolbar-workspace"
         aria-label={`현재 워크스페이스 ${repoName}${ws?.branch ? ` 브랜치 ${ws.branch}` : ""}`}
         onClick={() => props.onNavigate("workspace")}
       >
-        <Icon name="folder" size={18} />
+        <Icon name="folder" size={16} />
         <span className="context-text">
           <strong>{repoName}</strong>
           {ws?.connected ? (
@@ -101,11 +100,11 @@ export function Toolbar(props: { page: string | null; onNavigate: (page: "worksp
       </button>
       <div className="toolbar-trail">
         {message ? (
-          <span role="status" className={message.error ? "toolbar-message error" : "toolbar-message"} data-testid="toolbar-message">
+          <span role="status" className={message.error ? "toolbar-message glass capsule error" : "toolbar-message glass capsule"} data-testid="toolbar-message">
             {message.text}
           </span>
         ) : null}
-        <button type="button" className="tool status" aria-label={`Claude 연결 상태: ${claudeText}`} onClick={() => props.onNavigate("settings")}>
+        <button type="button" className="tool status glass capsule" aria-label={`Claude 연결 상태: ${claudeText}`} onClick={() => props.onNavigate("settings")}>
           <span className={`dot ${claudeState}`} aria-hidden="true" />
           <span>{claudeText}</span>
         </button>

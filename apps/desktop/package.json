@@ -1,7 +1,7 @@
 {
   "name": "@qa/desktop",
   "productName": "Avocado",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "description": "AI 보조 모바일 E2E 테스트 데스크톱 앱",
   "main": "./out/main/index.js",
@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:e2e": "electron-vite build && playwright test",
     "package": "electron-vite build && electron-builder --config electron-builder.yml",
-    "test:e2e:packaged": "QA_E2E_PACKAGED=1 playwright test e2e/packaged.spec.ts"
+    "test:e2e:packaged": "QA_E2E_PACKAGED=1 playwright test e2e/packaged.spec.ts",
+    "verify": "electron-vite build && playwright test --config playwright.verify.config.ts"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "0.131.0",

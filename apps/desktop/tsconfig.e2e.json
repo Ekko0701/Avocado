@@ -13,6 +13,7 @@
   "include": [
     "e2e",
     "src/renderer/env.d.ts",
-    "test-support"
+    "test-support",
+    "verify"
   ]
 }

@@ -69,9 +69,10 @@ export function App() {
 
   return (
     <div className="window">
-      <Toolbar page={page} onNavigate={go} />
-      <div className="layout">
-        <nav className="sidebar" aria-label="주 메뉴">
+      {/* 떠 있는 유리 사이드바. 머리는 신호등 버튼 자리이자 창 끌기 영역이다 */}
+      <aside className="sidebar glass">
+        <div className="sidebar-head" />
+        <nav className="sidebar-nav" aria-label="주 메뉴">
           {NAV.map((section) => (
             <div key={section.group ?? "top"} className="nav-group">
               {section.group ? <div className="nav-section">{section.group}</div> : null}
@@ -90,6 +91,9 @@ export function App() {
             </div>
           ))}
         </nav>
+      </aside>
+      <div className="main">
+        <Toolbar page={page} onNavigate={go} />
         <main className={page === "results" ? "content wide" : "content"}>
           <UpdateBanner />
           {page === "home" ? <HomePage /> : null}

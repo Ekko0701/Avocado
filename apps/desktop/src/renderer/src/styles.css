@@ -1,21 +1,50 @@
 /*
- * Avocado 화면 스타일. Fork(macOS Git 클라이언트)처럼 위쪽 툴바, 구역으로 묶은 사이드바, 촘촘한 목록과 평평한 패널.
- * 바탕은 라이트 흰색, 다크 검정. 색은 Apple 시스템 색을 기준으로 하되 글자로 쓰는 색은 읽히는 진한 톤을 쓴다.
+ * Avocado 화면 스타일: macOS Liquid Glass(ADR 0028).
+ * 창 바닥은 macOS 사이드바 재질(main 의 vibrancy)이다. 렌더러 바탕은 투명하고, 떠 있는 사이드바 안쪽만 재질이 비친다.
+ * 그 밖의 창은 사이드바의 넓은 그림자로 창 바탕색을 칠한다. 툴바 항목은 본문 위에 뜬 유리 캡슐이고 본문은 그 밑으로 스크롤된다.
+ * 유리는 반투명 채움 + 뒤 흐림·채도 + 빛을 받는 1px 테 + 부드러운 그림자로 만든다. 글자를 얹는 패널(카드·입력)은 거의 불투명하게 둔다.
  */
 :root {
   color-scheme: light dark;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", system-ui, sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
 
-  --bg: #ffffff;
-  --surface: #f5f5f7; /* 표 머리글·안쪽 칸 */
-  --control: #ffffff; /* 버튼·입력 바탕 */
-  --control-edge: rgba(0, 0, 0, 0.16);
+  /* 창 바탕(사이드바 밖). 아래 재질이 아주 조금 비친다 */
+  --window-fill: rgba(242, 242, 247, 0.9);
+  /* 유리: 사이드바는 재질 위에 옅게, 툴바 캡슐은 본문 위에 떠서 더 진하게 */
+  --glass-fill: rgba(255, 255, 255, 0.28);
+  --glass-fill-strong: rgba(255, 255, 255, 0.66);
+  --glass-fill-hover: rgba(255, 255, 255, 0.86);
+  --glass-blur: blur(22px) saturate(180%);
+  --glass-rim: rgba(255, 255, 255, 0.95);
+  --glass-rim-dim: rgba(255, 255, 255, 0.2);
+  --glass-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.07),
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 6px 20px -6px rgba(0, 0, 0, 0.18);
+  --sidebar-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 14px 36px -14px rgba(0, 0, 0, 0.28);
+
+  /* 글자를 얹는 면 */
+  --card-fill: rgba(255, 255, 255, 0.86);
+  --card-edge: rgba(0, 0, 0, 0.06);
+  --card-rim: rgba(255, 255, 255, 0.9);
+  --surface: rgba(120, 120, 128, 0.07); /* 표 머리글·안쪽 칸 */
+  --control-fill: rgba(255, 255, 255, 0.92); /* 보조 버튼·고른 탭 */
+  --control-fill-hover: #ffffff;
+  --control-edge: rgba(0, 0, 0, 0.12);
+  --control-rim: rgba(255, 255, 255, 1);
+  --field-fill: rgba(255, 255, 255, 0.92);
+  --field-edge: rgba(0, 0, 0, 0.14);
+
   --text: #1d1d1f;
   --muted: #6e6e73;
-  --separator: rgba(60, 60, 67, 0.16);
+  --separator: rgba(60, 60, 67, 0.13);
   --fill: rgba(120, 120, 128, 0.12);
   --fill-hover: rgba(120, 120, 128, 0.2);
+  --selection-fill: rgba(0, 0, 0, 0.075); /* 사이드바에서 고른 줄 */
   --accent: #0071e3;
   --accent-text: #0066cc;
   --on-accent: #ffffff;
@@ -23,31 +52,78 @@
   --success: #248a3d;
   --warning: #b25000;
   --focus: rgba(0, 113, 227, 0.4);
-  --shadow-control: 0 0.5px 1px rgba(0, 0, 0, 0.1);
 
   --toolbar-height: 52px;
-  --sidebar-width: 216px;
-  --radius-panel: 8px;
-  --radius-control: 6px;
+  --sidebar-width: 232px;
+  --gutter: 8px;
+  /* 둥근 정도는 바깥(창) → 안쪽으로 동심원을 이룬다 */
+  --radius-sidebar: 18px;
+  --radius-row: 10px;
+  --radius-panel: 14px;
+  --radius-control: 8px;
+  --radius-capsule: 999px;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #000000;
-    --surface: #161618;
-    --control: #2c2c2e;
-    --control-edge: rgba(255, 255, 255, 0.12);
+    --window-fill: rgba(24, 24, 26, 0.88);
+    --glass-fill: rgba(255, 255, 255, 0.05);
+    --glass-fill-strong: rgba(60, 60, 64, 0.6);
+    --glass-fill-hover: rgba(76, 76, 80, 0.75);
+    --glass-rim: rgba(255, 255, 255, 0.34);
+    --glass-rim-dim: rgba(255, 255, 255, 0.05);
+    --glass-shadow:
+      0 0 0 0.5px rgba(0, 0, 0, 0.6),
+      0 1px 2px rgba(0, 0, 0, 0.3),
+      0 6px 20px -6px rgba(0, 0, 0, 0.6);
+    --sidebar-shadow:
+      0 0 0 0.5px rgba(0, 0, 0, 0.7),
+      0 1px 3px rgba(0, 0, 0, 0.35),
+      0 16px 40px -14px rgba(0, 0, 0, 0.75);
+
+    --card-fill: rgba(255, 255, 255, 0.055);
+    --card-edge: rgba(255, 255, 255, 0.07);
+    --card-rim: rgba(255, 255, 255, 0.08);
+    --surface: rgba(255, 255, 255, 0.05);
+    --control-fill: rgba(255, 255, 255, 0.12);
+    --control-fill-hover: rgba(255, 255, 255, 0.18);
+    --control-edge: rgba(255, 255, 255, 0.1);
+    --control-rim: rgba(255, 255, 255, 0.16);
+    --field-fill: rgba(255, 255, 255, 0.07);
+    --field-edge: rgba(255, 255, 255, 0.14);
+
     --text: #f5f5f7;
     --muted: #98989d;
-    --separator: rgba(84, 84, 88, 0.55);
+    --separator: rgba(255, 255, 255, 0.1);
     --fill: rgba(118, 118, 128, 0.24);
     --fill-hover: rgba(118, 118, 128, 0.36);
+    --selection-fill: rgba(255, 255, 255, 0.11);
     --accent: #0a84ff;
     --accent-text: #409cff;
     --danger: #ff6961;
     --success: #30d158;
     --warning: #ffb340;
-    --focus: rgba(10, 132, 255, 0.5);
-    --shadow-control: 0 0.5px 1px rgba(0, 0, 0, 0.4);
+    --focus: rgba(10, 132, 255, 0.55);
+  }
+}
+/* 투명도 줄이기: 유리를 불투명하게, 흐림을 끈다(사이드바 재질은 macOS 가 알아서 불투명해진다) */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --window-fill: #f2f2f7;
+    --glass-fill: rgba(255, 255, 255, 0.5);
+    --glass-fill-strong: #ffffff;
+    --glass-fill-hover: #f5f5f7;
+    --glass-blur: none;
+    --card-fill: #ffffff;
+  }
+}
+@media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) {
+  :root {
+    --window-fill: #1c1c1e;
+    --glass-fill: rgba(255, 255, 255, 0.04);
+    --glass-fill-strong: #2c2c2e;
+    --glass-fill-hover: #3a3a3c;
+    --card-fill: #2c2c2e;
   }
 }
 /* 대비 높이기: 경계를 또렷하게 */
@@ -55,16 +131,21 @@
   :root {
     --separator: var(--muted);
     --control-edge: var(--muted);
+    --field-edge: var(--muted);
+    --card-edge: var(--muted);
     --fill: rgba(120, 120, 128, 0.24);
+    --glass-rim-dim: var(--glass-rim);
   }
 }
 
-html {
-  background: var(--bg);
+html,
+body {
+  height: 100%;
+  background: transparent;
 }
 body {
   margin: 0;
-  background: var(--bg);
+  overflow: hidden;
   color: var(--text);
   font-family: var(--font);
   font-size: 13px;
@@ -81,19 +162,20 @@ pre {
   font-size: 0.92em;
 }
 
-/* ---- 제목 ---- */
+/* ---- 제목: 큰 글자는 자간을 좁히고 줄 간격을 줄인다 ---- */
 h1 {
   margin: 0;
-  font-size: 20px;
-  line-height: 1.2;
+  font-size: 24px;
+  line-height: 1.15;
   font-weight: 700;
-  letter-spacing: -0.016em;
+  letter-spacing: -0.021em;
 }
 h2 {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.35;
   font-weight: 600;
+  letter-spacing: -0.006em;
 }
 h3 {
   margin: 0;
@@ -102,71 +184,204 @@ h3 {
   font-weight: 600;
 }
 
-/* ---- 창: 툴바 + (사이드바 | 본문) ---- */
-.window {
-  display: grid;
-  grid-template-rows: var(--toolbar-height) minmax(0, 1fr);
-  height: 100vh;
+/* ---- 유리 재료 ---- */
+.glass {
+  position: relative;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
 }
-.app {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 32px 24px;
-  display: grid;
-  gap: 16px;
+/* 빛을 받는 가장자리: 위·왼쪽과 아래·오른쪽 모서리가 밝고 가운데는 옅은 1px 테 */
+.glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(155deg, var(--glass-rim), var(--glass-rim-dim) 30%, transparent 50%, var(--glass-rim-dim) 75%, var(--glass-rim));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.capsule {
+  border-radius: var(--radius-capsule);
 }
 
-/* 툴바: 전체가 창 끌기 영역, 버튼만 누른다. 왼쪽 칸은 신호등 버튼 자리 */
-.toolbar {
+/* ---- 창: 떠 있는 사이드바 | (툴바 + 본문) ---- */
+.window {
   display: grid;
-  grid-template-columns: var(--sidebar-width) auto minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  height: 100vh;
+}
+
+/* 사이드바 위 여백도 창 끌기 영역이다 */
+.window::before {
+  content: "";
+  position: fixed;
+  inset: 0 auto auto 0;
+  width: var(--sidebar-width);
+  height: var(--gutter);
+  -webkit-app-region: drag;
+}
+
+/* 사이드바: 창 가장자리에서 띄운 유리 판. 안쪽에는 macOS 사이드바 재질이 비친다 */
+.sidebar.glass {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: var(--gutter) 0 var(--gutter) var(--gutter);
+  border-radius: var(--radius-sidebar);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  /* 마지막의 넓은 그림자가 사이드바 밖 창 전체를 창 바탕색으로 칠한다. 앞의 그림자들은 그 위에 그린다 */
+  box-shadow:
+    var(--sidebar-shadow),
+    0 0 0 200vmax var(--window-fill);
+}
+.sidebar-head {
+  flex: none;
+  height: calc(var(--toolbar-height) - var(--gutter));
+  -webkit-app-region: drag;
+}
+.sidebar-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 10px 14px;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  padding-right: 12px;
-  border-bottom: 1px solid var(--separator);
-  background: var(--bg);
+}
+.nav-group {
+  display: grid;
+  gap: 1px;
+}
+.nav-section {
+  font-size: 11px;
+  font-weight: 600;
+  /* 재질 위 글자는 회색 대신 글자색을 옅게 써서 바탕이 바뀌어도 읽히게 한다 */
+  color: color-mix(in srgb, var(--text) 58%, transparent);
+  padding: 6px 10px 3px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 30px;
+  padding: 5px 10px;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 400;
+  border-radius: var(--radius-row);
+}
+.nav-item svg {
+  flex: none;
+  color: var(--accent-text);
+}
+.nav-item:hover:not(.active):not(:disabled) {
+  filter: none;
+  background: color-mix(in srgb, var(--selection-fill) 55%, transparent);
+}
+/* 고른 줄: 옅은 유리 채움과 진한 글자. 아이콘은 강조색을 그대로 둔다 */
+.nav-item.active {
+  background: var(--selection-fill);
+  font-weight: 600;
+}
+.nav-item:active:not(:disabled) {
+  filter: none;
+  background: var(--selection-fill);
+}
+
+/* 오른쪽 기둥: 본문이 기둥 전체를 차지하고 툴바가 그 위에 뜬다 */
+.main {
+  position: relative;
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+/* 툴바: 바 자체는 투명하다. 항목만 유리 캡슐이고 빈 곳은 창 끌기 영역이다 */
+.toolbar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 2;
+  height: var(--toolbar-height);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px 0 16px;
   -webkit-app-region: drag;
   user-select: none;
 }
+/* 스크롤 가장자리 효과: 툴바 밑으로 지나가는 본문을 흐리고 위로 갈수록 창 바탕색으로 덮는다(선을 긋지 않는다) */
+.toolbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 -14px 0;
+  z-index: -1;
+  background: linear-gradient(to bottom, var(--window-fill) 30%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  pointer-events: none;
+}
 .toolbar button {
   -webkit-app-region: no-drag;
+}
+.toolbar .glass {
+  background: var(--glass-fill-strong);
+  box-shadow: var(--glass-shadow);
 }
 .toolbar-actions,
 .toolbar-trail {
   display: flex;
   align-items: center;
-  gap: 2px;
+}
+.toolbar-actions {
+  padding: 3px;
 }
 .toolbar-trail {
   justify-self: end;
   gap: 8px;
 }
 .tool {
-  display: grid;
-  justify-items: center;
-  gap: 1px;
-  min-width: 52px;
-  padding: 3px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 12px;
   background: transparent;
   color: var(--text);
   box-shadow: none;
-  font-size: 11px;
+  border-radius: var(--radius-capsule);
+  font-size: 12px;
   font-weight: 500;
 }
 .tool svg {
   color: var(--text);
-  opacity: 0.8;
+  opacity: 0.85;
 }
 .tool:hover:not(:disabled) {
   filter: none;
   background: var(--fill);
 }
-.tool.status {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  font-size: 12px;
-  padding: 5px 10px;
+.toolbar .tool.status {
+  min-height: 36px;
+  padding: 0 14px;
+}
+.toolbar .tool.status:hover:not(:disabled) {
+  background: var(--glass-fill-hover);
 }
 .dot {
   width: 8px;
@@ -176,6 +391,7 @@ h3 {
 }
 .dot.on {
   background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent);
 }
 .dot.waiting {
   background: var(--warning);
@@ -190,22 +406,21 @@ h3 {
   font-size: 12px;
   color: var(--muted);
   max-width: 360px;
+  padding: 8px 14px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 가운데: 지금 워크스페이스와 브랜치(Fork 의 저장소/브랜치 상자) */
+/* 가운데: 지금 워크스페이스와 브랜치 */
 .context {
   justify-self: center;
   display: flex;
   align-items: center;
   gap: 10px;
-  width: min(460px, 100%);
-  padding: 4px 14px;
-  background: var(--surface);
+  width: min(440px, 100%);
+  min-height: 36px;
+  padding: 3px 18px;
   color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--separator);
-  border-radius: 7px;
   text-align: left;
   font-weight: 400;
 }
@@ -213,14 +428,14 @@ h3 {
   flex: none;
   color: var(--muted);
 }
-.context:hover:not(:disabled) {
+.toolbar .context:hover:not(:disabled) {
   filter: none;
-  background: var(--fill);
+  background: var(--glass-fill-hover);
 }
 .context-text {
   display: grid;
   min-width: 0;
-  line-height: 1.3;
+  line-height: 1.25;
 }
 .context-text strong {
   font-size: 12px;
@@ -244,67 +459,10 @@ h3 {
   text-overflow: ellipsis;
 }
 
-.layout {
-  display: grid;
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-  min-height: 0;
-}
-
-/* ---- 사이드바: 작은 머리글로 묶은 촘촘한 줄 ---- */
-.sidebar {
-  overflow-y: auto;
-  border-right: 1px solid var(--separator);
-  padding: 8px 8px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.nav-group {
-  display: grid;
-  gap: 1px;
-}
-.nav-section {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted);
-  padding: 8px 10px 3px;
-}
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 28px;
-  padding: 4px 10px;
-  text-align: left;
-  background: transparent;
-  color: var(--text);
-  box-shadow: none;
-  font-size: 13px;
-  font-weight: 400;
-  border-radius: var(--radius-control);
-}
-.nav-item svg {
-  flex: none;
-  color: var(--accent-text);
-}
-.nav-item:hover:not(.active):not(:disabled) {
-  filter: none;
-  background: var(--fill);
-}
-.nav-item.active {
-  background: var(--accent);
-  color: var(--on-accent);
-  font-weight: 500;
-}
-.nav-item.active svg {
-  color: var(--on-accent);
-}
-
-/* ---- 본문 ---- */
+/* ---- 본문: 툴바 밑에서 시작해 툴바 밑으로 스크롤된다 ---- */
 .content {
   overflow-y: auto;
-  padding: 24px 28px 48px;
+  padding: calc(var(--toolbar-height) + 14px) 28px 48px;
   display: grid;
   gap: 14px;
   align-content: start;
@@ -314,15 +472,19 @@ h3 {
   max-width: 960px;
 }
 .content > h1 {
-  margin: 4px 0 2px;
+  margin: 6px 0 4px;
 }
 
-/* 패널: Fork 의 상세 영역처럼 평평하게, 얇은 테두리로 나눈다 */
+/* 패널: 거의 불투명한 둥근 판. 위 가장자리에 빛 한 줄 */
 .card {
-  background: var(--bg);
-  border: 1px solid var(--separator);
+  background: var(--card-fill);
+  border: none;
   border-radius: var(--radius-panel);
-  padding: 14px 16px;
+  box-shadow:
+    inset 0 0 0 0.5px var(--card-edge),
+    inset 0 1px 0 var(--card-rim),
+    0 1px 2px rgba(0, 0, 0, 0.04);
+  padding: 16px 18px;
   min-width: 0;
 }
 form.card {
@@ -368,8 +530,13 @@ dd {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+summary {
+  cursor: pointer;
+  color: var(--accent-text);
+  font-weight: 500;
+}
 
-/* ---- 입력: macOS 텍스트 필드 ---- */
+/* ---- 입력 ---- */
 label {
   display: grid;
   gap: 4px;
@@ -384,15 +551,15 @@ textarea {
   font: inherit;
   font-size: 13px;
   color: var(--text);
-  background: var(--control);
+  background: var(--field-fill);
   border: none;
   box-shadow:
-    inset 0 0 0 1px var(--control-edge),
-    var(--shadow-control);
+    inset 0 0 0 0.5px var(--field-edge),
+    inset 0 1px 1.5px rgba(0, 0, 0, 0.04);
   border-radius: var(--radius-control);
-  padding: 5px 8px;
+  padding: 6px 10px;
   min-width: 0;
-  transition: box-shadow 120ms ease;
+  transition: box-shadow 140ms var(--ease-out);
 }
 input::placeholder,
 textarea::placeholder {
@@ -405,7 +572,7 @@ textarea:focus {
   outline: none;
   box-shadow:
     inset 0 0 0 1px var(--accent),
-    0 0 0 3px var(--focus);
+    0 0 0 3.5px var(--focus);
 }
 input[aria-invalid="true"] {
   box-shadow: inset 0 0 0 1px var(--danger);
@@ -439,52 +606,69 @@ fieldset.row {
   margin: 0;
 }
 
-/* ---- 버튼: macOS 누름 버튼. 누르는 순간 어두워진다 ---- */
+/* ---- 버튼: 캡슐. 기본은 강조색 유리(위쪽이 살짝 밝다), 누르는 순간 작아지고 어두워진다 ---- */
 button {
   font: inherit;
   font-size: 13px;
   font-weight: 500;
   line-height: 18px;
-  padding: 3px 12px;
-  border-radius: var(--radius-control);
+  padding: 5px 14px;
+  border-radius: var(--radius-capsule);
   border: none;
-  background: var(--accent);
+  background:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 60%),
+    var(--accent);
   color: var(--on-accent);
-  box-shadow: var(--shadow-control);
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 3px 10px -3px color-mix(in srgb, var(--accent) 55%, transparent);
   cursor: pointer;
   transition:
+    transform 160ms var(--ease-out),
     background-color 120ms ease,
-    filter 80ms ease;
+    filter 100ms ease;
 }
 button:hover:not(:disabled) {
   filter: brightness(1.06);
 }
 button:active:not(:disabled) {
-  filter: brightness(0.9);
+  filter: brightness(0.92);
+}
+/* 누름 피드백은 누르는 즉시. 넓은 줄(사이드바·목록·탭)은 크기를 바꾸지 않는다 */
+button:where(:not(.nav-item, .run-item, .step-row, .link, .cell, [role="tab"])):active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 60ms;
 }
 button:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--focus);
+  outline: 3px solid var(--focus);
+  outline-offset: 1px;
 }
 button:disabled {
   opacity: 0.45;
   cursor: default;
 }
 button.secondary {
-  background: var(--control);
+  background: var(--control-fill);
   color: var(--text);
   box-shadow:
-    inset 0 0 0 1px var(--control-edge),
-    var(--shadow-control);
+    inset 0 0 0 0.5px var(--control-edge),
+    inset 0 1px 0 var(--control-rim),
+    0 1px 2px rgba(0, 0, 0, 0.08);
 }
 button.secondary:hover:not(:disabled) {
   filter: none;
-  background: color-mix(in srgb, var(--control) 88%, var(--text));
+  background: var(--control-fill-hover);
 }
 /* 되돌릴 수 없는 동작(지우기) 확인 */
 button.danger {
-  background: var(--danger);
+  background:
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 60%),
+    var(--danger);
   color: #fff;
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.12);
 }
 button.link {
   background: transparent;
@@ -502,29 +686,30 @@ output {
   min-width: 80px;
 }
 
-/* 분할 탭(Fork 의 Commit | Changes | File Tree) */
+/* 분할 탭: 캡슐 홈 위에 고른 칸만 떠 있다 */
 [role="tablist"] {
   display: inline-flex;
   align-self: start;
   justify-self: start;
   gap: 2px;
-  padding: 2px;
+  padding: 3px;
   background: var(--fill);
-  border-radius: 7px;
+  border-radius: var(--radius-capsule);
 }
 [role="tablist"] > button[role="tab"] {
   background: transparent;
   color: var(--text);
   box-shadow: none;
-  padding: 2px 14px;
-  border-radius: 5px;
+  padding: 3px 16px;
+  border-radius: var(--radius-capsule);
   font-weight: 500;
 }
 [role="tablist"] > button[role="tab"][aria-selected="true"] {
-  background: var(--control);
+  background: var(--control-fill);
   box-shadow:
     inset 0 0 0 0.5px var(--control-edge),
-    0 1px 2px rgba(0, 0, 0, 0.12);
+    inset 0 1px 0 var(--control-rim),
+    0 1px 3px rgba(0, 0, 0, 0.12);
 }
 [role="tablist"] > button[role="tab"]:hover:not([aria-selected="true"]) {
   filter: none;
@@ -549,8 +734,8 @@ p.error,
 p.warning,
 p.ok-text {
   margin: 0;
-  padding: 8px 12px;
-  border-radius: var(--radius-control);
+  padding: 9px 14px;
+  border-radius: var(--radius-row);
 }
 p.error {
   background: color-mix(in srgb, var(--danger) 10%, transparent);
@@ -562,14 +747,14 @@ p.ok-text {
   background: color-mix(in srgb, var(--success) 10%, transparent);
 }
 
-/* ---- 배지: Fork 의 브랜치 이름표처럼 작은 사각 ---- */
+/* ---- 배지: 작은 캡슐 ---- */
 .badge {
   display: inline-block;
   font-size: 11px;
   font-weight: 600;
   line-height: 18px;
-  padding: 0 6px;
-  border-radius: 4px;
+  padding: 0 8px;
+  border-radius: var(--radius-capsule);
   border: none;
   background: var(--fill);
   color: var(--muted);
@@ -586,7 +771,7 @@ p.ok-text {
 }
 button.badge.cell {
   cursor: pointer;
-  padding: 0 6px;
+  padding: 0 8px;
 }
 button.badge.cell:hover:not(:disabled) {
   filter: none;
@@ -621,8 +806,8 @@ button.badge.cell:hover:not(:disabled) {
   margin: 0;
 }
 .stepper li {
-  padding: 3px 10px;
-  border-radius: var(--radius-control);
+  padding: 3px 12px;
+  border-radius: var(--radius-capsule);
   background: var(--fill);
   color: var(--muted);
   font-size: 12px;
@@ -669,7 +854,7 @@ button.badge.cell:hover:not(:disabled) {
   gap: 6px;
 }
 
-/* ---- 표: Fork 의 커밋 목록처럼 촘촘하게 ---- */
+/* ---- 표: 촘촘한 목록 ---- */
 .matrix {
   border-collapse: separate;
   border-spacing: 0;
@@ -678,7 +863,7 @@ button.badge.cell:hover:not(:disabled) {
 .matrix th,
 .matrix td {
   text-align: left;
-  padding: 5px 10px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--separator);
   vertical-align: middle;
 }
@@ -687,14 +872,17 @@ button.badge.cell:hover:not(:disabled) {
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
-  padding-top: 4px;
-  padding-bottom: 4px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  border-bottom: none;
 }
 .matrix th:first-child {
   border-top-left-radius: var(--radius-control);
+  border-bottom-left-radius: var(--radius-control);
 }
 .matrix th:last-child {
   border-top-right-radius: var(--radius-control);
+  border-bottom-right-radius: var(--radius-control);
 }
 .matrix tbody tr:last-child td {
   border-bottom: none;
@@ -717,7 +905,7 @@ button.badge.cell:hover:not(:disabled) {
   color: var(--danger);
 }
 
-/* ---- 결과 (T-108): 고른 줄은 파랑으로 채운다 ---- */
+/* ---- 결과 (T-108): 고른 줄은 강조색으로 채운다 ---- */
 .results {
   display: grid;
   grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
@@ -742,7 +930,7 @@ button.badge.cell:hover:not(:disabled) {
   grid-template-columns: auto 1fr;
   gap: 8px;
   align-items: start;
-  padding: 6px 8px;
+  padding: 7px 9px;
 }
 .run-item:hover:not(.selected):not(:disabled),
 .step-row:hover:not(.selected):not(:disabled) {
@@ -803,8 +991,10 @@ button.badge.cell:hover:not(:disabled) {
   max-height: 520px;
   max-width: 100%;
   align-self: start;
-  border-radius: var(--radius-panel);
-  box-shadow: 0 0 0 1px var(--separator);
+  border-radius: var(--radius-row);
+  box-shadow:
+    0 0 0 0.5px var(--card-edge),
+    0 4px 16px -6px rgba(0, 0, 0, 0.25);
 }
 .tree,
 .matches {
@@ -823,7 +1013,7 @@ button.badge.cell:hover:not(:disabled) {
   font-size: 11.5px;
   line-height: 1.55;
   background: var(--surface);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-row);
   padding: 6px 0;
 }
 .log-line {
@@ -850,7 +1040,7 @@ button.badge.cell:hover:not(:disabled) {
   word-break: break-all;
 }
 
-/* ---- 워크스페이스·TC (T-110, T-111) ---- */
+/* ---- 워크스페이스·테스트 케이스 (T-110, T-111) ---- */
 textarea.editor {
   font-family: var(--mono);
   font-size: 12px;
@@ -863,7 +1053,7 @@ textarea.editor {
   gap: 6px;
   padding: 10px 12px;
   background: var(--surface);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-row);
 }
 .step-card.bad {
   box-shadow: inset 0 0 0 1.5px var(--danger);
@@ -883,6 +1073,9 @@ textarea.editor {
   *::before,
   *::after {
     transition-duration: 0ms !important;
+  }
+  button:active {
+    transform: none !important;
   }
   .spin {
     animation: none;

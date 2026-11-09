@@ -40,6 +40,7 @@ export default defineConfig(
       "apps/desktop/src/preload/**/*.ts",
       "apps/desktop/e2e/**/*.ts",
       "apps/desktop/test-support/**/*.ts",
+      "apps/desktop/verify/**/*.ts",
       "packages/evidence/src/**/*.ts",
       "packages/remote/src/**/*.ts",
       "packages/workspace/src/**/*.ts",
