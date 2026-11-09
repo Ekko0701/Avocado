@@ -195,6 +195,17 @@ function deepChecks(
       if (key === null && isScalar(node) && typeof node.value === "string" && FORBIDDEN.has(node.value) && parentKey === "item") add("flow-forbidden", `${node.value} 는 쓰지 않는다(코드 실행)`, node);
       if (key === "point") add("flow-coordinates", "좌표 탭은 쓰지 않는다. 식별자가 없으면 식별자 누락으로 기록한다", node);
       if (key === "tapOn" && isScalar(node) && typeof node.value === "string" && COORDINATE_TEXT.test(node.value)) add("flow-coordinates", "좌표 탭은 쓰지 않는다", node);
+      // Maestro 가 명령을 실행용으로 바꿀 때 내는 문법 오류(2.11.0 YamlFluentCommand). check-syntax 는 이 단계를 거치지 않아 통과시킨다
+      if (key === "extendedWaitUntil" && !(isMap(node) && (node.has("visible") || node.has("notVisible")))) {
+        add("flow-syntax", "extendedWaitUntil 에는 visible 이나 notVisible 이 있어야 한다(Maestro 문법 오류)", node);
+      }
+      if ((key === "runFlow" || key === "retry") && isMap(node) && node.has("file") === node.has("commands")) {
+        add("flow-syntax", `${key} 에는 file 과 commands 중 하나만 둔다(Maestro 문법 오류)`, node);
+      }
+      if (key === "retry" && !isMap(node)) add("flow-syntax", "retry 에는 file 이나 commands 를 둔다(Maestro 문법 오류)", node);
+      if (key === null && parentKey === "item" && isScalar(node) && (node.value === "extendedWaitUntil" || node.value === "retry")) {
+        add("flow-syntax", `${node.value} 는 이름만으로 쓸 수 없다. 조건이나 명령을 둔다(Maestro 문법 오류)`, node);
+      }
       if (key === "runFlow" && isScalar(node) && typeof node.value === "string") checkSubflow(node.value, node);
       if (key === "file" && parentKey === "runFlow" && isScalar(node) && typeof node.value === "string") checkSubflow(node.value, node);
       if (key === "openLink") {

@@ -58,9 +58,14 @@ describe("CSP", () => {
 });
 
 describe("isAllowedExternalUrl", () => {
-  it("https://github.com 만 연다", () => {
+  it("https://github.com 과 Maestro 공식 문서(https://docs.maestro.dev)만 연다", () => {
     expect(isAllowedExternalUrl("https://github.com/acme/qa-evidence-2026/blob/abc/runs/report.md")).toBe(true);
+    expect(isAllowedExternalUrl("https://docs.maestro.dev/reference/commands-available")).toBe(true);
     for (const url of [
+      "http://docs.maestro.dev/reference/commands-available",
+      "https://maestro.dev/",
+      "https://evil.docs.maestro.dev/x",
+      "https://docs.maestro.dev.evil.example/x",
       "http://github.com/acme",
       "https://github.com.evil.example/x",
       "https://evil.example/github.com",

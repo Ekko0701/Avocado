@@ -3,6 +3,53 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { errorMessage } from "../lib/errors";
 import { notifyWorkspaceChanged } from "../lib/workspace-events";
 
+const MAESTRO_COMMANDS_DOC = "https://docs.maestro.dev/reference/commands-available";
+const MAESTRO_SELECTORS_DOC = "https://docs.maestro.dev/maestro-flows/flow-control-and-logic/how-to-use-selectors";
+
+/** 서브플로우에서 자주 쓰는 Maestro 명령(앱이 쓰는 Maestro 2.11.0 기준). 전체 목록은 공식 문서에 있다 */
+const COMMON_COMMANDS: { names: string[]; use: string; example: string }[] = [
+  {
+    names: ["launchApp"],
+    use: "앱을 띄운다. clearState 는 앱 데이터, clearKeychain 은 iOS 키체인을 지운다. stopApp: false 면 다시 시작하지 않고 앞으로 가져온다. permissions 로 권한을 허용·거부하고 arguments 로 실행 인자를 넘긴다",
+    example: "- launchApp: {clearState: true}",
+  },
+  { names: ["clearKeychain", "clearState"], use: "앱을 띄우지 않고 iOS 키체인(시뮬레이터 전체) 또는 앱 데이터만 지운다", example: "- clearKeychain" },
+  { names: ["stopApp", "killApp"], use: "앱을 멈춘다. killApp 은 강제로 끝낸다", example: "- stopApp" },
+  {
+    names: ["extendedWaitUntil"],
+    use: "요소가 보일(visible) 때까지 또는 사라질(notVisible) 때까지 timeout(밀리초)만큼 기다린다. visible 과 notVisible 중 하나는 꼭 있어야 한다",
+    example: '- extendedWaitUntil: {visible: "로그인", timeout: 15000}',
+  },
+  { names: ["assertVisible", "assertNotVisible"], use: "요소가 보이는지, 보이지 않는지 확인한다. 몇 초 동안 다시 확인한다", example: '- assertVisible: "홈"' },
+  { names: ["waitForAnimationToEnd"], use: "화면 애니메이션이 끝날 때까지 기다린다", example: "- waitForAnimationToEnd: {timeout: 3000}" },
+  {
+    names: ["tapOn", "longPressOn", "doubleTapOn"],
+    use: "글자(text, 정규식)·id·index 로 고른 요소를 누른다. optional, retryTapIfNoChange, repeat, delay 를 붙일 수 있다",
+    example: '- tapOn: {text: "지금 안 함", optional: true}',
+  },
+  {
+    names: ["scrollUntilVisible", "swipe", "scroll"],
+    use: "요소가 보일 때까지 스크롤한다(direction: DOWN 등). swipe 는 방향으로 쓸고, scroll 은 아래로 한 번 스크롤한다",
+    example: '- scrollUntilVisible: {element: {text: "로그아웃"}, direction: DOWN}',
+  },
+  {
+    names: ["inputText", "eraseText", "hideKeyboard", "pressKey"],
+    use: "글자를 입력하고, 지우고, 키보드를 닫고, 키(Enter 등)를 누른다. ${KEY} 는 앱 계정 역할의 키만 쓸 수 있다",
+    example: "- inputText: ${TEST_PASSWORD}",
+  },
+  { names: ["inputRandomEmail", "inputRandomText", "inputRandomNumber", "inputRandomPersonName"], use: "무작위 값을 입력한다(실행마다 새 계정을 만들 때)", example: "- inputRandomEmail" },
+  {
+    names: ["runFlow"],
+    use: "같은 common 폴더의 다른 서브플로우를 부른다. when 에 visible·notVisible·platform 을 주면 조건이 맞을 때만 부른다",
+    example: '- runFlow: {file: close-keyboard.yaml, when: {visible: "완료"}}',
+  },
+  {
+    names: ["repeat", "retry"],
+    use: "명령 묶음을 반복한다(times, while). retry 는 실패하면 maxRetries 만큼 다시 한다",
+    example: '- retry: {maxRetries: 2, commands: [{tapOn: "다시 시도"}]}',
+  },
+];
+
 /**
  * 공통 서브플로우(flows/<앱>/<타깃>/common/*.yaml) 편집. 있는 파일만 고친다.
  * 저장하면 main 이 서브플로우 규약을 검사하고 그 앱의 앱 설정 작업 브랜치에 커밋한다. PR 작성은 앱 설정과 같다
@@ -87,9 +134,41 @@ export function SubflowEditor(props: { apps: { app: string; name: string }[] }) 
     <form className="card stack" aria-label="공통 서브플로우" data-testid="subflows" onSubmit={(e) => void save(e)}>
       <h2>공통 서브플로우</h2>
       <p className="hint">
-        플로우가 runFlow 로 부르는 공통 단계입니다(flows/&lt;앱&gt;/&lt;타깃&gt;/common/). 고치면 이 서브플로우를 부르는 모든 플로우에 적용됩니다. 저장하면 규약을 검사하고 그 앱의 앱 설정
-        작업 브랜치에 커밋하며, PR 작성을 누르면 PR 을 만듭니다. 실행이나 플로우 만들기가 진행 중일 때는 저장하지 않습니다.
+        플로우가 runFlow 로 부르는 공통 단계입니다(flows/&lt;앱&gt;/&lt;타깃&gt;/common/). 고치면 이 서브플로우를 부르는 모든 플로우에 적용됩니다. 저장하면 규약과 Maestro 문법(check-syntax)을 검사하고
+        그 앱의 앱 설정 작업 브랜치에 커밋하며, PR 작성을 누르면 PR 을 만듭니다. 실행이나 플로우 만들기가 진행 중일 때는 저장하지 않습니다.
       </p>
+      <details data-testid="maestro-help">
+        <summary>자주 쓰는 Maestro 명령</summary>
+        <dl className="maestro-ref">
+          {COMMON_COMMANDS.map((c) => (
+            <div key={c.names[0]} className="maestro-ref-row">
+              <dt>
+                {c.names.map((n) => (
+                  <code key={n}>{n}</code>
+                ))}
+              </dt>
+              <dd>
+                <span>{c.use}</span>
+                <code>{c.example}</code>
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <p className="hint">
+          모든 명령에 <code>optional: true</code>(실패해도 다음으로 간다)와 <code>label</code>(결과에 보일 이름)을 붙일 수 있습니다. Avocado 는 <code>runScript</code>·
+          <code>evalScript</code>(코드 실행), 좌표 탭(<code>point</code>), 웹 주소 <code>openLink</code>(딥링크만 됨), 계정 역할에 없는 <code>{"${KEY}"}</code> 를 막습니다. AI 명령(
+          <code>assertWithAI</code> 등)은 Maestro 클라우드가 필요하고 화면이 밖으로 나가므로 쓰지 않습니다.
+        </p>
+        <p className="hint">앱은 Maestro 2.11.0 을 씁니다. 문서에 있어도 이 버전에 없는 명령과 옵션은 동작하지 않습니다.</p>
+        <div className="row">
+          <button type="button" className="link" onClick={() => void window.qa.app.openExternal({ url: MAESTRO_COMMANDS_DOC }).catch((e: unknown) => setMessage(errorMessage(e)))}>
+            모든 명령과 옵션 (Maestro 공식 문서)
+          </button>
+          <button type="button" className="link" onClick={() => void window.qa.app.openExternal({ url: MAESTRO_SELECTORS_DOC }).catch((e: unknown) => setMessage(errorMessage(e)))}>
+            요소 고르는 법 (선택자)
+          </button>
+        </div>
+      </details>
       <div className="row">
         <label>
           앱

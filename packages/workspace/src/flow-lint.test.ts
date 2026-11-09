@@ -119,6 +119,18 @@ describe("lintSubflow (공통 서브플로우)", () => {
     expect(rules(`${head}- runFlow: launch-clean.yaml\n`)).toEqual(["error:flow-subflow"]);
     expect(rules(`${head}- runFlow: ../ios/TC-0101.yaml\n`)).toEqual(["error:flow-subflow"]);
   });
+
+  it("Maestro 가 실행 전에 내는 문법 오류(조건 없는 extendedWaitUntil, file·commands 가 둘 다거나 없는 runFlow·retry)를 막는다", () => {
+    const head = "appId: ${APP_ID}\n---\n";
+    expect(rules(`${head}- extendedWaitUntil:\n    timeout: 30000\n`)).toEqual(["error:flow-syntax"]);
+    expect(rules(`${head}- extendedWaitUntil\n`)).toEqual(["error:flow-syntax"]);
+    expect(rules(`${head}- extendedWaitUntil:\n    notVisible: "로딩"\n    timeout: 5000\n`)).toEqual([]);
+    expect(rules(`${head}- runFlow:\n    when:\n      visible: "완료"\n`)).toEqual(["error:flow-syntax"]);
+    expect(rules(`${head}- runFlow:\n    file: close-keyboard.yaml\n    commands:\n      - tapOn: "완료"\n`)).toEqual(["error:flow-syntax"]);
+    expect(rules(`${head}- runFlow:\n    when:\n      visible: "완료"\n    commands:\n      - tapOn: "완료"\n`)).toEqual([]);
+    expect(rules(`${head}- retry:\n    maxRetries: 2\n`)).toEqual(["error:flow-syntax"]);
+    expect(rules(`${head}- retry:\n    maxRetries: 2\n    commands:\n      - tapOn: "다시 시도"\n`)).toEqual([]);
+  });
 });
 
 describe("ensureFlowHeader", () => {

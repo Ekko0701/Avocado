@@ -1048,6 +1048,40 @@ textarea.editor {
   width: 100%;
   box-sizing: border-box;
 }
+/* 서브플로우 편집기의 Maestro 명령 도움말: 왼쪽 명령 이름, 오른쪽 쓰임과 예 */
+.maestro-ref {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  margin: 10px 0 8px;
+}
+.maestro-ref-row {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+  gap: 4px 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--separator);
+}
+.maestro-ref-row:last-child {
+  border-bottom: none;
+}
+.maestro-ref dt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-content: start;
+  color: var(--text);
+}
+.maestro-ref dd {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  font-size: 13px;
+}
+.maestro-ref dd code {
+  justify-self: start;
+  font-size: 12px;
+}
 .step-card {
   display: grid;
   gap: 6px;

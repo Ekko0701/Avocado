@@ -28,6 +28,8 @@ export interface WorkspaceServiceOptions {
    * except: "author" 는 플로우 만들기가 스스로 옮길 때 그 작업은 빼고 본다
    */
   busy?: (except?: "author") => string | null;
+  /** 앱이 관리하는 Maestro 로 플로우 YAML 문법을 검사한다(check-syntax). 오류면 이유를 담아 던진다 */
+  checkFlowSyntax: (text: string) => Promise<void>;
 }
 
 const MAIN = "main";
@@ -472,6 +474,8 @@ export class WorkspaceService {
     const siblings = (await this.yamlFilesAt(ref, commonDir)).map((p) => p.slice(commonDir.length + 1)).filter((n) => n !== name && !n.includes("/"));
     const errors = lintSubflow(text, { envKeys, subflows: siblings }).filter((i) => i.level === "error");
     if (errors.length > 0) throw new WorkspaceError(`서브플로우 규약 오류: ${errors.map((i) => (i.line ? `${i.line}행 ${i.message}` : i.message)).join(" / ")}`);
+    // 없는 명령·옵션 이름·값 형식은 Maestro 가 직접 본다. 규약 검사와 둘 다 통과해야 브랜치를 옮긴다
+    await this.options.checkFlowSyntax(text);
 
     const login = await this.whoami();
     const { branch } = await this.workBranch(appScope(app), summary, "user");

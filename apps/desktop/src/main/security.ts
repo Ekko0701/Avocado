@@ -92,8 +92,8 @@ export function hardenWebContents(contents: WebContents, isAllowed: (url: string
   contents.setWindowOpenHandler(() => ({ action: "deny" }));
 }
 
-/** shell.openExternal 로 열 수 있는 곳(CLAUDE.md 5장). https 의 정확한 호스트만 */
-export const EXTERNAL_HOSTS: readonly string[] = ["github.com"];
+/** shell.openExternal 로 열 수 있는 곳(CLAUDE.md 5장). https 의 정확한 호스트만. docs.maestro.dev 는 서브플로우 편집기의 Maestro 공식 문서 링크 */
+export const EXTERNAL_HOSTS: readonly string[] = ["github.com", "docs.maestro.dev"];
 
 export function isAllowedExternalUrl(url: string): boolean {
   let parsed: URL;

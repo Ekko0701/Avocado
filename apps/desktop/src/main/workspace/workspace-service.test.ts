@@ -19,6 +19,12 @@ let askpass: AskpassServer;
 let ws: WorkspaceService;
 /** 진행 중인 실행·플로우 만들기(작업 브랜치를 바꾸지 못하게 한다) */
 let busyReason: string | null = null;
+/** Maestro check-syntax 를 대신한다. 없는 명령 tapOnn 만 문법 오류로 본다 */
+const syntaxChecked: string[] = [];
+async function checkFlowSyntax(text: string): Promise<void> {
+  syntaxChecked.push(text);
+  if (text.includes("tapOnn")) throw new Error("Maestro 문법 오류: Invalid Command: tapOnn (5행 3열)");
+}
 
 const git = (cwd: string, ...args: string[]) =>
   execFileSync("/usr/bin/git", ["-c", "user.name=Other", "-c", "user.email=o@example.test", ...args], { cwd, env: { PATH: "/usr/bin:/bin", HOME: home, GIT_CONFIG_NOSYSTEM: "1" } })
@@ -57,6 +63,7 @@ beforeAll(async () => {
     askpass: () => Promise.resolve(askpass),
     home,
     busy: () => busyReason,
+    checkFlowSyntax,
   });
 });
 afterAll(async () => {
@@ -422,6 +429,11 @@ describe("워크스페이스", { timeout: 30_000 }, () => {
     await expect(ws.saveSubflow({ ...base, name: "new.yaml", text: launch.text })).rejects.toThrow("없는 서브플로우다: flows/sample/ios/common/new.yaml");
     await expect(ws.saveSubflow({ ...base, name: "../TC-0002.yaml", text: launch.text })).rejects.toThrow(/서브플로우 파일 이름/);
     await expect(ws.saveSubflow({ ...base, app: "nope", text: launch.text })).rejects.toThrow("workspace.yaml 에 없는 앱이다: nope");
+    await expect(ws.saveSubflow({ ...base, text: `${launch.text}- extendedWaitUntil:\n    timeout: 30000\n` })).rejects.toThrow(/extendedWaitUntil 에는 visible 이나 notVisible 이 있어야 한다/);
+    // 규약을 통과해도 Maestro 문법 검사에서 막히면 커밋하지 않는다. 규약에서 막힌 것은 Maestro 까지 가지 않는다
+    syntaxChecked.length = 0;
+    await expect(ws.saveSubflow({ ...base, text: `${launch.text}- tapOnn: "닫기"\n` })).rejects.toThrow("Maestro 문법 오류: Invalid Command: tapOnn (5행 3열)");
+    expect(syntaxChecked).toEqual([`${launch.text}- tapOnn: "닫기"\n`]);
     busyReason = "플로우 만들기가 진행 중이다";
     await expect(ws.saveSubflow({ ...base, text: `${launch.text}# x\n` })).rejects.toThrow("플로우 만들기가 진행 중이다. 끝난 뒤 서브플로우를 고친다");
     busyReason = null;

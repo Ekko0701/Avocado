@@ -10,7 +10,8 @@ export interface CommandResult {
 export type CommandRunner = (
   file: string,
   args: readonly string[],
-  options?: { timeoutMs?: number; env?: NodeJS.ProcessEnv; cwd?: string },
+  /** input: 표준 입력으로 넘길 내용. 없으면 표준 입력을 바로 닫는다 */
+  options?: { timeoutMs?: number; env?: NodeJS.ProcessEnv; cwd?: string; input?: string },
 ) => Promise<CommandResult>;
 
 /**
@@ -19,7 +20,7 @@ export type CommandRunner = (
  */
 export const runCommand: CommandRunner = (file, args, options = {}) =>
   new Promise((resolve) => {
-    execFile(
+    const child = execFile(
       file,
       [...args],
       {
@@ -41,4 +42,7 @@ export const runCommand: CommandRunner = (file, args, options = {}) =>
         resolve({ code, stdout: stdout ?? "", stderr: `${reason}${stderr || error.message}` });
       },
     );
+    // 프로세스가 입력을 읽기 전에 끝나면 EPIPE 가 난다. 결과(종료 코드·stderr)는 위 콜백이 돌려주므로 여기서는 프로세스를 죽게 두지 않는다
+    child.stdin?.on("error", () => undefined);
+    child.stdin?.end(options.input ?? "");
   });

@@ -15,6 +15,12 @@ describe("runCommand", () => {
     expect(r.stderr).toContain("시간 초과(0초)로 중단됨");
   });
 
+  it("input 은 표준 입력으로 넘기고, 없으면 표준 입력을 바로 닫는다", async () => {
+    expect((await runCommand("/bin/cat", [], { input: "appId: x\n- tapOn: 가\n" })).stdout).toBe("appId: x\n- tapOn: 가\n");
+    const closed = await runCommand("/bin/cat", [], { timeoutMs: 5_000 });
+    expect(closed).toEqual({ code: 0, stdout: "", stderr: "" });
+  });
+
   it("없는 실행 파일은 -1 로 알린다", async () => {
     const r = await runCommand("/no/such/binary", []);
     expect(r.code).toBe(-1);

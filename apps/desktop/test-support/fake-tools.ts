@@ -39,6 +39,12 @@ export function buildFakeToolArchives(): FakeArchives {
       "#!/bin/sh",
       'if [ -z "$JAVA_HOME" ] || [ ! -x "$JAVA_HOME/bin/java" ]; then echo "JAVA_HOME 없음" >&2; exit 3; fi',
       'case ":$PATH:" in *:/opt/homebrew/bin:*|*:/usr/local/bin:*) echo "사용자 PATH 가 섞였다" >&2; exit 4;; esac',
+      // check-syntax - : 표준 입력을 읽어 없는 명령 tapOnn 만 실제 Maestro 2.11.0 과 같은 꼴의 오류로 낸다
+      'if [ "$1" = "check-syntax" ]; then',
+      '  body=$(cat)',
+      '  case "$body" in *tapOnn*) echo; echo "Invalid Command: tapOnn at /syntax-checker:3:9" >&2; exit 1;; esac',
+      '  echo; echo "OK"; exit 0',
+      "fi",
       `echo "${FAKE_MAESTRO_VERSION}"`,
       "",
     ].join("\n"),

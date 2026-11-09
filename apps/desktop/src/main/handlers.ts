@@ -70,7 +70,7 @@ export function createHandlers(deps: HandlerDeps): IpcHandlers {
       receivedAt: new Date().toISOString(),
     }),
     "app:openExternal": async ({ url }) => {
-      if (!isAllowedExternalUrl(url)) throw new Error("허용하지 않는 외부 주소다(https://github.com 만)");
+      if (!isAllowedExternalUrl(url)) throw new Error("허용하지 않는 외부 주소다(https://github.com, https://docs.maestro.dev 만)");
       // 검사한 것과 같은 정규화된 주소를 연다(원문 그대로 넘기면 OS 가 다르게 해석할 수 있다)
       const normalized = new URL(url).href;
       if (!isAllowedExternalUrl(normalized)) throw new Error("허용하지 않는 외부 주소다");

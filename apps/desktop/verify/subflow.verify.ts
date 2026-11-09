@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { buildFakeToolArchives, fakeToolDefinitions, serveFiles } from "../test-support/fake-tools";
 import { startFakeWorkspaceRemote } from "../test-support/fake-workspace";
 import { doctor, startRun } from "./harness";
 
@@ -8,10 +11,19 @@ const TOKEN = "github_pat_VERIFYSUB_0123456789abcdefghijklm";
 // 원격은 예시 워크스페이스로 만든 로컬 git 서버와 가짜 GitHub API 다(실제 GitHub 은 건드리지 않는다)
 test("공통 서브플로우 편집: 열기 → 규약 오류 → 저장(커밋) → PR", async () => {
   const remote = await startFakeWorkspaceRemote(TOKEN);
-  const run = await startRun("subflow", { env: remote.env });
+  // 저장 전 Maestro 문법 검사에 쓸 가짜 JRE·Maestro(check-syntax 에 답한다)
+  const archives = buildFakeToolArchives();
+  const files = await serveFiles({ "jre.tar.gz": archives.jre, "maestro.zip": archives.maestro });
+  const toolsFile = join(archives.dir, "tools.json");
+  writeFileSync(toolsFile, JSON.stringify(fakeToolDefinitions(files.url, archives)));
+  const run = await startRun("subflow", { env: remote.env, toolsFile });
   try {
     run.note("doctor", await doctor(run));
     const { page } = run;
+    await page.evaluate(async () => {
+      await window.qa.setup.installTool({ tool: "jre" });
+      await window.qa.setup.installTool({ tool: "maestro" });
+    });
     await page.evaluate((token) => window.qa.secrets.set({ name: "githubToken", value: token }), TOKEN);
     await page.evaluate(() => window.qa.settings.update({ github: { owner: "acme" } }));
     await page.getByRole("button", { name: "워크스페이스", exact: true }).click();
@@ -23,6 +35,10 @@ test("공통 서브플로우 편집: 열기 → 규약 오류 → 저장(커밋)
     await expect(page.getByTestId("subflow-used-by")).toHaveText("이 서브플로우를 부르는 플로우: TC-0101");
     await panel.scrollIntoViewIfNeeded();
     await run.shot("opened");
+    await page.getByTestId("maestro-help").getByText("자주 쓰는 Maestro 명령").click();
+    await page.getByTestId("maestro-help").scrollIntoViewIfNeeded();
+    await run.shot("maestro-help");
+    await page.getByTestId("maestro-help").getByText("자주 쓰는 Maestro 명령").click();
 
     const editor = panel.getByLabel("서브플로우 내용");
     const original = await editor.inputValue();
@@ -48,5 +64,7 @@ test("공통 서브플로우 편집: 열기 → 규약 오류 → 저장(커밋)
   } finally {
     await run.close();
     await remote.close();
+    await files.close();
+    rmSync(archives.dir, { recursive: true, force: true });
   }
 });

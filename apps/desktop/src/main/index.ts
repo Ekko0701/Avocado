@@ -36,6 +36,7 @@ import { EvidenceRetention } from "./evidence/retention";
 import { createSipsJpegConverter, createSipsShrinker } from "./agent/image";
 import { cleanupDrivers } from "./runs/drivers";
 import { maestroEnv } from "./setup/setup-service";
+import { createMaestroSyntaxCheck } from "./setup/maestro-syntax";
 import Anthropic from "@anthropic-ai/sdk";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { appendFileSync, mkdirSync } from "node:fs";
@@ -237,6 +238,7 @@ void app.whenReady().then(() => {
     askpass: getAskpass,
     // 실행·플로우 만들기가 워크스페이스 파일을 쓰는 동안에는 작업 브랜치를 바꾸지 않는다
     busy: (except) => (except !== "author" ? authorBusy() : null) ?? (runs.activeCount() > 0 ? "플로우 실행이 진행 중이다" : null),
+    checkFlowSyntax: createMaestroSyntaxCheck({ run: runCommand, maestroBin: () => installer.maestroBin(), javaHome: () => installer.javaHome(), home: app.getPath("home") }),
   });
   const androidHome = process.env["ANDROID_HOME"] || join(app.getPath("home"), "Library", "Android", "sdk");
   const author = new AuthorService({
