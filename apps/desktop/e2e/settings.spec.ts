@@ -80,6 +80,9 @@ test("증적·기기 설정: 잘못된 값은 거부되고, 저장한 값은 재
   await first.page.getByRole("button", { name: "설정", exact: true }).click();
   await first.page.getByTestId("settings-nav-evidence").click();
   const general = first.page.getByRole("form", { name: "증적" });
+  // 양식인 구역도 머리말·본문·저장 줄이 구역 폭을 다 쓴다(왼쪽에서 시작한다)
+  const widths = await general.evaluate((form) => [form.clientWidth, ...[...form.children].map((c) => (c as HTMLElement).offsetWidth)]);
+  expect(widths.slice(1).every((w) => w === widths[0])).toBe(true);
 
   // 1단계 방어: 화면의 입력 검증이 제출을 막는다
   const retention = general.getByLabel("로컬 증적 보관 일수");
