@@ -368,7 +368,7 @@ export function TestcasesPage() {
                     <code>{b.name}</code> {b.current ? <span className="badge">지금</span> : null}
                     {b.pending ? null : <small className="hint"> · main 에 반영됨</small>}
                   </td>
-                  <td>{b.tcId ?? (b.appSettings ? `앱 설정 · ${b.appSettings}` : "-")}</td>
+                  <td>{b.tcId ?? (b.appSettings ? `앱 설정 · ${b.appSettings}` : /^qa\/[^/]+\/workspace\//.test(b.name) ? "폴더 구조" : "-")}</td>
                   <td>{b.ahead}</td>
                   <td>{b.subject}</td>
                   <td>

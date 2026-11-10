@@ -67,7 +67,7 @@ test("테스트 케이스 작성: 템플릿 → 린트 → 저장(커밋) → �
 
     // 화면 밖의 결과: 원격 브랜치에 올라간 파일과 PR 요청
     const branch = "qa/qa-bot/TC-0102-add-tc-0102";
-    const pushed = remote.git(remote.bare, "show", `${branch}:testcases/demo/TC-0102.md`);
+    const pushed = remote.git(remote.bare, "show", `${branch}:apps/demo/testcases/TC-0102.md`);
     writeFileSync(join(run.dir, "pushed-TC-0102.md"), pushed);
     const parsed = parseTestcase(pushed);
     expect(parsed.ok && parsed.doc.frontMatter).toMatchObject({ id: "TC-0102", app: "demo", title: "닉네임이 짧으면 가입할 수 없다", tags: ["auth", "validation"] });

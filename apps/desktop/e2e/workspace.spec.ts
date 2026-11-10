@@ -26,6 +26,8 @@ test("워크스페이스: 앱에서 TC 를 고쳐 저장하면 작업 브랜치�
     await page.getByRole("button", { name: "연결(clone)" }).click();
     await expect(page.getByTestId("workspace-status")).toContainText("main");
     await expect(page.getByTestId("workspace-status")).toContainText("바뀐 파일");
+    // 예시 워크스페이스는 새 폴더 구조라 구조 바꾸기 안내가 없다(ADR 0032)
+    await expect(page.getByTestId("layout-migration")).toHaveCount(0);
 
     // TC 화면에서 원문으로 고친다
     await page.getByRole("button", { name: "테스트 케이스", exact: true }).click();
@@ -59,6 +61,46 @@ test("워크스페이스: 앱에서 TC 를 고쳐 저장하면 작업 브랜치�
     const leaked = allFiles(userDataDir).filter((f) => readFileSync(f).includes(Buffer.from(TOKEN)));
     expect(leaked).toEqual([]);
     expect(readFileSync(join(userDataDir, "workspaces", "qa-workspace", ".git", "config"), "utf8")).not.toContain(TOKEN);
+  } finally {
+    await remote.close();
+  }
+});
+
+test("폴더 구조 바꾸기: 예전 구조의 워크스페이스를 앱별 폴더로 옮겨 작업 브랜치에 커밋하고 PR 로 올린다 (ADR 0032)", async () => {
+  const remote = await startFakeWorkspaceRemote(TOKEN, { legacyLayout: true });
+  try {
+    const { app, page, userDataDir } = await launchApp({ env: remote.env });
+    await page.evaluate((token) => window.qa.secrets.set({ name: "githubToken", value: token }), TOKEN);
+    await page.evaluate(() => window.qa.settings.update({ github: { owner: "acme" } }));
+    await page.evaluate(() => window.qa.workspace.connect());
+    // 예전 구조도 그대로 읽는다
+    expect((await page.evaluate(() => window.qa.workspace.testcases())).testcases.map((t) => t.path)).toEqual(["testcases/demo/TC-0101.md", "testcases/sample/TC-0002.md"]);
+
+    await page.getByRole("button", { name: "워크스페이스", exact: true }).click();
+    const card = page.getByTestId("layout-migration");
+    await expect(card).toContainText("지금은 예전 폴더 구조입니다");
+    await card.getByRole("button", { name: "새 폴더 구조로 바꾸기" }).click();
+    await card.getByRole("button", { name: "정말 바꾸기" }).click();
+    await expect(page.getByTestId("layout-migration-message")).toContainText("qa/qa-bot/workspace/layout-v2 에 커밋했습니다");
+    await expect(page.getByTestId("workspace-status")).toContainText("qa/qa-bot/workspace/layout-v2");
+
+    // 옮긴 뒤에도 같은 TC·플로우가 새 경로로 보이고 문제가 없다
+    const list = await page.evaluate(() => window.qa.workspace.testcases());
+    expect(list.testcases.map((t) => t.path)).toEqual(["apps/demo/testcases/TC-0101.md", "apps/sample/testcases/TC-0002.md"]);
+    expect(list.testcases.find((t) => t.id === "TC-0101")?.flows).toEqual(["ios"]);
+    expect(list.issues).toEqual([]);
+    const ws = join(userDataDir, "workspaces", "qa-workspace");
+    expect(readFileSync(join(ws, "workspace.yaml"), "utf8")).toContain("schemaVersion: 2");
+    expect(statSync(join(ws, "testcases"), { throwIfNoEntry: false })).toBeUndefined();
+
+    // main 에 직접 올리지 않고 PR 로 올린다
+    const main = remote.git(remote.bare, "rev-parse", "main");
+    await card.getByRole("button", { name: "PR 작성" }).click();
+    await expect(page.getByTestId("layout-migration-pr")).toContainText("PR #");
+    expect(remote.git(remote.bare, "rev-parse", "main")).toBe(main);
+    expect(remote.git(remote.bare, "show", "qa/qa-bot/workspace/layout-v2:workspace.yaml")).toContain("schemaVersion: 2");
+    expect(remote.git(remote.bare, "ls-tree", "-r", "--name-only", "qa/qa-bot/workspace/layout-v2")).toContain("apps/demo/flows/ios/TC-0101.yaml");
+    await app.close();
   } finally {
     await remote.close();
   }

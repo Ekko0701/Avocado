@@ -89,7 +89,7 @@ export function lintFlow(text: string, ctx: FlowLintContext): LintIssue[] {
 }
 
 /**
- * 공통 서브플로우(flows/<앱>/<타깃>/common/*.yaml) 규약. 여러 TC 플로우가 runFlow 로 부르므로 머리는 appId 만 요구하고,
+ * 공통 서브플로우(앱 플로우 폴더의 <타깃>/common/*.yaml) 규약. 여러 TC 플로우가 runFlow 로 부르므로 머리는 appId 만 요구하고,
  * 캡처 이름·대기·결과 단언 규칙은 TC 플로우에만 둔다. 위험한 명령·env 키·좌표·웹 주소 검사는 TC 플로우와 같다.
  * subflows 는 같은 common 폴더의 다른 파일 이름이다(Maestro 는 runFlow 경로를 부르는 파일 기준으로 푼다).
  */

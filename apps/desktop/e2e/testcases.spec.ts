@@ -61,7 +61,7 @@ test("TC 작성: 기획자가 템플릿으로 새 TC 를 쓰고, 린트를 통�
     expect(remote.api.pulls).toEqual([expect.objectContaining({ head: "qa/qa-bot/TC-0102-add-tc-0102", base: "main", title: "TC-0102 닉네임 길이 검증" })]);
 
     // 원격 브랜치의 파일은 올바른 TC 다
-    const pushed = remote.git(remote.bare, "show", "qa/qa-bot/TC-0102-add-tc-0102:testcases/demo/TC-0102.md");
+    const pushed = remote.git(remote.bare, "show", "qa/qa-bot/TC-0102-add-tc-0102:apps/demo/testcases/TC-0102.md");
     const parsed = parseTestcase(pushed);
     expect(parsed.ok && parsed.doc.frontMatter).toMatchObject({ id: "TC-0102", app: "demo", title: "닉네임이 짧으면 가입할 수 없다", tags: ["auth", "validation"], status: "draft", account: "signup" });
     expect(parsed.ok && parsed.doc.steps.map((s) => s.expected.length)).toEqual([1, 1]);

@@ -16,6 +16,7 @@ type WorkspaceChannel =
   | "workspace:saveApp"
   | "workspace:subflows"
   | "workspace:saveSubflow"
+  | "workspace:migrateLayout"
   | "workspace:history"
   | "workspace:myPulls";
 
@@ -35,6 +36,7 @@ export function createWorkspaceHandlers(ws: WorkspaceService): Pick<IpcHandlers,
     "workspace:saveApp": (input) => ws.saveApp(input),
     "workspace:subflows": ({ app }) => ws.subflows(app),
     "workspace:saveSubflow": (input) => ws.saveSubflow(input),
+    "workspace:migrateLayout": () => ws.migrateLayout(),
     "workspace:history": ({ app, id }) => ws.history(app, id),
     "workspace:myPulls": () => ws.myPullRequests(),
   };

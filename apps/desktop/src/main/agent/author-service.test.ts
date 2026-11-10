@@ -16,7 +16,7 @@ import { SCREEN_DATA_NOTICE, type McpToolResult } from "@qa/agent";
 import { AuthorError, AuthorService, type McpConnection } from "./author-service";
 
 const EXAMPLE = resolve(__dirname, "../../../../../examples/qa-workspace");
-const GOOD = readFileSync(join(EXAMPLE, "flows/demo/ios/TC-0101.yaml"), "utf8");
+const GOOD = readFileSync(join(EXAMPLE, "apps/demo/flows/ios/TC-0101.yaml"), "utf8");
 const BAD = 'appId: ${APP_ID}\nname: TC-0101 가입\ntags: [TC-0101]\n---\n- runFlow: common/launch-clean.yaml\n- tapOn:\n    point: "50%,40%"\n- assertVisible: "가입하기"\n- assertVisible: "설정 열기"\n';
 const SECRET = "fixture-Pw#2026-author-svc";
 const SUBMIT = (yaml: string) => ({ yaml, screenshotsPlan: [], missingIdentifiers: [{ screenKey: "welcome", description: "이메일로 계속하기", fallbackSelector: 'text: "이메일로 계속하기"' }], questions: [], confidence: 0.7 });
@@ -43,10 +43,10 @@ const LAUNCH_SUBFLOW = "appId: ${APP_ID}\n---\n- launchApp";
 function context(ws: string, launch = LAUNCH_SUBFLOW): AuthorContext {
   return {
     dir: ws,
-    tcPath: "testcases/demo/TC-0101.md",
-    flowPath: "flows/demo/ios/TC-0101.yaml",
-    metaPath: "flows/demo/ios/TC-0101.meta.yaml",
-    tc: { id: "TC-0101", title: "가입", markdown: readFileSync(join(EXAMPLE, "testcases/demo/TC-0101.md"), "utf8"), steps: 2, expectations: 2 },
+    tcPath: "apps/demo/testcases/TC-0101.md",
+    flowPath: "apps/demo/flows/ios/TC-0101.yaml",
+    metaPath: "apps/demo/flows/ios/TC-0101.meta.yaml",
+    tc: { id: "TC-0101", title: "가입", markdown: readFileSync(join(EXAMPLE, "apps/demo/testcases/TC-0101.md"), "utf8"), steps: 2, expectations: 2 },
     envKeys: ["DEMO_TEST_PASSWORD"],
     appId: "com.example.demo",
     locale: "ko_KR",
@@ -188,7 +188,7 @@ async function setup(
     },
     auditDir: join(dir, "agent"),
   });
-  return { service, jobs, saved, branchCalls, draftsSeen, startOptions, canceled, maestroCalls, flowFile: join(ws, "flows/demo/ios/TC-0101.yaml") };
+  return { service, jobs, saved, branchCalls, draftsSeen, startOptions, canceled, maestroCalls, flowFile: join(ws, "apps/demo/flows/ios/TC-0101.yaml") };
 }
 
 const explore = (yaml: string): FakeReply[] => [
@@ -217,7 +217,7 @@ describe("AuthorService (가짜 API·maestro mcp·재생)", () => {
     await service.wait(started.job.id);
     const status = service.status(started.job.id);
     expect(status.job.status).toBe("succeeded");
-    expect(status.result).toEqual({ flowPath: "flows/demo/ios/TC-0101.yaml", branch: "qa/tester/TC-0101-agent-flow", commit: "f00d123", goldenRunId: "run-2", unchanged: false });
+    expect(status.result).toEqual({ flowPath: "apps/demo/flows/ios/TC-0101.yaml", branch: "qa/tester/TC-0101-agent-flow", commit: "f00d123", goldenRunId: "run-2", unchanged: false });
     expect(status.replays.map((r) => r.status)).toEqual(["passed", "passed"]);
     expect(draftsSeen).toEqual([GOOD, GOOD]);
     // 재생은 빌드 없이 앱 id 를 넣고, TC 역할 키만, author 로 기록

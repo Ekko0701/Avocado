@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ensureFlowHeader, lintCommandsYaml, lintFlow, lintSubflow, type FlowLintContext } from "./flow-lint";
 
-const FLOWS = resolve(__dirname, "../../../examples/qa-workspace/flows");
+const APPS = resolve(__dirname, "../../../examples/qa-workspace/apps");
 const ctx: FlowLintContext = { tcId: "TC-0101", envKeys: ["DEMO_TEST_PASSWORD"], subflows: ["common/launch-clean.yaml"], expectations: 2 };
 
 const HEADER = "appId: ${APP_ID}\nname: TC-0101 가입\ntags: [TC-0101]\n---\n";
@@ -13,8 +13,8 @@ function rules(body: string, c: Partial<FlowLintContext> = {}): string[] {
 
 describe("lintFlow (부록 B)", () => {
   it("예시 워크스페이스의 플로우는 규약을 지킨다", () => {
-    expect(lintFlow(readFileSync(resolve(FLOWS, "demo/ios/TC-0101.yaml"), "utf8"), ctx)).toEqual([]);
-    const sample = lintFlow(readFileSync(resolve(FLOWS, "sample/ios/TC-0002.yaml"), "utf8"), {
+    expect(lintFlow(readFileSync(resolve(APPS, "demo/flows/ios/TC-0101.yaml"), "utf8"), ctx)).toEqual([]);
+    const sample = lintFlow(readFileSync(resolve(APPS, "sample/flows/ios/TC-0002.yaml"), "utf8"), {
       tcId: "TC-0002",
       envKeys: ["SAMPLE_TEST_STUDENT_ID", "SAMPLE_TEST_STUDENT_PW"],
       subflows: ["common/launch-clean.yaml", "common/close-keyboard.yaml", "common/dismiss-system-prompts.yaml"],
@@ -95,8 +95,8 @@ describe("lintSubflow (공통 서브플로우)", () => {
   const rules = (t: string) => lintSubflow(t, sub).map((i) => `${i.level}:${i.rule}`);
 
   it("예시 워크스페이스의 서브플로우는 규약을 지킨다. name·tags·캡처·단언 규칙은 보지 않는다", () => {
-    for (const path of ["demo/ios/common/launch-clean.yaml", "sample/ios/common/launch-clean.yaml", "sample/ios/common/close-keyboard.yaml", "sample/ios/common/dismiss-system-prompts.yaml"]) {
-      expect(lintSubflow(readFileSync(resolve(FLOWS, path), "utf8"), sub), path).toEqual([]);
+    for (const path of ["demo/flows/ios/common/launch-clean.yaml", "sample/flows/ios/common/launch-clean.yaml", "sample/flows/ios/common/close-keyboard.yaml", "sample/flows/ios/common/dismiss-system-prompts.yaml"]) {
+      expect(lintSubflow(readFileSync(resolve(APPS, path), "utf8"), sub), path).toEqual([]);
     }
     expect(rules("appId: ${APP_ID}\n---\n- launchApp\n- takeScreenshot: home\n")).toEqual([]);
   });

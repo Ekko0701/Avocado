@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { hasBlocking, lintTestcase, nextTestcaseId, parseTestcase, serializeTestcase, testcaseTemplate, type LintContext } from "./model";
 
-const EXAMPLE_TC = readFileSync(resolve(__dirname, "../../../examples/qa-workspace/testcases/demo/TC-0101.md"), "utf8");
+const EXAMPLE_TC = readFileSync(resolve(__dirname, "../../../examples/qa-workspace/apps/demo/testcases/TC-0101.md"), "utf8");
 const CTX: LintContext = { accountRoles: ["signup"], appTargets: ["ios"] };
 
 const strip = <T extends { steps: { line?: number }[] }>(d: T) => ({ ...d, steps: d.steps.map((s) => ({ ...s, line: undefined })) });

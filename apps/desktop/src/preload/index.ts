@@ -80,6 +80,7 @@ const api: QaApi = {
     saveApp: (input) => invoke("workspace:saveApp", input),
     subflows: (input) => invoke("workspace:subflows", input),
     saveSubflow: (input) => invoke("workspace:saveSubflow", input),
+    migrateLayout: () => invoke("workspace:migrateLayout", undefined),
     history: (input) => invoke("workspace:history", input),
   },
   agent: {
