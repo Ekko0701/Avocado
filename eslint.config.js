@@ -46,6 +46,7 @@ export default defineConfig(
       "packages/workspace/src/**/*.ts",
       "packages/agent/src/**/*.ts",
       "packages/agent/test-support/**/*.{ts,mjs}",
+      "claude/**/*.mjs",
       "**/*.config.{ts,js}",
     ],
     languageOptions: { globals: globals.node },

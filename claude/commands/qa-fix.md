@@ -10,6 +10,12 @@ Dooray 티켓 링크 하나를 받아 원인 분석, 최소 수정, 빌드와 �
 /qa-fix https://{회사}.dooray.com/project/tasks/{업무 ID}
 ```
 
+링크 없이 실행하면 Avocado 의 자동 처리 설정을 따라 다음 티켓을 찾아 한 건을 처리한다.
+
+```text
+/qa-fix
+```
+
 ## 연결 스킬
 
 - `qa-fix` (`skills/qa-fix/SKILL.md`)

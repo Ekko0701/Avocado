@@ -29,7 +29,9 @@ import { createAvocadoMcpServer, routeMcpPorts } from "./claude/mcp-server";
 import { McpSocketHost } from "./claude/socket-host";
 import { JudgeService } from "./agent/judge-service";
 import { QaJobService } from "./qa/qa-job-service";
+import { buildSecretSet, redactText } from "@qa/evidence";
 import { QaJobStore } from "./qa/qa-job-store";
+import { QaWatchService } from "./qa/qa-watch-service";
 import { createSquirrelInstaller } from "./update/native-updater";
 import { UpdateService } from "./update/update-service";
 import { UPDATE_RELEASE_REPO, UPDATE_SIGNER_TEAM_ID } from "./update/trust";
@@ -318,12 +320,18 @@ void app.whenReady().then(() => {
       appendFileSync(join(logDir, "agent.log"), `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`, { mode: 0o600 });
     },
   });
+  const qaJobStore = new QaJobStore(join(app.getPath("userData"), "qa-jobs", "jobs.json"));
+  const qaWatch = new QaWatchService({ file: join(app.getPath("userData"), "qa-jobs", "watch.json"), jobs: qaJobStore });
   const qaJobs = new QaJobService({
-    store: new QaJobStore(join(app.getPath("userData"), "qa-jobs", "jobs.json")),
+    store: qaJobStore,
     devices,
     runs,
     flowsDir: join(app.getPath("userData"), "qa-jobs", "flows"),
     evidenceRoot: join(app.getPath("userData"), "evidence"),
+    logsDir: join(app.getPath("userData"), "qa-jobs", "logs"),
+    adb: join(androidHome, "platform-tools", "adb"),
+    run: runCommand,
+    redact: (text) => redactText(text, buildSecretSet(allSecrets())).text,
   });
   onRunFinished = (runId) => void judge.autoJudge(runId);
   authorBusy = () => author.busy();
@@ -332,6 +340,7 @@ void app.whenReady().then(() => {
     { tools: () => AuthorService.mcpTools(), call: (connection, name, args, signal) => author.mcpCall(connection, name, args, signal) },
     { tools: () => JudgeService.mcpTools(), call: (connection, name, args) => judge.mcpCall(connection, name, args) },
     { tools: () => QaJobService.mcpTools(), call: (connection, name, args, signal) => qaJobs.mcpCall(connection, name, args, signal) },
+    { tools: () => QaWatchService.mcpTools(), call: (_connection, name, args) => Promise.resolve(qaWatch.mcpCall(name, args)) },
   ]);
   const mcpHost = new McpSocketHost({
     socketPath: join(app.getPath("userData"), "mcp", "avocado.sock"),
@@ -395,7 +404,7 @@ void app.whenReady().then(() => {
   });
   registerIpcHandlers(
     ipcMain,
-    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, runPickers, runQueue: new RunQueue(runs), evidence, upload, remote, workspace, agentJobs, author, judge, claude, update, qaJobs }),
+    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, runPickers, runQueue: new RunQueue(runs), evidence, upload, remote, workspace, agentJobs, author, judge, claude, update, qaJobs, qaWatch, pickFolder: () => pick({ title: "고칠 앱의 저장소 폴더 선택", properties: ["openDirectory"] }) }),
     isAllowed,
   );
   createMainWindow();

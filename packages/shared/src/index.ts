@@ -10,3 +10,4 @@ export * from "./workspace";
 export * from "./agent";
 export * from "./update";
 export * from "./qa-jobs";
+export * from "./qa-watch";

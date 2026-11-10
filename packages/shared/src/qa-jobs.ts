@@ -12,6 +12,24 @@ export type QaJobStage = z.infer<typeof QaJobStageSchema>;
 export const QaJobStatusSchema = z.enum(["running", "succeeded", "failed", "stopped"]);
 export type QaJobStatus = z.infer<typeof QaJobStatusSchema>;
 
+/**
+ * 기기 확인이 어디까지 됐는지. "했다"와 "확인됐다"를 구분한다.
+ * not_run: 기기에서 돌리지 않음 · unverified: 돌렸지만 확인할 근거가 부족함 ·
+ * verified: 수정 후 실행이 통과하고 화면을 확인함 · verified_after_retry: 첫 시도는 실패했고 다시 돌려 통과함
+ */
+export const QaVerificationSchema = z.enum(["not_run", "unverified", "verified", "verified_after_retry"]);
+export type QaVerification = z.infer<typeof QaVerificationSchema>;
+
+/** 단계를 마쳤다는 근거로 남기는 글. spec: 확정한 기대값 · analysis: 원인과 수정 방향 · verdict: 기대값과 실제를 대조한 판정 */
+export const QaArtifactKindSchema = z.enum(["spec", "analysis", "verdict"]);
+export type QaArtifactKind = z.infer<typeof QaArtifactKindSchema>;
+export const QaArtifactSchema = z.strictObject({
+  kind: QaArtifactKindSchema,
+  content: z.string(),
+  at: z.iso.datetime(),
+});
+export type QaArtifact = z.infer<typeof QaArtifactSchema>;
+
 export const QaJobEventSchema = z.strictObject({
   at: z.iso.datetime(),
   stage: QaJobStageSchema,
@@ -27,6 +45,10 @@ export const QaJobRunSchema = z.strictObject({
   deviceName: z.string(),
   /** 실행이 끝났을 때의 상태. 끝나기 전이면 null */
   status: z.enum(["passed", "failed", "error", "canceled"]).nullable(),
+  /** 첫 시도는 실패했고 다시 돌려 통과했다 */
+  flaky: z.boolean().default(false),
+  /** 이 실행 동안의 앱 로그(가린 사본) 파일. 모으지 못했으면 null */
+  logPath: z.string().nullable().default(null),
   at: z.iso.datetime(),
 });
 export type QaJobRun = z.infer<typeof QaJobRunSchema>;
@@ -42,6 +64,10 @@ export const QaJobSchema = z.strictObject({
   status: QaJobStatusSchema,
   branch: z.string().nullable(),
   mrUrl: z.string().nullable(),
+  verification: QaVerificationSchema.default("not_run"),
+  /** 기기 확인을 못 했거나 근거가 부족한 이유 */
+  verificationNote: z.string().nullable().default(null),
+  artifacts: z.array(QaArtifactSchema).default([]),
   events: z.array(QaJobEventSchema),
   runs: z.array(QaJobRunSchema),
   createdAt: z.iso.datetime(),

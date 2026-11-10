@@ -30,6 +30,7 @@ import type { ClaudeConnectService } from "./claude/claude-connect";
 import { createUpdateHandlers } from "./update/update-handlers";
 import type { UpdateService } from "./update/update-service";
 import type { QaJobService } from "./qa/qa-job-service";
+import type { QaWatchService } from "./qa/qa-watch-service";
 
 export interface HandlerDeps {
   settings: SettingsService;
@@ -52,6 +53,9 @@ export interface HandlerDeps {
   claude: ClaudeConnectService;
   update: UpdateService;
   qaJobs: QaJobService;
+  qaWatch: QaWatchService;
+  /** main 의 폴더 선택 창. 취소하면 null */
+  pickFolder: () => Promise<string | null>;
 }
 
 export function createHandlers(deps: HandlerDeps): IpcHandlers {
@@ -94,5 +98,8 @@ export function createHandlers(deps: HandlerDeps): IpcHandlers {
     "claude:connectDesktop": () => deps.claude.connectDesktop(),
     ...createUpdateHandlers(deps.update),
     "qajobs:list": () => deps.qaJobs.list(),
+    "qawatch:get": () => deps.qaWatch.get(),
+    "qawatch:save": (settings) => deps.qaWatch.save(settings),
+    "qawatch:pickFolder": () => deps.pickFolder(),
   };
 }

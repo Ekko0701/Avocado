@@ -215,6 +215,15 @@ const handlers: IpcHandlers = {
   "qajobs:list": () => {
     throw new Error("not used");
   },
+  "qawatch:get": () => {
+    throw new Error("not used");
+  },
+  "qawatch:save": () => {
+    throw new Error("not used");
+  },
+  "qawatch:pickFolder": () => {
+    throw new Error("not used");
+  },
   "agent:judge": () => {
     throw new Error("not used");
   },
