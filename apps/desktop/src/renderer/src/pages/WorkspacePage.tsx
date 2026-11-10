@@ -1,6 +1,7 @@
 import type { TestcaseList, WorkspaceStatus } from "@qa/shared";
 import { useCallback, useEffect, useState } from "react";
 import { AppSettingsEditor } from "../components/AppSettingsEditor";
+import { LayoutMigration } from "../components/LayoutMigration";
 import { SubflowEditor } from "../components/SubflowEditor";
 import { errorMessage } from "../lib/errors";
 import { notifyWorkspaceChanged, onWorkspaceChanged } from "../lib/workspace-events";
@@ -75,6 +76,8 @@ export function WorkspacePage() {
           </p>
         ) : null}
       </section>
+
+      {status ? <LayoutMigration status={status} onChanged={(next) => void refresh(next).catch((e: unknown) => setMessage(errorMessage(e)))} /> : null}
 
       {status?.connected && list ? <AppSettingsEditor apps={list.apps} /> : null}
 

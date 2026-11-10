@@ -11,7 +11,8 @@ export const TC_ID = /^TC-\d{4,}$/;
 export const TcIdSchema = z.string().regex(TC_ID, "테스트 케이스 id 는 TC-0001 형식");
 
 export const WorkspaceConfigSchema = z.strictObject({
-  schemaVersion: z.literal(1),
+  /** 1: 종류별 폴더(testcases/, flows/), 2: 앱별 폴더(apps/<앱>/testcases, apps/<앱>/flows). ADR 0032 */
+  schemaVersion: z.union([z.literal(1), z.literal(2)]),
   name: z.string().min(1),
   apps: z.array(AppIdSchema).min(1),
   defaults: z.strictObject({ locale: LocaleSchema.optional() }).optional(),

@@ -28,10 +28,10 @@ describe("AgentJobStore", () => {
     expect(jobs.get(id).status).toBe("queued");
     jobs.start(id);
     jobs.recordUsage(id, snapshot(0.12, 4));
-    jobs.finish(id, "succeeded", { output: { flow: "flows/demo/ios/TC-0101.yaml" } });
+    jobs.finish(id, "succeeded", { output: { flow: "apps/demo/flows/ios/TC-0101.yaml" } });
     expect(jobs.get(id)).toMatchObject({ status: "succeeded", inputTokens: 1000, outputTokens: 100, costUsd: 0.12, toolCalls: 4, error: null });
     const row = db.db.prepare("SELECT cache_read_tokens, cache_write_tokens, output FROM agent_job WHERE id = ?").get(id) as Record<string, unknown>;
-    expect(row).toEqual({ cache_read_tokens: 50, cache_write_tokens: 20, output: '{"flow":"flows/demo/ios/TC-0101.yaml"}' });
+    expect(row).toEqual({ cache_read_tokens: 50, cache_write_tokens: 20, output: '{"flow":"apps/demo/flows/ios/TC-0101.yaml"}' });
     // 끝난 작업은 다시 끝낼 수 없다
     expect(() => jobs.finish(id, "failed")).toThrow(/이미 끝남/);
   });

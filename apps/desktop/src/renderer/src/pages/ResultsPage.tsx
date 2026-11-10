@@ -2,6 +2,7 @@ import type { AgentProvider, ClaudeJudgeJob, EvidenceArtifact, EvidenceFile, Evi
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClaudeRequest } from "../components/ClaudeRequest";
 import { EvidenceUploadPanel } from "../components/EvidenceUploadPanel";
+import { CaptureStrip } from "../components/CaptureStrip";
 import { errorMessage, formatDateTime } from "../lib/errors";
 
 const RUN_STATUS: Record<RunSummary["status"], string> = { queued: "대기", running: "실행 중", passed: "통과", failed: "실패", error: "오류", canceled: "취소" };
@@ -100,15 +101,17 @@ export function ResultsPage(props: { initialRunId?: string | null }) {
 
   const execution = detail?.executions.find((e) => e.id === executionId);
 
-  // 회차를 바꾸면 산출물 목록, 기본 스텝, 기본 로그(Maestro 로그)를 다시 연다
+  // 회차를 바꾸면 산출물 목록, 기본 스텝, 기본 로그(Maestro 로그)를 다시 연다.
+  // 실행을 바꾼 직후에는 회차가 아직 이전 실행의 것이다. 고른 실행의 회차일 때만 증적을 찾는다
   useEffect(() => {
     if (!runId || !executionId) return;
+    if (detail?.id !== runId || !detail.executions.some((e) => e.id === executionId)) return;
     let stale = false;
     setCapture(null);
     setTree(null);
     setLog(null);
     setFound(null);
-    setStepIndex(defaultStep(detail?.executions.find((e) => e.id === executionId)));
+    setStepIndex(defaultStep(detail.executions.find((e) => e.id === executionId)));
     setJudgeMessage(null);
     window.qa.agent.judgements({ runId, executionId }).then(
       (list) => {
@@ -256,6 +259,11 @@ export function ResultsPage(props: { initialRunId?: string | null }) {
   const pick = (id: string) => {
     setError(null);
     setFocusLine(null);
+    // 이전 실행의 회차와 로그 경로를 비운다. 새 실행의 회차 목록을 받으면 마지막 회차를 고르고 그 로그를 연다
+    if (id !== runId) {
+      setExecutionId(null);
+      setLogPath(null);
+    }
     setRunId(id);
   };
 
@@ -452,6 +460,10 @@ export function ResultsPage(props: { initialRunId?: string | null }) {
               finished={detail.status !== "queued" && detail.status !== "running"}
               passed={detail.status === "passed"}
             />
+          ) : null}
+
+          {detail && execution ? (
+            <CaptureStrip runId={detail.id} executionId={execution.id} steps={execution.steps} selected={stepIndex} onSelect={setStepIndex} />
           ) : null}
 
           {step ? (

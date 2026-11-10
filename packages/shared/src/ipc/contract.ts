@@ -236,6 +236,7 @@ export const ipcContract = {
   "workspace:saveApp": { input: SaveAppSettingsInputSchema, output: SaveAppSettingsResultSchema },
   "workspace:subflows": { input: ReadAppSettingsInputSchema, output: SubflowListSchema },
   "workspace:saveSubflow": { input: SaveSubflowInputSchema, output: SaveSubflowResultSchema },
+  "workspace:migrateLayout": { input: z.undefined(), output: SaveTestcaseResultSchema },
   "workspace:history": { input: TestcaseRefSchema, output: TestcaseHistorySchema },
   "workspace:myPulls": { input: z.undefined(), output: z.array(MyPullRequestSchema) },
   "agent:usage": { input: z.undefined(), output: AgentUsageSchema },
@@ -380,10 +381,12 @@ export interface QaApi {
     readApp(input: { app: string }): Promise<AppSettingsDoc>;
     /** 검사 → 그 앱의 앱 설정 작업 브랜치 → 커밋(새 앱이면 workspace.yaml 앱 목록까지). TC·플로우가 쓰는 타깃·역할·키는 지우지 못한다 */
     saveApp(input: SaveAppSettingsInput): Promise<SaveAppSettingsResult>;
-    /** 앱의 공통 서브플로우(flows/<앱>/<타깃>/common/*.yaml)와 그것을 부르는 TC. 진행 중인 앱 설정 브랜치가 있으면 거기서 읽는다 */
+    /** 앱의 공통 서브플로우(앱 플로우 폴더의 <타깃>/common/*.yaml)와 그것을 부르는 TC. 진행 중인 앱 설정 브랜치가 있으면 거기서 읽는다 */
     subflows(input: { app: string }): Promise<SubflowList>;
     /** 서브플로우 규약 검사 → 그 앱의 앱 설정 작업 브랜치 → 그 파일만 커밋. 있는 파일만 고치고, 실행·플로우 만들기 중에는 거절한다 */
     saveSubflow(input: SaveSubflowInput): Promise<SaveSubflowResult>;
+    /** 폴더 구조를 앱별(schemaVersion 2)로 바꿔 작업 브랜치에 커밋한다(ADR 0032). 그 뒤 requestReview 로 PR 을 올린다 */
+    migrateLayout(): Promise<SaveTestcaseResult>;
     /** TC 파일의 변경 내역(최근 20개) */
     history(input: { app: string; id: string }): Promise<TestcaseHistory>;
     /** 워크스페이스 저장소의 내 열린 PR */

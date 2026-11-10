@@ -18,13 +18,13 @@ test("TC 작성: 기획자가 템플릿으로 새 TC 를 쓰고, 린트를 통�
     await page.getByRole("button", { name: "테스트 케이스", exact: true }).click();
     // 필터: 태그 smoke 는 두 앱 모두, 앱 Demo 는 하나
     await page.getByLabel("태그 필터").selectOption("smoke");
-    await expect(page.locator("tr[data-testid^='tc-']")).toHaveCount(2);
+    await expect(page.locator("li[data-testid^='tc-']")).toHaveCount(2);
     await page.getByLabel("앱 필터").selectOption("demo");
-    await expect(page.locator("tr[data-testid^='tc-']")).toHaveCount(1);
+    await expect(page.locator("li[data-testid^='tc-']")).toHaveCount(1);
 
     // 템플릿으로 새 TC(다음 번호: TC-0102)
     await page.getByLabel("새 테스트 케이스 앱").selectOption("demo");
-    await page.getByRole("button", { name: "새 테스트 케이스(템플릿)" }).click();
+    await page.getByRole("button", { name: "새 테스트 케이스" }).click();
     const form = page.getByTestId("tc-form");
     await expect(page.getByRole("heading", { name: /demo\/TC-0102/ })).toBeVisible();
     await expect(page.getByTestId("tc-lint")).toContainText("린트 문제 없음");
@@ -61,7 +61,7 @@ test("TC 작성: 기획자가 템플릿으로 새 TC 를 쓰고, 린트를 통�
     expect(remote.api.pulls).toEqual([expect.objectContaining({ head: "qa/qa-bot/TC-0102-add-tc-0102", base: "main", title: "TC-0102 닉네임 길이 검증" })]);
 
     // 원격 브랜치의 파일은 올바른 TC 다
-    const pushed = remote.git(remote.bare, "show", "qa/qa-bot/TC-0102-add-tc-0102:testcases/demo/TC-0102.md");
+    const pushed = remote.git(remote.bare, "show", "qa/qa-bot/TC-0102-add-tc-0102:apps/demo/testcases/TC-0102.md");
     const parsed = parseTestcase(pushed);
     expect(parsed.ok && parsed.doc.frontMatter).toMatchObject({ id: "TC-0102", app: "demo", title: "닉네임이 짧으면 가입할 수 없다", tags: ["auth", "validation"], status: "draft", account: "signup" });
     expect(parsed.ok && parsed.doc.steps.map((s) => s.expected.length)).toEqual([1, 1]);
@@ -75,25 +75,41 @@ test("TC 작성: 기획자가 템플릿으로 새 TC 를 쓰고, 린트를 통�
     await page.getByLabel("변경 요약").fill("title wording");
     await page.getByRole("button", { name: "저장(커밋)" }).click();
     await expect(page.getByTestId("tc-message")).toContainText("qa/qa-bot/TC-0101-title-wording 에 커밋했습니다");
-    const branches = page.getByTestId("work-branches");
-    await expect(branches.getByTestId("branch-qa/qa-bot/TC-0101-title-wording")).toContainText("지금");
-    await expect(branches.getByTestId("branch-qa/qa-bot/TC-0102-add-tc-0102")).toContainText("tc: TC-0102 add TC-0102");
+    // Git 상태 인스펙터(툴바 버튼): 진행 중인 작업 브랜치 2개가 배지에 보이고, 종류별로 나뉜다
+    await expect(page.getByTestId("toolbar-git-count")).toHaveText("2");
+    await page.getByTestId("toolbar-git").click();
+    const git = page.getByTestId("git-inspector");
+    await expect(git.getByTestId("git-summary")).toContainText("qa/qa-bot/TC-0101-title-wording");
+    // TC-0102 는 PR 을 올렸고 TC-0101 은 아직이다
+    await expect(git.getByTestId("git-pulls").getByTestId("git-pull-7")).toContainText("TC-0102 닉네임 길이 검증");
+    const mine = git.getByTestId("git-commits").getByTestId("git-branch-qa/qa-bot/TC-0101-title-wording");
+    await expect(mine).toContainText("지금");
+    await expect(mine).toContainText("tc: TC-0101 title wording");
     // 지금 브랜치(TC-0101)의 목록에는 아직 머지되지 않은 TC-0102 가 없다. 그 브랜치로 체크아웃하면 나온다
     await expect(page.getByTestId("tc-demo-TC-0102")).toHaveCount(0);
-    await branches.getByTestId("branch-qa/qa-bot/TC-0102-add-tc-0102").getByRole("button", { name: "체크아웃" }).click();
-    await expect(page.getByTestId("tc-message")).toContainText("qa/qa-bot/TC-0102-add-tc-0102 로 체크아웃했습니다");
+    await git.getByTestId("git-pull-7").getByRole("button", { name: "체크아웃" }).click();
+    await expect(git.getByTestId("git-message")).toContainText("qa/qa-bot/TC-0102-add-tc-0102 로 체크아웃했습니다");
     await expect(page.getByTestId("tc-demo-TC-0102")).toBeVisible();
+    await expect(git.getByTestId("git-summary")).toContainText("qa/qa-bot/TC-0102-add-tc-0102");
 
-    // 지금 브랜치가 아닌 TC-0101 의 브랜치도 PR 을 만들 수 있다(브랜치는 그대로)
-    await branches.getByTestId("branch-qa/qa-bot/TC-0101-title-wording").getByRole("button", { name: "PR 작성" }).click();
-    await expect(page.getByTestId("tc-review-target")).toContainText("qa/qa-bot/TC-0101-title-wording");
-    await page.getByLabel("PR 제목").fill("TC-0101 제목 다듬기");
-    await page.getByRole("button", { name: "PR 올리기" }).click();
-    await expect(page.getByTestId("tc-pr")).toContainText("PR #8 을 만들었습니다(qa/qa-bot/TC-0101-title-wording)");
+    // 지금 브랜치가 아닌 TC-0101 의 브랜치도 인스펙터에서 PR 을 만들 수 있다(브랜치는 그대로)
+    await mine.getByRole("button", { name: "PR 작성" }).click();
+    const prForm = mine.getByRole("form", { name: "PR 작성" });
+    await expect(prForm.getByLabel("PR 제목")).toHaveValue("TC-0101 title wording");
+    await prForm.getByLabel("PR 제목").fill("TC-0101 제목 다듬기");
+    await prForm.getByRole("button", { name: "PR 올리기" }).click();
+    await expect(git.getByTestId("git-pr")).toContainText("PR #8 을 만들었습니다");
+    await expect(git.getByTestId("git-pr")).toContainText("qa/qa-bot/TC-0101-title-wording");
+    // 올린 뒤에는 열린 PR 쪽으로 옮겨 가고, 올리지 않은 커밋은 남지 않는다
+    await expect(git.getByTestId("git-pull-8")).toContainText("TC-0101 제목 다듬기");
+    await expect(git.getByTestId("git-commits")).toHaveCount(0);
+    await expect(git.getByTestId("git-summary")).toContainText("qa/qa-bot/TC-0102-add-tc-0102");
+    // 닫으면 본문이 다시 넓어진다
+    await git.getByRole("button", { name: "Git 상태 닫기" }).click();
+    await expect(page.getByTestId("git-inspector")).toHaveCount(0);
     expect(remote.api.pulls[1]).toMatchObject({ head: "qa/qa-bot/TC-0101-title-wording", base: "main", title: "TC-0101 제목 다듬기" });
     // 올라간 TC-0101 브랜치에는 TC-0101 커밋만 있다
     expect(remote.git(remote.bare, "log", "--format=%s", "main..qa/qa-bot/TC-0101-title-wording").split("\n")).toEqual(["tc: TC-0101 title wording"]);
-    await expect(branches.getByTestId("branch-qa/qa-bot/TC-0102-add-tc-0102")).toContainText("지금");
     await app.close();
   } finally {
     await remote.close();

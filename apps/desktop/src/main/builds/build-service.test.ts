@@ -220,6 +220,23 @@ describe("설치", () => {
     expect(calls.slice(1)).toEqual([`adb -s emulator-5554 install -r ${build.path}`, "adb -s emulator-5554 shell pm path com.example.app"]);
   });
 
+  it("Android 실기기: adb serial 로 설치하고, 허용 전 폰은 안내와 함께 거부한다 (ADR 0030)", async () => {
+    const apk = join(dir, "app.apk");
+    writeFileSync(apk, "PK");
+    const { calls, run } = recorder({
+      aapt2: { code: 0, stdout: "package: name='com.example.app' versionCode='7' versionName='2.0.0'\n" },
+      "adb -s R5CT123 install": { code: 0, stdout: "Success\n" },
+      "adb -s R5CT123 shell pm path": { code: 0, stdout: "package:/data/app/base.apk\n" },
+    });
+    const phone: Device = { id: "R5CT123", platform: "android", kind: "real", name: "Pixel 8", osVersion: "15", state: "booted", managed: false, serial: "R5CT123", locale: null };
+    const waiting: Device = { ...phone, id: "0123ABC", serial: "0123ABC", name: "0123ABC", state: "unknown" };
+    const s = service({ run, devices: [phone, waiting] });
+    const build = await s.registerPath("example", apk);
+    await expect(s.install(build.id, "R5CT123")).resolves.toMatchObject({ installed: true, deviceId: "R5CT123" });
+    expect(calls.slice(1)).toEqual([`adb -s R5CT123 install -r ${build.path}`, "adb -s R5CT123 shell pm path com.example.app"]);
+    await expect(s.install(build.id, "0123ABC")).rejects.toThrow(/USB 디버깅 허용/);
+  });
+
   it("adb 가 Failure 를 출력하면 종료 코드가 0 이어도 실패로 본다", async () => {
     const apk = join(dir, "app.apk");
     writeFileSync(apk, "PK");

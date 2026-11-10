@@ -59,7 +59,7 @@ test("공통 서브플로우 편집: 열기 → 규약 오류 → 저장(커밋)
 
     run.note("remote", {
       pulls: remote.api.pulls.map((p) => ({ head: p.head, title: p.title })),
-      file: remote.git(remote.bare, "show", "qa/qa-bot/app/demo/longer-wait:flows/demo/ios/common/launch-clean.yaml"),
+      file: remote.git(remote.bare, "show", "qa/qa-bot/app/demo/longer-wait:apps/demo/flows/ios/common/launch-clean.yaml"),
     });
   } finally {
     await run.close();

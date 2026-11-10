@@ -22,16 +22,22 @@ test("실행 화면: 선택 창으로 고른 플로우만 실행할 수 있고, 
   const { app, page } = await launchApp();
   await page.getByRole("button", { name: "실행", exact: true }).click();
   await expect(page.getByText("실행 기록이 없습니다.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "실행", exact: true }).nth(1)).toBeDisabled();
+  // 워크스페이스를 연결하지 않았으면 플로우 파일로만 실행한다(테스트 케이스·태그 탭은 꺼져 있다)
+  const setup = page.getByTestId("run-setup");
+  await expect(setup.getByRole("tab", { name: "플로우 파일" })).toHaveAttribute("aria-selected", "true");
+  await expect(setup.getByRole("tab", { name: "테스트 케이스" })).toBeDisabled();
+  await expect(setup.getByRole("tab", { name: "태그" })).toBeDisabled();
+  await expect(setup.getByTestId("run-what-hint")).toContainText("워크스페이스를 연결하면 테스트 케이스·태그로도 실행할 수 있습니다");
+  await expect(setup.getByRole("button", { name: "플로우 실행" })).toBeDisabled();
 
   // 플로우가 아닌 파일
   await stubOpenDialog(app, notFlow);
-  await page.getByRole("button", { name: "플로우 선택" }).click();
+  await page.getByRole("button", { name: "플로우 파일 고르기" }).click();
   await expect(page.getByTestId("run-message")).toContainText("플로우를 읽지 못했습니다");
 
   // 선택 창으로 고른 플로우
   await stubOpenDialog(app, flow);
-  await page.getByRole("button", { name: "플로우 선택" }).click();
+  await page.getByRole("button", { name: "플로우 파일 고르기" }).click();
   await expect(page.getByTestId("picked-flow")).toContainText("TC-0009 설정 열기");
   await expect(page.getByTestId("picked-flow")).toContainText("TC-0009");
 

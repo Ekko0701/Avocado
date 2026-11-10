@@ -51,7 +51,7 @@ const COMMON_COMMANDS: { names: string[]; use: string; example: string }[] = [
 ];
 
 /**
- * 공통 서브플로우(flows/<앱>/<타깃>/common/*.yaml) 편집. 있는 파일만 고친다.
+ * 공통 서브플로우(그 앱 플로우 폴더의 <타깃>/common/*.yaml) 편집. 있는 파일만 고친다.
  * 저장하면 main 이 서브플로우 규약을 검사하고 그 앱의 앱 설정 작업 브랜치에 커밋한다. PR 작성은 앱 설정과 같다
  */
 export function SubflowEditor(props: { apps: { app: string; name: string }[] }) {
@@ -134,7 +134,7 @@ export function SubflowEditor(props: { apps: { app: string; name: string }[] }) 
     <form className="card stack" aria-label="공통 서브플로우" data-testid="subflows" onSubmit={(e) => void save(e)}>
       <h2>공통 서브플로우</h2>
       <p className="hint">
-        플로우가 runFlow 로 부르는 공통 단계입니다(flows/&lt;앱&gt;/&lt;타깃&gt;/common/). 고치면 이 서브플로우를 부르는 모든 플로우에 적용됩니다. 저장하면 규약과 Maestro 문법(check-syntax)을 검사하고
+        플로우가 runFlow 로 부르는 공통 단계입니다(앱의 플로우 폴더 아래 &lt;타깃&gt;/common/). 고치면 이 서브플로우를 부르는 모든 플로우에 적용됩니다. 저장하면 규약과 Maestro 문법(check-syntax)을 검사하고
         그 앱의 앱 설정 작업 브랜치에 커밋하며, PR 작성을 누르면 PR 을 만듭니다. 실행이나 플로우 만들기가 진행 중일 때는 저장하지 않습니다.
       </p>
       <details data-testid="maestro-help">

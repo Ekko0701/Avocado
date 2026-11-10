@@ -35,9 +35,9 @@ AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-$(git config user.email || true)}"
 mkdir -p "$TARGET"
 cp -R "$TEMPLATE"/. "$TARGET"/
 if [ -n "$REVIEWERS" ]; then
-  printf '# 플로우 승인 권한자(PLAN 4.4, D10)\n/flows/ %s\n/testcases/ %s\n' "$REVIEWERS" "$REVIEWERS" > "$TARGET/CODEOWNERS"
+  printf '# 플로우 승인 권한자(PLAN 4.4, D10)\n/apps/*/flows/ %s\n/apps/*/testcases/ %s\n' "$REVIEWERS" "$REVIEWERS" > "$TARGET/CODEOWNERS"
 elif [ -n "$OWNER" ]; then
-  printf '# 플로우 승인 권한자(PLAN 4.4, D10). 팀 이름을 확인해 바꾼다\n/flows/ @%s/qa-leads\n/testcases/ @%s/qa-leads\n' "$OWNER" "$OWNER" > "$TARGET/CODEOWNERS"
+  printf '# 플로우 승인 권한자(PLAN 4.4, D10). 팀 이름을 확인해 바꾼다\n/apps/*/flows/ @%s/qa-leads\n/apps/*/testcases/ @%s/qa-leads\n' "$OWNER" "$OWNER" > "$TARGET/CODEOWNERS"
 fi
 
 git -C "$TARGET" init -q -b main

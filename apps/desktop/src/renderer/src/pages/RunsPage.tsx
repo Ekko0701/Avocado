@@ -1,7 +1,6 @@
-import type { Build, Device, PickedFlow, RunDetail, RunSummary } from "@qa/shared";
-import { AppIdSchema } from "@qa/shared";
+import type { RunDetail, RunSummary } from "@qa/shared";
 import { useCallback, useEffect, useState } from "react";
-import { WorkspaceRunPanel } from "../components/WorkspaceRunPanel";
+import { RunSetup } from "../components/RunSetup";
 import { errorMessage, formatDateTime } from "../lib/errors";
 
 const RUN_STATUS: Record<RunSummary["status"], string> = {
@@ -19,16 +18,10 @@ const badgeClass = (s: RunSummary["status"]) => (s === "passed" ? "badge ok" : s
 const seconds = (ms: number | null) => (ms === null ? "" : `${(ms / 1000).toFixed(1)}초`);
 
 export function RunsPage(props: { onOpenResults?: (runId: string) => void }) {
-  const [flow, setFlow] = useState<PickedFlow | null>(null);
-  const [builds, setBuilds] = useState<Build[]>([]);
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [buildId, setBuildId] = useState("");
-  const [appInput, setAppInput] = useState("");
-  const [deviceId, setDeviceId] = useState("");
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
   const [openRun, setOpenRun] = useState<RunDetail | null>(null);
+  /** 실행 기록을 읽거나 열거나 취소하다 난 오류 */
   const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const reloadRuns = useCallback(async () => {
     try {
@@ -38,16 +31,9 @@ export function RunsPage(props: { onOpenResults?: (runId: string) => void }) {
     }
   }, []);
 
-  const reloadTargets = useCallback(async () => {
-    const [b, d] = await Promise.allSettled([window.qa.builds.list(), window.qa.devices.list()]);
-    if (b.status === "fulfilled") setBuilds(b.value);
-    if (d.status === "fulfilled") setDevices(d.value.devices.filter((x) => x.state === "booted"));
-  }, []);
-
   useEffect(() => {
     void reloadRuns();
-    void reloadTargets();
-  }, [reloadRuns, reloadTargets]);
+  }, [reloadRuns]);
 
   // 실행 중인 것이 있으면 2초마다 새로 읽는다
   const anyActive = runs?.some(isActive) ?? false;
@@ -68,37 +54,10 @@ export function RunsPage(props: { onOpenResults?: (runId: string) => void }) {
     if (latest && !isActive(latest)) void window.qa.runs.get({ runId: latest.id }).then(setOpenRun, () => undefined);
   }, [runs, openRun]);
 
-  const build = builds.find((b) => b.id === buildId) ?? null;
-  const app = build ? build.app : appInput;
-  const device = devices.find((d) => d.id === deviceId) ?? null;
-  const usableDevices = devices.filter((d) => !build || d.platform === build.target);
-  const appValid = AppIdSchema.safeParse(app).success;
-  const canStart = flow !== null && device !== null && appValid && !busy;
-
-  async function pickFlow() {
-    setMessage(null);
-    try {
-      const picked = await window.qa.runs.pickFlow();
-      if (picked) setFlow(picked);
-    } catch (e) {
-      setMessage(`플로우를 읽지 못했습니다: ${errorMessage(e)}`);
-    }
-  }
-
-  async function start() {
-    if (!flow || !device) return;
-    setBusy(true);
-    setMessage(null);
-    try {
-      const run = await window.qa.runs.start({ app, flowPath: flow.path, deviceId: device.id, buildId: build?.id ?? null });
-      setMessage(`실행을 시작했습니다: ${run.flowName}`);
-      setOpenRun(await window.qa.runs.get({ runId: run.id }));
-    } catch (e) {
-      setMessage(`실행하지 못했습니다: ${errorMessage(e)}`);
-    } finally {
-      setBusy(false);
-      await reloadRuns();
-    }
+  /** 실행을 시작한 뒤: 기록을 다시 읽고, 플로우 파일로 시작한 실행이면 그 스텝을 연다 */
+  async function started(runId: string | null) {
+    await reloadRuns();
+    if (runId) await window.qa.runs.get({ runId }).then(setOpenRun, (e: unknown) => setMessage(errorMessage(e)));
   }
 
   async function open(runId: string) {
@@ -122,66 +81,12 @@ export function RunsPage(props: { onOpenResults?: (runId: string) => void }) {
   return (
     <>
       <h1>실행</h1>
-      <WorkspaceRunPanel builds={builds} devices={devices} onStarted={() => void reloadRuns()} />
-      <section className="card stack" aria-label="실행 준비">
-        <p className="hint">승인된 Maestro 플로우를 LLM 없이 재생합니다. 실패하면 한 번 다시 실행하고, 증적은 비밀 값을 가린 사본으로 보여 줍니다.</p>
-        <div className="row">
-          <button type="button" className="secondary" onClick={() => void pickFlow()}>
-            플로우 선택
-          </button>
-          {flow ? (
-            <span data-testid="picked-flow">
-              <strong>{flow.name}</strong> <span className="badge">{flow.tcId}</span> <small className="hint">{flow.path}</small>
-            </span>
-          ) : (
-            <span className="hint">선택한 플로우 없음</span>
-          )}
-        </div>
-        <div className="grid">
-          <label>
-            빌드
-            <select aria-label="빌드" value={buildId} onChange={(e) => setBuildId(e.target.value)}>
-              <option value="">빌드 없이(기기에 설치된 앱)</option>
-              {builds.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.app} · {b.appId} {b.version} ({b.buildNumber}) · {b.target === "ios" ? "iOS" : "Android"}
-                </option>
-              ))}
-            </select>
-          </label>
-          {build ? null : (
-            <label>
-              앱 ID
-              <input aria-label="실행 앱 ID" value={appInput} onChange={(e) => setAppInput(e.target.value.trim())} placeholder="예: demo" />
-            </label>
-          )}
-          <label>
-            기기
-            <select aria-label="실행 기기" value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
-              <option value="">기기 선택</option>
-              {usableDevices.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        {usableDevices.length === 0 ? <p className="hint">실행 중인 기기가 없습니다. 기기 화면에서 먼저 준비합니다.</p> : null}
-        <div className="row">
-          <button type="button" disabled={!canStart} onClick={() => void start()}>
-            {busy ? "시작 중" : "실행"}
-          </button>
-          <button type="button" className="secondary" onClick={() => void reloadTargets()}>
-            빌드·기기 새로고침
-          </button>
-        </div>
-        {message ? (
-          <p role="status" data-testid="run-message">
-            {message}
-          </p>
-        ) : null}
-      </section>
+      <RunSetup onStarted={(runId) => void started(runId)} />
+      {message ? (
+        <p role="alert" className="error">
+          {message}
+        </p>
+      ) : null}
 
       <section className="card stack" aria-label="실행 기록">
         <h2>실행 기록</h2>

@@ -179,6 +179,9 @@ const handlers: IpcHandlers = {
   "workspace:history": () => {
     throw new Error("not used");
   },
+  "workspace:migrateLayout": () => {
+    throw new Error("not used");
+  },
   "agent:usage": () => {
     throw new Error("not used");
   },

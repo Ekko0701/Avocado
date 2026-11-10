@@ -37,7 +37,7 @@ test("공통 서브플로우: 워크스페이스 화면에서 common/launch-clea
 
     const panel = page.getByTestId("subflows");
     await panel.getByLabel("서브플로우 앱").selectOption("demo");
-    await expect(panel.getByLabel("서브플로우 파일")).toHaveValue("flows/demo/ios/common/launch-clean.yaml");
+    await expect(panel.getByLabel("서브플로우 파일")).toHaveValue("apps/demo/flows/ios/common/launch-clean.yaml");
     await expect(page.getByTestId("subflow-used-by")).toHaveText("이 서브플로우를 부르는 플로우: TC-0101");
 
     // 자주 쓰는 Maestro 명령은 접혀 있다가 펼치면 보이고, 공식 문서 링크가 있다
@@ -88,10 +88,10 @@ test("공통 서브플로우: 워크스페이스 화면에서 common/launch-clea
     expect(remote.api.pulls).toEqual([
       expect.objectContaining({ head: "qa/qa-bot/app/demo/longer-wait", base: "main", title: "subflow: demo ios/common/launch-clean.yaml longer wait" }),
     ]);
-    expect(remote.git(remote.bare, "show", "qa/qa-bot/app/demo/longer-wait:flows/demo/ios/common/launch-clean.yaml")).toContain("timeout: 30000");
+    expect(remote.git(remote.bare, "show", "qa/qa-bot/app/demo/longer-wait:apps/demo/flows/ios/common/launch-clean.yaml")).toContain("timeout: 30000");
     expect(remote.git(remote.bare, "show", "--name-only", "--format=%s", "qa/qa-bot/app/demo/longer-wait").split("\n").filter(Boolean)).toEqual([
       "subflow: demo/ios launch-clean.yaml longer wait",
-      "flows/demo/ios/common/launch-clean.yaml",
+      "apps/demo/flows/ios/common/launch-clean.yaml",
     ]);
     await app.close();
   } finally {

@@ -36,6 +36,7 @@ function fakeIos(opts: { initialLocale: string; applyLocale?: boolean; existingN
   let locale = opts.initialLocale;
   let pending: string | null = null;
   const run: CommandRunner = async (file, args) => {
+    if (file.endsWith("/platform-tools/adb") && args[0] === "devices") return ok("List of devices attached\n\n");
     const cmd = [file, ...args].join(" ");
     calls.push(cmd);
     const sub = args.slice(1).join(" ");
@@ -183,7 +184,7 @@ describe("iosOptions·deleteIos", () => {
 });
 
 /** 에뮬레이터 하나를 흉내 낸다. -change-locale 로 띄우면 잠시 뒤 언어가 바뀐다. */
-function fakeAndroid(opts: { runningWithLocale?: string; applyLocale?: boolean; settingsUnavailableTimes?: number }) {
+function fakeAndroid(opts: { runningWithLocale?: string; applyLocale?: boolean; settingsUnavailableTimes?: number; phones?: string }) {
   const calls: string[] = [];
   const settings = new Map<string, string>();
   let unavailable = opts.settingsUnavailableTimes ?? 0;
@@ -196,7 +197,7 @@ function fakeAndroid(opts: { runningWithLocale?: string; applyLocale?: boolean; 
     const cmd = [file, ...args].join(" ");
     calls.push(cmd);
     if (file.endsWith("/emulator/emulator") && args[0] === "-list-avds") return ok("qa_pixel_7_api35\n");
-    if (file === adb && args[0] === "devices") return ok(`List of devices attached\n${running ? "emulator-5554\tdevice\n" : ""}`);
+    if (file === adb && args[0] === "devices") return ok(`List of devices attached\n${running ? "emulator-5554\tdevice\n" : ""}${opts.phones ?? ""}`);
     if (file === adb && args.join(" ") === "-s emulator-5554 emu avd name") return ok("qa_pixel_7_api35\nOK\n");
     if (file === adb && args.join(" ") === "-s emulator-5554 emu kill") {
       running = false;
@@ -229,6 +230,41 @@ function fakeAndroid(opts: { runningWithLocale?: string; applyLocale?: boolean; 
   };
   return { run, calls, spawned, spawnDetached };
 }
+
+describe("Android 실기기 (ADR 0030)", () => {
+  const PHONES = "R5CT123\tdevice usb:1-1 product:x model:Pixel_8 device:shiba\n0123ABC\tunauthorized usb:1-2 transport_id:3\n";
+
+  it("adb 로 연결된 폰을 serial 로 목록에 넣고, 허용 전 폰은 unknown 으로 둔다", async () => {
+    const a = fakeAndroid({ phones: PHONES });
+    const ios = fakeIos({ initialLocale: "ko_KR" });
+    const run: CommandRunner = (file, args, o) => (file === "/usr/bin/xcrun" ? ios.run(file, args, o) : a.run(file, args, o));
+    const { devices } = await service(run).list();
+    expect(devices.filter((d) => d.kind === "real")).toEqual([
+      { id: "R5CT123", platform: "android", kind: "real", name: "Pixel 8", osVersion: "15", state: "booted", managed: false, serial: "R5CT123", locale: null },
+      { id: "0123ABC", platform: "android", kind: "real", name: "0123ABC", osVersion: "", state: "unknown", managed: false, serial: "0123ABC", locale: null },
+    ]);
+    // 사람의 폰이라 설정을 바꾸는 명령을 보내지 않는다
+    expect(a.calls.some((c) => c.includes("settings put") || c.includes("emu "))).toBe(false);
+  });
+
+  it("에뮬레이터 SDK 없이 adb 만 있어도 폰을 찾는다", async () => {
+    rmSync(join(sdk, "emulator"), { recursive: true });
+    const a = fakeAndroid({ phones: PHONES });
+    const ios = fakeIos({ initialLocale: "ko_KR" });
+    const run: CommandRunner = (file, args, o) => (file === "/usr/bin/xcrun" ? ios.run(file, args, o) : a.run(file, args, o));
+    const list = await service(run).list();
+    expect(list.androidAvailable).toBe(false);
+    expect(list.devices.map((d) => d.id)).toEqual(["R5CT123", "0123ABC"]);
+  });
+
+  it("실기기는 앱에서 끄지 않는다", async () => {
+    const a = fakeAndroid({ phones: PHONES });
+    const ios = fakeIos({ initialLocale: "ko_KR" });
+    const run: CommandRunner = (file, args, o) => (file === "/usr/bin/xcrun" ? ios.run(file, args, o) : a.run(file, args, o));
+    await expect(service(run).shutdown({ platform: "android", id: "R5CT123" })).rejects.toThrow(/실기기는 앱에서 끄지 않는다/);
+    expect(a.calls.some((c) => c.includes("reboot") || c.includes("emu kill"))).toBe(false);
+  });
+});
 
 describe("prepareAndroid", () => {
   it("AVD 를 화면 없이 설정 언어로 띄우고 애니메이션 3종을 끈다", async () => {
@@ -273,49 +309,5 @@ describe("prepareAndroid", () => {
   it("Android SDK 가 없으면 바로 알린다", async () => {
     const a = fakeAndroid({});
     await expect(service(a.run, { androidHome: join(sdk, "none") }).prepareAndroid({})).rejects.toThrow(/Android SDK/);
-  });
-});
-
-describe("Android 실기기", () => {
-  /** USB 로 연결된 실기기 하나(R58M123)와 실행 중인 에뮬레이터 하나를 흉내 낸다. iOS 시뮬레이터는 없다 */
-  function fakeReal() {
-    const calls: string[] = [];
-    const adb = join(sdk, "platform-tools", "adb");
-    const run: CommandRunner = async (file, args) => {
-      const cmd = [file, ...args].join(" ");
-      calls.push(cmd);
-      if (args.slice(1).join(" ") === "list devices -j") return ok(JSON.stringify({ devices: {} }));
-      if (file.endsWith("/emulator/emulator") && args[0] === "-list-avds") return ok("qa_pixel_7_api35\n");
-      if (file === adb && args[0] === "devices") return ok("List of devices attached\nemulator-5554\tdevice\nR58M123\tdevice\nR3CN456\tunauthorized\n");
-      if (file === adb && args.join(" ") === "-s emulator-5554 emu avd name") return ok("qa_pixel_7_api35\nOK\n");
-      if (file === adb && args.join(" ") === "-s R58M123 shell getprop ro.product.model") return ok("SM-P610\n");
-      if (file === adb && args.join(" ") === "-s R58M123 shell getprop ro.build.version.release") return ok("13\n");
-      return { code: 1, stdout: "", stderr: `not mocked: ${cmd}` };
-    };
-    return { run, calls };
-  }
-
-  it("연결된 실기기를 기종 이름·OS 버전과 함께 목록에 넣고, 기기 설정은 건드리지 않는다", async () => {
-    const a = fakeReal();
-    const list = await service(a.run).list();
-    expect(list.devices).toContainEqual({
-      id: "R58M123",
-      platform: "android",
-      kind: "real",
-      name: "SM-P610",
-      osVersion: "13",
-      state: "booted",
-      managed: false,
-      serial: "R58M123",
-      locale: null,
-    });
-    expect(list.devices.filter((d) => d.kind === "real")).toHaveLength(1);
-    expect(a.calls.some((c) => c.includes("settings put"))).toBe(false);
-  });
-
-  it("실기기는 끄지 않는다", async () => {
-    const a = fakeReal();
-    await expect(service(a.run).shutdown({ platform: "android", id: "R58M123" })).rejects.toThrow(/실기기/);
-    expect(a.calls.some((c) => c.includes("emu kill"))).toBe(false);
   });
 });

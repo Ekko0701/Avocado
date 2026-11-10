@@ -5,13 +5,14 @@ export const DeviceSchema = z.strictObject({
   /** iOS 는 UDID, Android 에뮬레이터는 AVD 이름, Android 실기기는 adb serial */
   id: z.string(),
   platform: z.enum(["ios", "android"]),
+  /** real: USB·무선 디버깅으로 연결한 Android 폰 (ADR 0030) */
   kind: z.enum(["simulator", "emulator", "real"]),
   name: z.string(),
   osVersion: z.string(),
   state: z.enum(["booted", "shutdown", "booting", "unknown"]),
   /** 앱이 만든 QA 전용 기기인지 */
   managed: z.boolean(),
-  /** Android 실행 중일 때의 adb serial. 실기기는 id 와 같다 */
+  /** Android 실행 중(실기기는 연결됨)일 때의 adb serial */
   serial: z.string().nullable(),
   /** 확인한 기기 언어. 모르면 null */
   locale: z.string().nullable(),

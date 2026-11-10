@@ -1,6 +1,7 @@
-import type { AuthorJob, RequestReviewResult, TestcaseHistory, TestcaseList, WorkBranch, WorkBranchList, WorkspaceApp, WorkspaceStatus } from "@qa/shared";
+import type { AuthorJob, RequestReviewResult, TestcaseHistory, TestcaseList, WorkBranchList, WorkspaceApp, WorkspaceStatus } from "@qa/shared";
 import { lintTestcase, nextTestcaseId, parseTestcase, serializeTestcase, testcaseTemplate, type LintIssue, type Target, type TestcaseDoc } from "@qa/workspace/model";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Icon } from "../components/Icon";
 import { errorMessage, formatDateTime } from "../lib/errors";
 import { notifyWorkspaceChanged, onWorkspaceChanged } from "../lib/workspace-events";
 
@@ -218,359 +219,319 @@ export function TestcasesPage() {
     }
   }
 
-  /** 다른 작업 브랜치(또는 main)의 TC·플로우를 본다. 편집 중인 글은 그대로 두고, 저장하면 그 TC 의 브랜치로 간다 */
-  async function checkout(branch: string) {
-    setBusy(true);
-    setMessage(null);
-    try {
-      setStatus(await window.qa.workspace.checkout({ branch }));
-      notifyWorkspaceChanged();
-      setList(await window.qa.workspace.testcases());
-      setBranches(await window.qa.workspace.branches());
-      if (editing && !editing.isNew) setHistory(await window.qa.workspace.history({ app: editing.app, id: editing.id }));
-      setMessage(`${branch} 로 체크아웃했습니다`);
-    } catch (e) {
-      setMessage(`브랜치를 바꾸지 못했습니다: ${errorMessage(e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function startReview(b: WorkBranch) {
-    setReviewBranch(b.name);
-    setReview({ title: b.subject.replace(/^(tc|flow): /, ""), body: `## 변경\n\n- 작업 브랜치: ${b.name}\n` });
-    setPr(null);
-  }
-
   if (status && !status.connected) {
     return (
-      <>
+      <div className="tc-page">
         <h1>테스트 케이스</h1>
         <p className="hint">워크스페이스를 먼저 연결합니다(메뉴 "워크스페이스").</p>
-      </>
+      </div>
     );
   }
   // 고른 작업 브랜치(없으면 지금 브랜치)에 main 에 없는 변경이 있으면 PR 작성 양식을 연다
   const reviewTarget = branches?.branches.find((b) => b.name === (reviewBranch || branches.current)) ?? null;
   const canReview = reviewTarget !== null && reviewTarget.pending && !(reviewTarget.current && (status?.dirty.length ?? 0) > 0);
 
+  // 고른 작업 브랜치의 PR 작성 양식. 편집 중이면 편집 영역 맨 아래에, 아니면 오른쪽 칸에 카드로 둔다
+  const reviewForm = (className: string) =>
+    canReview ? (
+      <form className={className} onSubmit={requestReview} aria-label="PR 작성">
+        <h2>PR 작성</h2>
+        <p className="hint" data-testid="tc-review-target">
+          <code>{reviewTarget?.name}</code> 의 커밋 {reviewTarget?.ahead}개를 PR 로 올립니다. 이 브랜치의 열린 PR 이 있으면 그 PR 에 올립니다. 리뷰어가 머지하면 승인입니다.
+        </p>
+        <label>
+          PR 제목
+          <input value={review.title} onChange={(e) => setReview({ ...review, title: e.target.value })} required maxLength={200} />
+        </label>
+        <label>
+          PR 본문
+          <textarea value={review.body} onChange={(e) => setReview({ ...review, body: e.target.value })} rows={6} />
+        </label>
+        <div className="row">
+          <button type="submit" disabled={busy || !review.title.trim()}>
+            {busy ? "올리는 중" : "PR 올리기"}
+          </button>
+        </div>
+      </form>
+    ) : null;
+  const prResult = pr ? (
+    <p role="status" data-testid="tc-pr" className="ok-text">
+      {pr.existing ? `열린 PR #${pr.number} 에 ${pr.branch} 의 새 커밋을 올렸습니다: ` : `PR #${pr.number} 을 만들었습니다(${pr.branch}): `}
+      <code>{pr.url}</code>
+    </p>
+  ) : null;
+
+  // 목록은 앱별로 묶는다. 아직 저장하지 않은 새 테스트 케이스도 그 앱 묶음 끝에 보인다
+  const draft = editing?.isNew && !list?.testcases.some((t) => t.app === editing.app && t.id === editing.id) ? editing : null;
+  const appIds = [...new Set([...(list?.apps.map((a) => a.app) ?? []), ...shown.map((t) => t.app)])];
+  const groups = appIds
+    .map((app) => ({ app, name: list?.apps.find((a) => a.app === app)?.name ?? app, rows: shown.filter((t) => t.app === app), draft: draft?.app === app ? draft : null }))
+    .filter((g) => g.rows.length > 0 || g.draft !== null);
+
   return (
-    <>
-      <h1>테스트 케이스</h1>
+    <div className="tc-page">
+      <div className="tc-head">
+        <h1>테스트 케이스</h1>
+        <select aria-label="새 테스트 케이스 앱" value={newApp} onChange={(e) => setNewApp(e.target.value)}>
+          {list?.apps.map((a) => (
+            <option key={a.app} value={a.app}>
+              {a.name}
+            </option>
+          ))}
+        </select>
+        <button type="button" disabled={!list?.apps.length} onClick={createNew}>
+          새 테스트 케이스
+        </button>
+      </div>
       {message ? (
         <p role="status" data-testid="tc-message">
           {message}
         </p>
       ) : null}
 
-      <section className="card stack" aria-label="테스트 케이스 목록">
-        <div className="row">
-          <select aria-label="앱 필터" value={filter.app} onChange={(e) => setFilter({ ...filter, app: e.target.value })}>
-            <option value="">모든 앱</option>
-            {list?.apps.map((a) => (
-              <option key={a.app} value={a.app}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-          <select aria-label="상태 필터" value={filter.status} onChange={(e) => setFilter({ ...filter, status: e.target.value })}>
-            <option value="">모든 상태</option>
-            {Object.entries(STATUS_TEXT).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </select>
-          <select aria-label="태그 필터" value={filter.tag} onChange={(e) => setFilter({ ...filter, tag: e.target.value })}>
-            <option value="">모든 태그</option>
-            {tags.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
-          <input className="grow" aria-label="테스트 케이스 검색" placeholder="id·제목" value={filter.q} onChange={(e) => setFilter({ ...filter, q: e.target.value })} />
-        </div>
-        <table className="matrix">
-          <thead>
-            <tr>
-              <th>테스트 케이스</th>
-              <th>제목</th>
-              <th>상태</th>
-              <th>타깃</th>
-              <th>플로우</th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((t) => (
-              <tr key={t.path} data-testid={`tc-${t.app}-${t.id}`}>
-                <td>
-                  <button type="button" className="link" onClick={() => void open(t.app, t.id)}>
-                    {t.app}/{t.id}
-                  </button>
-                </td>
-                <td>{t.title ?? <span className="error">형식 오류</span>}</td>
-                <td>{t.status ? (STATUS_TEXT[t.status] ?? t.status) : "-"}</td>
-                <td>{t.targets.join(", ")}</td>
-                <td>{t.flows.length ? t.flows.join(", ") : <span className="hint">없음</span>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="row">
-          <select aria-label="새 테스트 케이스 앱" value={newApp} onChange={(e) => setNewApp(e.target.value)}>
-            {list?.apps.map((a) => (
-              <option key={a.app} value={a.app}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-          <button type="button" className="secondary" disabled={!list?.apps.length} onClick={createNew}>
-            새 테스트 케이스(템플릿)
-          </button>
-        </div>
-      </section>
-
-      {branches ? (
-        <section className="card stack" aria-label="작업 브랜치" data-testid="work-branches">
-          <h2>작업 브랜치</h2>
-          <p className="hint">
-            테스트 케이스 하나에 작업 브랜치 하나, PR 하나입니다. 저장하면 그 테스트 케이스의 작업 브랜치로 옮겨 커밋하고, 다른 테스트 케이스의 브랜치에는 섞지 않습니다. 위 목록은 지금 브랜치(
-            <code>{status?.branch}</code>)의 내용입니다. 다른 테스트 케이스의 변경은 그 브랜치를 보면 나옵니다.
-          </p>
-          <table className="matrix">
-            <thead>
-              <tr>
-                <th>브랜치</th>
-                <th>대상</th>
-                <th>main 보다 앞선 커밋</th>
-                <th>마지막 커밋</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              <tr data-testid="branch-main">
-                <td>
-                  <code>main</code> {status?.onMain ? <span className="badge">지금</span> : null}
-                </td>
-                <td>-</td>
-                <td>-</td>
-                <td className="hint">승인된 테스트 케이스·플로우</td>
-                <td>
-                  {status?.onMain ? null : (
-                    <button type="button" className="secondary" disabled={busy} onClick={() => void checkout("main")}>
-                      체크아웃
-                    </button>
-                  )}
-                </td>
-              </tr>
-              {branches.branches.map((b) => (
-                <tr key={b.name} data-testid={`branch-${b.name}`}>
-                  <td>
-                    <code>{b.name}</code> {b.current ? <span className="badge">지금</span> : null}
-                    {b.pending ? null : <small className="hint"> · main 에 반영됨</small>}
-                  </td>
-                  <td>{b.tcId ?? (b.appSettings ? `앱 설정 · ${b.appSettings}` : "-")}</td>
-                  <td>{b.ahead}</td>
-                  <td>{b.subject}</td>
-                  <td>
-                    <div className="row">
-                      {b.current ? null : (
-                        <button type="button" className="secondary" disabled={busy} onClick={() => void checkout(b.name)}>
-                          체크아웃
-                        </button>
-                      )}
-                      {b.pending ? (
-                        <button type="button" className="secondary" disabled={busy} onClick={() => startReview(b)}>
-                          PR 작성
-                        </button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
+      <div className="tc-panes">
+        <section className="card tc-list-pane" aria-label="테스트 케이스 목록">
+          <input aria-label="테스트 케이스 검색" placeholder="id·제목 검색" value={filter.q} onChange={(e) => setFilter({ ...filter, q: e.target.value })} />
+          <div className="tc-filters">
+            <select aria-label="앱 필터" value={filter.app} onChange={(e) => setFilter({ ...filter, app: e.target.value })}>
+              <option value="">모든 앱</option>
+              {list?.apps.map((a) => (
+                <option key={a.app} value={a.app}>
+                  {a.name}
+                </option>
               ))}
-            </tbody>
-          </table>
-          {branches.branches.length === 0 ? <p className="hint">아직 작업 브랜치가 없습니다. 테스트 케이스를 저장하거나 플로우를 만들면 생깁니다.</p> : null}
-        </section>
-      ) : null}
-
-      {editing ? (
-        <form className="card stack" onSubmit={save} aria-label="테스트 케이스 편집">
-          <h2>
-            {editing.app}/{editing.id} {editing.isNew ? <span className="badge">새 테스트 케이스</span> : null}
-          </h2>
-          <div className="row" role="tablist" aria-label="편집 방식">
-            <button type="button" role="tab" aria-selected={mode === "form"} className={mode === "form" ? "" : "secondary"} onClick={() => switchMode("form")}>
-              양식
-            </button>
-            <button type="button" role="tab" aria-selected={mode === "raw"} className={mode === "raw" ? "" : "secondary"} onClick={() => switchMode("raw")}>
-              원문
-            </button>
+            </select>
+            <select aria-label="상태 필터" value={filter.status} onChange={(e) => setFilter({ ...filter, status: e.target.value })}>
+              <option value="">모든 상태</option>
+              {Object.entries(STATUS_TEXT).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+            <select aria-label="태그 필터" value={filter.tag} onChange={(e) => setFilter({ ...filter, tag: e.target.value })}>
+              <option value="">모든 태그</option>
+              {tags.map((t) => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
           </div>
-
-          {mode === "form" && form ? (
-            <div className="stack" data-testid="tc-form">
-              <label>
-                제목
-                <input value={form.title} onChange={(e) => updateForm({ ...form, title: e.target.value })} />
-              </label>
-              <div className="grid">
-                <label>
-                  상태
-                  <select value={form.status} onChange={(e) => updateForm({ ...form, status: e.target.value as FormModel["status"] })}>
-                    {Object.entries(STATUS_TEXT).map(([k, v]) => (
-                      <option key={k} value={k}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  우선순위
-                  <select value={form.priority} onChange={(e) => updateForm({ ...form, priority: e.target.value as FormModel["priority"] })}>
-                    <option value="">없음</option>
-                    <option value="high">high</option>
-                    <option value="medium">medium</option>
-                    <option value="low">low</option>
-                  </select>
-                </label>
-                <label>
-                  태그(쉼표로 구분)
-                  <input value={form.tags} onChange={(e) => updateForm({ ...form, tags: e.target.value })} />
-                </label>
-                <label>
-                  계정 역할
-                  <select value={form.account} onChange={(e) => updateForm({ ...form, account: e.target.value })}>
-                    <option value="">없음</option>
-                    {[...new Set([...(appInfo?.accountRoles ?? []), ...(form.account ? [form.account] : [])])].map((r) => (
-                      <option key={r}>{r}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <fieldset className="row">
-                <legend>타깃</legend>
-                {ALL_TARGETS.filter((t) => appInfo?.targets.includes(t) || form.targets.includes(t)).map((t) => (
-                  <label key={t} className="check">
-                    <input
-                      type="checkbox"
-                      checked={form.targets.includes(t)}
-                      onChange={(e) => updateForm({ ...form, targets: e.target.checked ? [...form.targets, t] : form.targets.filter((x) => x !== t) })}
-                    />
-                    {t}
-                  </label>
-                ))}
-              </fieldset>
-              <label>
-                전제조건(한 줄에 하나)
-                <textarea rows={3} value={form.preconditions} onChange={(e) => updateForm({ ...form, preconditions: e.target.value })} />
-              </label>
-              <div className="stack">
-                <strong>스텝</strong>
-                {form.steps.map((s, i) => (
-                  <div key={i} className={stepIssues(i).some((x) => x.level === "error") ? "step-card bad" : "step-card"} data-testid={`tc-step-${i}`}>
-                    <label>
-                      {i + 1}. 동작
-                      <input value={s.action} onChange={(e) => updateForm({ ...form, steps: form.steps.map((x, j) => (j === i ? { ...x, action: e.target.value } : x)) })} />
-                    </label>
-                    <label>
-                      기대(한 줄에 하나)
-                      <textarea rows={2} value={s.expected} onChange={(e) => updateForm({ ...form, steps: form.steps.map((x, j) => (j === i ? { ...x, expected: e.target.value } : x)) })} />
-                    </label>
-                    <div className="row">
-                      <button type="button" className="secondary" disabled={i === 0} onClick={() => updateForm({ ...form, steps: swap(form.steps, i, i - 1) })}>
-                        위로
-                      </button>
-                      <button type="button" className="secondary" disabled={i === form.steps.length - 1} onClick={() => updateForm({ ...form, steps: swap(form.steps, i, i + 1) })}>
-                        아래로
-                      </button>
-                      <button type="button" className="secondary" onClick={() => updateForm({ ...form, steps: form.steps.filter((_, j) => j !== i) })}>
-                        스텝 삭제
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                <button type="button" className="secondary" onClick={() => updateForm({ ...form, steps: [...form.steps, { action: "", expected: "" }] })}>
-                  스텝 추가
-                </button>
-              </div>
-              <label>
-                완료 기준(한 줄에 하나)
-                <textarea rows={2} value={form.doneCriteria} onChange={(e) => updateForm({ ...form, doneCriteria: e.target.value })} />
-              </label>
-            </div>
-          ) : (
-            <textarea className="editor" aria-label="테스트 케이스 원문" value={text} onChange={(e) => setText(e.target.value)} rows={24} spellCheck={false} />
-          )}
-
-          <LintPanel issues={lint?.issues ?? []} />
-
-          {authoringTc(authorJob, editing) ? (
-            <div role="alert" className="warning stack" data-testid="tc-authoring-warning">
-              <p>
-                이 테스트 케이스로 플로우 만들기가 진행 중입니다({authorJob?.target}). 작업은 시작할 때 읽은 테스트 케이스로 플로우를 만들어서, 지금 저장하는 변경은 그 플로우에 반영되지
-                않습니다. 끝난 뒤 저장하거나, 플로우 만들기에서 작업을 취소하고 저장한 뒤 다시 시작합니다.
-              </p>
-              <label className="row">
-                <input type="checkbox" checked={ackAuthoring} onChange={(e) => setAckAuthoring(e.target.checked)} />
-                진행 중인 플로우 만들기에 반영되지 않는 것을 알고 저장합니다
-              </label>
-            </div>
-          ) : null}
-
-          <div className="row">
-            <label className="grow">
-              변경 요약
-              <input value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={80} placeholder="예: signup expected text" />
-            </label>
-            <button type="submit" disabled={busy || !summary.trim() || errors.length > 0}>
-              {busy ? "저장 중" : "저장(커밋)"}
-            </button>
+          <div className="tc-list">
+            {groups.map((g) => (
+              <section key={g.app} className="tc-group" aria-label={g.name}>
+                <div className="tc-group-head">{g.name}</div>
+                <ul>
+                  {g.rows.map((t) => {
+                    const selected = editing !== null && !editing.isNew && editing.app === t.app && editing.id === t.id;
+                    return (
+                      <li key={t.path} data-testid={`tc-${t.app}-${t.id}`}>
+                        <button
+                          type="button"
+                          className={selected ? "tc-row active" : "tc-row"}
+                          aria-current={selected ? "true" : undefined}
+                          aria-label={`${t.app}/${t.id} ${t.title ?? "형식 오류"}`}
+                          onClick={() => void open(t.app, t.id)}
+                        >
+                          <span className="tc-row-head">
+                            <code>{t.id}</code>
+                            {t.flows.length ? <span className="badge ok">플로우 {t.flows.join(", ")}</span> : <span className="badge">플로우 없음</span>}
+                          </span>
+                          <span>{t.title ?? <span className="error">형식 오류</span>}</span>
+                          <span className="hint">{[t.status ? (STATUS_TEXT[t.status] ?? t.status) : null, t.targets.join(", "), t.tags.join(", ")].filter(Boolean).join(" · ")}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                  {g.draft ? (
+                    <li data-testid={`tc-${g.draft.app}-${g.draft.id}`}>
+                      <div className="tc-row active" aria-current="true">
+                        <span className="tc-row-head">
+                          <code>{g.draft.id}</code>
+                          <span className="badge">새 테스트 케이스</span>
+                        </span>
+                        <span>{form?.title.trim() || "(제목 없음)"}</span>
+                        <span className="hint">아직 저장하지 않았습니다</span>
+                      </div>
+                    </li>
+                  ) : null}
+                </ul>
+              </section>
+            ))}
+            {list && groups.length === 0 ? <p className="hint tc-list-none">{list.testcases.length === 0 ? "아직 테스트 케이스가 없습니다." : "조건에 맞는 테스트 케이스가 없습니다."}</p> : null}
           </div>
-          {errors.length > 0 ? <small className="error">차단 항목 {errors.length}개를 고쳐야 저장할 수 있습니다.</small> : null}
-
-          {history && history.length > 0 ? (
-            <details>
-              <summary>변경 내역 {history.length}개</summary>
-              <ul className="matches" data-testid="tc-history">
-                {history.map((h) => (
-                  <li key={h.commit}>
-                    <code>{h.commit}</code> {formatDateTime(h.date)} · {h.author} · {h.subject}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          ) : null}
-        </form>
-      ) : null}
-
-      {canReview ? (
-        <form className="card stack" onSubmit={requestReview} aria-label="PR 작성">
-          <h2>PR 작성</h2>
-          <p className="hint" data-testid="tc-review-target">
-            <code>{reviewTarget?.name}</code> 의 커밋 {reviewTarget?.ahead}개를 PR 로 올립니다. 이 브랜치의 열린 PR 이 있으면 그 PR 에 올립니다. 리뷰어가 머지하면 승인입니다.
+          <p className="hint tc-list-foot">
+            테스트 케이스 {shown.length}개 · 지금 브랜치 <code>{status?.branch ?? "-"}</code> 의 내용
           </p>
-          <label>
-            PR 제목
-            <input value={review.title} onChange={(e) => setReview({ ...review, title: e.target.value })} required maxLength={200} />
-          </label>
-          <label>
-            PR 본문
-            <textarea value={review.body} onChange={(e) => setReview({ ...review, body: e.target.value })} rows={6} />
-          </label>
-          <div className="row">
-            <button type="submit" disabled={busy || !review.title.trim()}>
-              {busy ? "올리는 중" : "PR 올리기"}
-            </button>
-          </div>
-        </form>
-      ) : null}
-      {pr ? (
-        <p role="status" data-testid="tc-pr" className="ok-text">
-          {pr.existing ? `열린 PR #${pr.number} 에 ${pr.branch} 의 새 커밋을 올렸습니다: ` : `PR #${pr.number} 을 만들었습니다(${pr.branch}): `}
-          <code>{pr.url}</code>
-        </p>
-      ) : null}
-    </>
+        </section>
+
+        <div className="tc-detail">
+          {editing ? (
+            <section className="card tc-editor" data-testid="tc-editor">
+              <div className="tc-editor-head">
+                <h2>
+                  {editing.app}/{editing.id} {editing.isNew ? <span className="badge">새 테스트 케이스</span> : null}
+                </h2>
+                <div className="row" role="tablist" aria-label="편집 방식">
+                  <button type="button" role="tab" aria-selected={mode === "form"} className={mode === "form" ? "" : "secondary"} onClick={() => switchMode("form")}>
+                    양식
+                  </button>
+                  <button type="button" role="tab" aria-selected={mode === "raw"} className={mode === "raw" ? "" : "secondary"} onClick={() => switchMode("raw")}>
+                    원문
+                  </button>
+                </div>
+              </div>
+              <div className="tc-editor-body">
+                <form id="tc-edit" className="stack" onSubmit={save} aria-label="테스트 케이스 편집">
+                  {mode === "form" && form ? (
+                    <div className="stack" data-testid="tc-form">
+                      <label>
+                        제목
+                        <input value={form.title} onChange={(e) => updateForm({ ...form, title: e.target.value })} />
+                      </label>
+                      <div className="grid">
+                        <label>
+                          상태
+                          <select value={form.status} onChange={(e) => updateForm({ ...form, status: e.target.value as FormModel["status"] })}>
+                            {Object.entries(STATUS_TEXT).map(([k, v]) => (
+                              <option key={k} value={k}>
+                                {v}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          우선순위
+                          <select value={form.priority} onChange={(e) => updateForm({ ...form, priority: e.target.value as FormModel["priority"] })}>
+                            <option value="">없음</option>
+                            <option value="high">high</option>
+                            <option value="medium">medium</option>
+                            <option value="low">low</option>
+                          </select>
+                        </label>
+                        <label>
+                          태그(쉼표로 구분)
+                          <input value={form.tags} onChange={(e) => updateForm({ ...form, tags: e.target.value })} />
+                        </label>
+                        <label>
+                          계정 역할
+                          <select value={form.account} onChange={(e) => updateForm({ ...form, account: e.target.value })}>
+                            <option value="">없음</option>
+                            {[...new Set([...(appInfo?.accountRoles ?? []), ...(form.account ? [form.account] : [])])].map((r) => (
+                              <option key={r}>{r}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                      <fieldset className="row">
+                        <legend>타깃</legend>
+                        {ALL_TARGETS.filter((t) => appInfo?.targets.includes(t) || form.targets.includes(t)).map((t) => (
+                          <label key={t} className="check">
+                            <input
+                              type="checkbox"
+                              checked={form.targets.includes(t)}
+                              onChange={(e) => updateForm({ ...form, targets: e.target.checked ? [...form.targets, t] : form.targets.filter((x) => x !== t) })}
+                            />
+                            {t}
+                          </label>
+                        ))}
+                      </fieldset>
+                      <label>
+                        전제조건(한 줄에 하나)
+                        <textarea rows={3} value={form.preconditions} onChange={(e) => updateForm({ ...form, preconditions: e.target.value })} />
+                      </label>
+                      <div className="stack">
+                        <strong>스텝</strong>
+                        {form.steps.map((s, i) => (
+                          <div key={i} className={stepIssues(i).some((x) => x.level === "error") ? "step-card bad" : "step-card"} data-testid={`tc-step-${i}`}>
+                            <label>
+                              {i + 1}. 동작
+                              <input value={s.action} onChange={(e) => updateForm({ ...form, steps: form.steps.map((x, j) => (j === i ? { ...x, action: e.target.value } : x)) })} />
+                            </label>
+                            <label>
+                              기대(한 줄에 하나)
+                              <textarea rows={2} value={s.expected} onChange={(e) => updateForm({ ...form, steps: form.steps.map((x, j) => (j === i ? { ...x, expected: e.target.value } : x)) })} />
+                            </label>
+                            <div className="row">
+                              <button type="button" className="secondary" disabled={i === 0} onClick={() => updateForm({ ...form, steps: swap(form.steps, i, i - 1) })}>
+                                위로
+                              </button>
+                              <button type="button" className="secondary" disabled={i === form.steps.length - 1} onClick={() => updateForm({ ...form, steps: swap(form.steps, i, i + 1) })}>
+                                아래로
+                              </button>
+                              <button type="button" className="secondary" onClick={() => updateForm({ ...form, steps: form.steps.filter((_, j) => j !== i) })}>
+                                스텝 삭제
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <button type="button" className="secondary" onClick={() => updateForm({ ...form, steps: [...form.steps, { action: "", expected: "" }] })}>
+                          스텝 추가
+                        </button>
+                      </div>
+                      <label>
+                        완료 기준(한 줄에 하나)
+                        <textarea rows={2} value={form.doneCriteria} onChange={(e) => updateForm({ ...form, doneCriteria: e.target.value })} />
+                      </label>
+                    </div>
+                  ) : (
+                    <textarea className="editor" aria-label="테스트 케이스 원문" value={text} onChange={(e) => setText(e.target.value)} rows={24} spellCheck={false} />
+                  )}
+                </form>
+                {history && history.length > 0 ? (
+                  <details>
+                    <summary>변경 내역 {history.length}개</summary>
+                    <ul className="matches" data-testid="tc-history">
+                      {history.map((h) => (
+                        <li key={h.commit}>
+                          <code>{h.commit}</code> {formatDateTime(h.date)} · {h.author} · {h.subject}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ) : null}
+                {reviewForm("tc-review")}
+                {prResult}
+              </div>
+              <div className="tc-editor-foot">
+                <LintPanel issues={lint?.issues ?? []} />
+                {authoringTc(authorJob, editing) ? (
+                  <div role="alert" className="warning stack" data-testid="tc-authoring-warning">
+                    <p>
+                      이 테스트 케이스로 플로우 만들기가 진행 중입니다({authorJob?.target}). 작업은 시작할 때 읽은 테스트 케이스로 플로우를 만들어서, 지금 저장하는 변경은 그 플로우에 반영되지
+                      않습니다. 끝난 뒤 저장하거나, 플로우 만들기에서 작업을 취소하고 저장한 뒤 다시 시작합니다.
+                    </p>
+                    <label className="row">
+                      <input type="checkbox" checked={ackAuthoring} onChange={(e) => setAckAuthoring(e.target.checked)} />
+                      진행 중인 플로우 만들기에 반영되지 않는 것을 알고 저장합니다
+                    </label>
+                  </div>
+                ) : null}
+                <div className="row">
+                  <label className="grow">
+                    변경 요약
+                    <input form="tc-edit" value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={80} placeholder="예: signup expected text" />
+                  </label>
+                  <button type="submit" form="tc-edit" disabled={busy || !summary.trim() || errors.length > 0}>
+                    {busy ? "저장 중" : "저장(커밋)"}
+                  </button>
+                </div>
+                {errors.length > 0 ? <small className="error">차단 항목 {errors.length}개를 고쳐야 저장할 수 있습니다.</small> : null}
+              </div>
+            </section>
+          ) : (
+            <div className="tc-idle">
+              <section className="card tc-empty" data-testid="tc-empty">
+                <Icon name="doc" size={30} />
+                <strong>테스트 케이스를 고르세요</strong>
+                <p className="hint">왼쪽 목록에서 고르거나 위의 새 테스트 케이스로 만듭니다.</p>
+              </section>
+              {reviewForm("card stack")}
+              {prResult}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

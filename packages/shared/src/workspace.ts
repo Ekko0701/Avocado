@@ -17,6 +17,8 @@ export const WorkspaceStatusSchema = z.strictObject({
   behind: z.number().int().nonnegative(),
   /** 워크스페이스 파일 검증 문제 수 */
   issues: z.number().int().nonnegative(),
+  /** 폴더 구조(ADR 0032). 1: 종류별(testcases/, flows/), 2: 앱별(apps/<앱>/…). 연결 전이면 null */
+  layout: z.union([z.literal(1), z.literal(2)]).nullable(),
 });
 export type WorkspaceStatus = z.infer<typeof WorkspaceStatusSchema>;
 
@@ -80,11 +82,11 @@ export const SaveTestcaseInputSchema = TestcaseRefSchema.extend({
 export const SaveTestcaseResultSchema = z.strictObject({ status: WorkspaceStatusSchema, branch: z.string(), commit: z.string() });
 export type SaveTestcaseResult = z.infer<typeof SaveTestcaseResultSchema>;
 
-/** main 또는 앱이 만드는 작업 브랜치 이름: TC 는 qa/<login>/<TC>-<요약>[-n], 앱 설정은 qa/<login>/app/<앱>/<요약>[-n](예전 이름 accounts/<앱>/… 도 같은 범위) */
+/** main 또는 앱이 만드는 작업 브랜치 이름: TC 는 qa/<login>/<TC>-<요약>[-n], 앱 설정은 qa/<login>/app/<앱>/<요약>[-n](예전 이름 accounts/<앱>/… 도 같은 범위), 폴더 구조 바꾸기는 qa/<login>/workspace/<요약>[-n] */
 export const WorkBranchNameSchema = z
   .string()
   .regex(
-    /^(main|qa\/[A-Za-z0-9-]+\/TC-\d{4,}(-[a-z0-9-]+)?|qa\/[A-Za-z0-9-]+\/(app|accounts)\/[a-z0-9][a-z0-9-]{0,39}\/[a-z0-9-]+)$/,
+    /^(main|qa\/[A-Za-z0-9-]+\/TC-\d{4,}(-[a-z0-9-]+)?|qa\/[A-Za-z0-9-]+\/(app|accounts)\/[a-z0-9][a-z0-9-]{0,39}\/[a-z0-9-]+|qa\/[A-Za-z0-9-]+\/workspace\/[a-z0-9-]+)$/,
     "작업 브랜치 이름 형식이 아니다",
   );
 
@@ -168,7 +170,7 @@ export type SaveAppSettingsInput = z.infer<typeof SaveAppSettingsInputSchema>;
 export const SaveAppSettingsResultSchema = SaveTestcaseResultSchema;
 export type SaveAppSettingsResult = SaveTestcaseResult;
 
-/** 공통 서브플로우 파일 이름(flows/<앱>/<타깃>/common/ 바로 아래). 경로 문자는 받지 않는다 */
+/** 공통 서브플로우 파일 이름(앱 플로우 폴더의 <타깃>/common/ 바로 아래). 경로 문자는 받지 않는다 */
 export const SubflowNameSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.ya?ml$/, "서브플로우 파일 이름은 영문·숫자·-·_ 와 .yaml 이다");
 export const SubflowSchema = z.strictObject({
   target: AppTargetSchema,
