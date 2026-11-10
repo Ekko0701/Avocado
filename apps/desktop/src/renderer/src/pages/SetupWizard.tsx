@@ -74,7 +74,7 @@ export function SetupWizard(props: { onFinished: () => void; onClose: () => void
         <section className="card stack" aria-label="Claude 연결 단계">
           <p className="hint">
             플로우 만들기와 화면 판정은 각자 쓰는 Claude(데스크톱 앱·Claude Code)가 하고, 사용량은 각자의 Claude 요금제 한도에서 나갑니다. 여기서 Claude 에 Avocado 를 등록합니다.
-            지금 못 하면 나중에 설정의 "Claude 연결"에서 할 수 있습니다.
+            지금 못 하면 나중에 설정의 Claude 구역에서 할 수 있습니다.
           </p>
           <ClaudeConnectionPanel
             key={provider}

@@ -25,6 +25,7 @@ test("새 버전 확인: 배너와 받는 방법(재시작 또는 설치 파일)
     const { page } = run;
     await expect(page.getByTestId("update-banner")).toHaveCount(0);
     await page.getByRole("button", { name: "설정", exact: true }).click();
+    await page.getByTestId("settings-nav-app").click();
     await page.getByTestId("version-section").getByRole("button", { name: "새 버전 확인" }).click();
     const banner = page.getByTestId("update-banner");
     await expect(banner).toContainText("새 버전 v999.0.0");

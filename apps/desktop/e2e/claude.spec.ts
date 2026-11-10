@@ -12,6 +12,8 @@ test("Claude 연결: 앱이 MCP 소켓을 열고, nc 로 붙은 Claude 가 도�
   const { app, page, userDataDir } = await launchApp();
   const socketPath = join(userDataDir, "mcp", "avocado.sock");
   await page.getByRole("button", { name: "설정", exact: true }).click();
+  await page.getByTestId("settings-nav-claude").click();
+  await expect(page.getByTestId("settings-nav-claude")).toContainText("Claude 앱 · 연결된 Claude 0개");
   const section = page.getByTestId("claude-connection");
   await expect(section).toBeVisible();
   await expect(section.getByTestId("claude-listening")).toContainText("Claude 연결을 기다리는 중");
@@ -36,6 +38,9 @@ test("Claude 연결: 앱이 MCP 소켓을 열고, nc 로 붙은 Claude 가 도�
     // 설정 화면을 다시 열면 연결된 Claude 가 보인다
     await page.getByRole("button", { name: "플로우 만들기", exact: true }).click();
     await page.getByRole("button", { name: "설정", exact: true }).click();
+    // 구역 목록에 연결된 Claude 수가 보이고, Claude 구역에 그 이름이 보인다
+    await expect(page.getByTestId("settings-nav-claude")).toContainText("연결된 Claude 1개");
+    await page.getByTestId("settings-nav-claude").click();
     await expect(page.getByTestId("claude-listening")).toContainText("avocado-e2e 1.0");
   } finally {
     await client.close();
@@ -44,6 +49,7 @@ test("Claude 연결: 앱이 MCP 소켓을 열고, nc 로 붙은 Claude 가 도�
   // API 키 방식으로 바꾸면 저장되고 Claude 연결 안내는 숨긴다
   await page.getByTestId("claude-connection").getByRole("radio", { name: /Anthropic API 키/ }).check();
   await expect(page.getByTestId("claude-listening")).toHaveCount(0);
+  await expect(page.getByTestId("settings-nav-claude")).toContainText("API 키를 넣지 않았습니다");
   expect(await page.evaluate(() => window.qa.settings.get().then((s) => s.settings.agent.provider))).toBe("api");
   await app.close();
 });

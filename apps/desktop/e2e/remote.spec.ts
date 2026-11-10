@@ -21,7 +21,8 @@ test("GitHub 연결 확인: 토큰은 헤더로만 가고 화면·로그·데이
   try {
     const { app, page, userDataDir } = await launchApp({ env: { QA_E2E_GITHUB_API: fake.url } });
     await page.getByRole("button", { name: "설정", exact: true }).click();
-    const github = page.getByRole("form", { name: "GitHub" });
+    const github = page.getByRole("region", { name: "GitHub" });
+    const foot = github.getByTestId("settings-foot");
     const check = github.getByRole("button", { name: "연결 확인" });
     await expect(check).toBeDisabled();
 
@@ -31,8 +32,10 @@ test("GitHub 연결 확인: 토큰은 헤더로만 가고 화면·로그·데이
     await expect(tokenRow.getByTestId("secret-status")).toHaveText("저장됨");
     await expect(check).toBeDisabled(); // 조직 이름이 아직 없다
     await github.getByLabel("GitHub 조직").fill("acme");
-    await github.getByRole("button", { name: "저장", exact: true }).click();
-    await expect(github.getByRole("status")).toHaveText("저장했습니다");
+    await foot.getByRole("button", { name: "저장", exact: true }).click();
+    await expect(foot.getByRole("status")).toHaveText("저장했습니다");
+    // 구역 목록의 상태 줄도 바뀐다
+    await expect(page.getByTestId("settings-nav-github")).toContainText("acme/qa-workspace");
 
     await check.click();
     const result = page.getByTestId("github-verify");
@@ -48,8 +51,8 @@ test("GitHub 연결 확인: 토큰은 헤더로만 가고 화면·로그·데이
     await tokenRow.getByLabel("GitHub 토큰 입력").fill("github_pat_WRONG_000000000000000000000000000");
     await tokenRow.getByRole("button", { name: "저장" }).click();
     await check.click();
-    await expect(github.getByRole("status")).toContainText("토큰이 유효하지 않거나");
-    await expect(github.getByRole("status")).not.toContainText("WRONG");
+    await expect(foot.getByRole("status")).toContainText("토큰이 유효하지 않거나");
+    await expect(foot.getByRole("status")).not.toContainText("WRONG");
     await app.close();
 
     const disk = allText(userDataDir);
@@ -72,7 +75,7 @@ test("저장소 고르기: 사용자마다 다른 저장소 이름을 토큰으�
   try {
     const { app, page } = await launchApp({ env: { QA_E2E_GITHUB_API: fake.url } });
     await page.getByRole("button", { name: "설정", exact: true }).click();
-    const github = page.getByRole("form", { name: "GitHub" });
+    const github = page.getByRole("region", { name: "GitHub" });
     const picker = github.getByTestId("github-repo-picker");
     await expect(picker.getByRole("button", { name: "저장소 목록 불러오기" })).toBeDisabled();
     const tokenRow = page.getByTestId("secret-githubToken");

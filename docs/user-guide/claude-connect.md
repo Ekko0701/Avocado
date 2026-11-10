@@ -6,7 +6,7 @@ Avocado 는 Claude 에 로그인하지 않습니다. 대신 각자의 Claude 앱
 
 ## 1. 한 번만: Claude 에 Avocado 등록
 
-Avocado → 설정 → **Claude 연결**에서 "내 Claude 앱"이 골라져 있는지 확인합니다(기본값).
+Avocado → 설정 → **Claude**에서 "내 Claude 앱"이 골라져 있는지 확인합니다(기본값).
 
 ### Claude 데스크톱 앱
 
@@ -74,4 +74,4 @@ claude mcp add-json --scope user avocado '{"type":"stdio","command":"/usr/bin/nc
 | 설정에 "Claude 연결을 열지 못했습니다: 다른 Avocado…" | 다른 Avocado 창(예: 개발용)을 닫고 Avocado 를 다시 켠다 |
 | "이 대화가 맡은 작업이 아니다" | Claude 에게 attach_author(판정은 attach_judge) 부터 부르라고 한다 |
 | "다른 Claude 대화가 이 작업을 맡고 있다" | 앞 대화를 닫거나 그 대화에서 이어 간다 |
-| API 키로 쓰고 싶다 | 설정 → Claude 연결에서 "Anthropic API 키"를 고르고, API 키와 월 비용 상한을 넣는다 |
+| API 키로 쓰고 싶다 | 설정 → Claude 에서 "Anthropic API 키"를 고르고, API 키와 월 비용 상한을 넣는다 |

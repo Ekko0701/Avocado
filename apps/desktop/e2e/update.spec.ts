@@ -24,6 +24,7 @@ test("새 버전 확인: 최신 릴리스가 더 새로우면 배너가 뜬다 (
     await expect(page.getByTestId("update-banner")).toHaveCount(0);
     // 설정의 "새 버전 확인"을 누르면 다시 불러오지 않아도 맨 위 배너가 바로 뜬다
     await page.getByRole("button", { name: "설정", exact: true }).click();
+    await page.getByTestId("settings-nav-app").click();
     await page.getByTestId("version-section").getByRole("button", { name: "새 버전 확인" }).click();
     await expect(page.getByTestId("version-section")).toContainText("최신 릴리스 v999.0.0");
     await expect(page.getByTestId("update-banner")).toContainText("새 버전 v999.0.0");
@@ -135,6 +136,7 @@ test("재시작으로 적용(ADR 0027): 받기 → 재시작해서 업데이트,
   await page.evaluate(() => window.qa.update.check());
   const banner = page.getByTestId("update-banner");
   await page.getByRole("button", { name: "설정", exact: true }).click();
+  await page.getByTestId("settings-nav-app").click();
   await page.getByTestId("version-section").getByRole("button", { name: "새 버전 확인" }).click();
   await expect(banner).toContainText("새 버전 v0.1.8");
   await banner.getByRole("button", { name: "받기", exact: true }).click();

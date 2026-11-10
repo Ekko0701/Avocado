@@ -23,6 +23,7 @@ test("창이 뜨고 main 이 준 앱 정보를 보여 준다(홈 맨 아래 버�
   const version = (await page.evaluate(() => window.qa.app.getInfo())).version;
   await expect(page.getByTestId("app-version")).toHaveText(version);
   await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("button", { name: "설정", exact: true }).click();
+  await page.getByTestId("settings-nav-app").click();
   await expect(page.getByTestId("electron-version")).toHaveText("44.6.0");
   await expect(page.getByTestId("settings-app-version")).toHaveText(version);
 });

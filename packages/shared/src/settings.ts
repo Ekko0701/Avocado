@@ -127,12 +127,19 @@ export const DEFAULT_SETTINGS: Settings = {
   projects: {},
 };
 
+/**
+ * 부분 변경에는 기본값을 두지 않는다. 기본값이 있는 칸은 보내지 않아도 기본값으로 채워져서, 저장할 때 지금 값을 덮어쓴다
+ * (예: 월 상한만 저장했는데 방식이 Claude 앱으로 돌아감, 조직만 저장했는데 증적 저장소 이름이 지워짐)
+ */
+const AgentPatchSchema = SettingsSchema.shape.agent.extend({ provider: AgentProviderSchema }).partial();
+const GitHubPatchSchema = GitHubSettingsSchema.extend({ evidenceRepo: RepoNameSchema.nullable(), evidenceOwner: GitHubOwnerSchema.nullable() }).partial();
+
 export const SettingsPatchSchema = z.strictObject({
   evidence: SettingsSchema.shape.evidence.partial().optional(),
-  agent: SettingsSchema.shape.agent.partial().optional(),
+  agent: AgentPatchSchema.optional(),
   devices: SettingsSchema.shape.devices.partial().optional(),
   policy: SettingsSchema.shape.policy.partial().optional(),
-  github: GitHubSettingsSchema.partial().optional(),
+  github: GitHubPatchSchema.optional(),
 });
 export type SettingsPatch = z.infer<typeof SettingsPatchSchema>;
 

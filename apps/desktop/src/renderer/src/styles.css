@@ -2186,13 +2186,14 @@ button.badge.cell.selected {
   margin: 0;
   font-size: 12px;
 }
-.progress {
+/* 진행 막대. 설정 마법사의 .progress(설치 진행 묶음)와 다른 이름을 쓴다 */
+.meter {
   height: 6px;
   border-radius: 3px;
   background: var(--fill);
   overflow: hidden;
 }
-.progress > div {
+.meter > div {
   height: 100%;
   border-radius: 3px;
   background: var(--accent);
@@ -2201,7 +2202,7 @@ button.badge.cell.selected {
 @media (prefers-reduced-motion: reduce) {
   .step-node-mark,
   .step-node-line,
-  .progress > div {
+  .meter > div {
     transition: none;
   }
 }
@@ -2224,6 +2225,193 @@ button.badge.cell.selected {
   }
   .step-node small {
     white-space: normal;
+  }
+}
+
+/* ---- 설정: 왼쪽 구역 목록(구역마다 지금 상태 한 줄) | 오른쪽 고른 구역 하나(머리말·본문 스크롤·붙박이 저장 줄) ---- */
+.content.fill > .settings-page {
+  flex: 1;
+  min-height: 0;
+  max-width: 980px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.settings-page > h1 {
+  margin: 6px 0 4px;
+}
+.settings-page > p {
+  margin: 0;
+}
+.settings-panes {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 14px;
+}
+.settings-nav {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  padding: 8px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.settings-nav .run-item {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 8px 10px;
+}
+.settings-nav .run-item-body {
+  min-width: 0;
+}
+.settings-nav .run-item small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.settings-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.settings-head {
+  display: grid;
+  gap: 4px;
+  padding: 14px 18px 10px;
+}
+.settings-head h2 {
+  font-size: 15px;
+}
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 4px 18px 16px;
+}
+.settings-body p {
+  margin: 0;
+}
+.settings-body p.hint {
+  font-size: 12px;
+}
+.settings-body label.narrow {
+  max-width: 240px;
+}
+.settings-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 18px 14px;
+  border-top: 0.5px solid var(--separator);
+}
+.group-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* 방식 고르기: 라디오를 분할 단추로 보인다(고른 칸만 떠 있다). 라디오는 칸 전체를 덮는 투명한 입력으로 남는다 */
+fieldset.segmented {
+  display: inline-flex;
+  align-self: start;
+  justify-self: start;
+  gap: 2px;
+  margin: 0;
+  padding: 3px;
+  border: none;
+  border-radius: var(--radius-capsule);
+  background: var(--fill);
+  position: relative;
+}
+fieldset.segmented legend {
+  float: left;
+  width: 0;
+  height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+fieldset.segmented label {
+  position: relative;
+  display: block;
+  flex: none;
+  padding: 3px 16px;
+  border-radius: var(--radius-capsule);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+fieldset.segmented label input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+fieldset.segmented label:has(input:checked) {
+  background: var(--control-fill);
+  box-shadow:
+    inset 0 0 0 0.5px var(--control-edge),
+    inset 0 1px 0 var(--control-rim),
+    0 1px 3px rgba(0, 0, 0, 0.12);
+}
+fieldset.segmented label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+fieldset.segmented label:hover:not(:has(input:checked)) {
+  background: var(--fill);
+}
+.claude-note {
+  margin: 0;
+  font-size: 12px;
+}
+.claude-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.claude-command {
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+ul.notes {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+/* 본문이 좁으면 구역 목록을 위에 두고 화면 전체를 스크롤한다 */
+@container main (max-width: 839px) {
+  .content.fill > .settings-page {
+    flex: none;
+    min-height: auto;
+  }
+  .settings-panes {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+  }
+  .settings-nav {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    overflow: visible;
+  }
+  .settings-detail,
+  .settings-body {
+    overflow: visible;
   }
 }
 

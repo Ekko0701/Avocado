@@ -33,6 +33,15 @@ describe("Settings", () => {
     expect(SettingsPatchSchema.safeParse({ agent: { provider: "openai" } }).success).toBe(false);
   });
 
+  it("검증을 거친 부분 변경이 보내지 않은 칸을 기본값으로 되돌리지 않는다(IPC 는 SettingsPatchSchema 로 먼저 읽는다)", () => {
+    const current = applySettingsPatch(DEFAULT_SETTINGS, { agent: { provider: "api" }, github: { owner: "acme", evidenceRepo: "evidence", evidenceOwner: "other" } });
+    const patch = SettingsPatchSchema.parse({ agent: { monthlyBudgetUsd: 5 }, github: { workspaceRepo: "ws" } });
+    expect(patch).toEqual({ agent: { monthlyBudgetUsd: 5 }, github: { workspaceRepo: "ws" } });
+    const next = applySettingsPatch(current, patch);
+    expect(next.agent).toEqual({ monthlyBudgetUsd: 5, judgeSampleRate: 0, provider: "api" });
+    expect(next.github).toMatchObject({ owner: "acme", workspaceRepo: "ws", evidenceRepo: "evidence", evidenceOwner: "other" });
+  });
+
   it("연도로 끝나는 증적 저장소 이름에서 접두사를 뽑는다(목록에서 고르기)", () => {
     expect(evidencePrefixOf("Avocado-qa-evidence-2026")).toEqual({ prefix: "Avocado-qa-evidence-", year: 2026 });
     expect(evidencePrefixOf("qa-evidence2027")).toEqual({ prefix: "qa-evidence", year: 2027 });

@@ -169,17 +169,17 @@ export function AuthorPage(props: { onOpenResults?: (runId: string) => void }) {
         <section className="card author-setup" aria-label="플로우 만들기 준비">
           {viaClaude && claude && !claude.listening ? (
             <p role="alert" className="warning" data-testid="author-claude-closed">
-              Claude 연결을 열지 못했습니다{claude.error ? `: ${claude.error}` : ""}. 설정의 "Claude 연결"을 확인합니다.
+              Claude 연결을 열지 못했습니다{claude.error ? `: ${claude.error}` : ""}. 설정의 Claude 구역을 확인합니다.
             </p>
           ) : null}
           {!viaClaude && keyStored === false ? (
             <p role="alert" className="warning" data-testid="author-no-key">
-              Anthropic API 키가 없습니다. 설정에서 저장한 뒤 시작합니다.
+              Anthropic API 키가 없습니다. 설정의 Claude 구역에서 저장한 뒤 시작합니다.
             </p>
           ) : null}
           {!viaClaude && overBudget ? (
             <p role="alert" className="warning">
-              이번 달 LLM 비용 상한에 닿았습니다. 설정에서 상한을 확인합니다.
+              이번 달 LLM 비용 상한에 닿았습니다. 설정의 Claude 구역에서 상한을 확인합니다.
             </p>
           ) : null}
 
@@ -457,7 +457,7 @@ function AuthorJobView(props: { job: AuthorJob; title: string | null; prMessage:
               ) : null}
             </div>
             {job.phase === "exploring" && job.totalSteps > 0 ? (
-              <div className="progress" role="progressbar" aria-label="테스트 케이스 스텝 진행" aria-valuemin={0} aria-valuemax={job.totalSteps} aria-valuenow={job.step}>
+              <div className="meter" role="progressbar" aria-label="테스트 케이스 스텝 진행" aria-valuemin={0} aria-valuemax={job.totalSteps} aria-valuenow={job.step}>
                 <div style={{ width: `${Math.min(100, (job.step / job.totalSteps) * 100)}%` }} />
               </div>
             ) : null}
