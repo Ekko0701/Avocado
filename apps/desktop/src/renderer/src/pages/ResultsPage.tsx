@@ -2,6 +2,7 @@ import type { AgentProvider, ClaudeJudgeJob, EvidenceArtifact, EvidenceFile, Evi
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClaudeRequest } from "../components/ClaudeRequest";
 import { EvidenceUploadPanel } from "../components/EvidenceUploadPanel";
+import { CaptureStrip } from "../components/CaptureStrip";
 import { errorMessage, formatDateTime } from "../lib/errors";
 
 const RUN_STATUS: Record<RunSummary["status"], string> = { queued: "대기", running: "실행 중", passed: "통과", failed: "실패", error: "오류", canceled: "취소" };
@@ -452,6 +453,10 @@ export function ResultsPage(props: { initialRunId?: string | null }) {
               finished={detail.status !== "queued" && detail.status !== "running"}
               passed={detail.status === "passed"}
             />
+          ) : null}
+
+          {detail && execution ? (
+            <CaptureStrip runId={detail.id} executionId={execution.id} steps={execution.steps} selected={stepIndex} onSelect={setStepIndex} />
           ) : null}
 
           {step ? (

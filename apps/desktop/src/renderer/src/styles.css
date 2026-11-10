@@ -1164,3 +1164,42 @@ fieldset.targets legend {
   gap: 10px;
   align-items: center;
 }
+
+/* 결과 화면의 캡처 모아 보기: 한 시도의 캡처를 가로로 늘어놓고 누르면 그 스텝을 고른다 */
+.capture-strip {
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  padding: 2px 2px 8px;
+  list-style: none;
+  overflow-x: auto;
+}
+.capture-thumb {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  width: 132px;
+  padding: 6px;
+  background: transparent;
+  box-shadow: none;
+  border-radius: var(--radius-panel);
+  color: var(--text);
+}
+.capture-thumb img {
+  width: 120px;
+  height: 260px;
+  object-fit: contain;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--separator);
+  background: var(--surface);
+}
+.capture-thumb.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+.capture-thumb small {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -83,6 +83,15 @@ test("결과 화면: 실패 실행 하나를 누르면 실패 스텝 캡처와 �
     }),
   ).toBe(true);
 
+  // 캡처 모아 보기: 이 시도의 캡처(플로우 캡처 + 실패 캡처)가 한 줄에 보이고, 누르면 그 스텝을 고른다
+  const strip = page.getByTestId("capture-strip");
+  await expect(strip.getByRole("heading")).toHaveText("캡처 2장");
+  await expect(strip.locator("img")).toHaveCount(2);
+  await expect(strip.getByRole("button", { name: /^6\. .* 캡처 보기$/ })).toHaveAttribute("aria-pressed", "true");
+  await strip.getByRole("button", { name: /takeScreenshot 01_search_typed 캡처 보기/ }).click();
+  await expect(page.getByTestId("step-4")).toHaveClass(/selected/);
+  await expect(page.getByTestId("capture-img")).toHaveAttribute("alt", /takeScreenshot 01_search_typed/);
+
   // 다른 스텝, 화면 트리, 로그 검색
   await page.getByTestId("step-4").click();
   await expect(page.getByTestId("capture-img")).toHaveAttribute("alt", /takeScreenshot 01_search_typed/);
