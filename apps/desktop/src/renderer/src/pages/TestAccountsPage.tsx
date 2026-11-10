@@ -25,17 +25,8 @@ export function TestAccountsPage(props: { onOpenWorkspace: () => void; onChanged
   }, [reload]);
 
   return (
-    <>
+    <div className="split-page">
       <h1>테스트 계정</h1>
-      <p className="hint">
-        플로우가 <code>{"${KEY}"}</code> 로 쓰는 테스트 계정 값입니다. 키 이름과 계정 역할은 팀이 워크스페이스 앱 설정(accounts.yaml)에서 정하고 PR 로 바꾸며, 값은 각자 이 Mac
-        에만 넣습니다. 값이 없는 키를 쓰는 플로우는 실행을 시작하지 않습니다.
-      </p>
-      <div className="row">
-        <button type="button" className="link" onClick={props.onOpenWorkspace}>
-          계정 역할·키 이름 바꾸기 (워크스페이스 → 앱 설정)
-        </button>
-      </div>
       {error ? (
         <p role="alert" className="error">
           {error}
@@ -50,6 +41,7 @@ export function TestAccountsPage(props: { onOpenWorkspace: () => void; onChanged
         <AccountValues
           secrets={secrets.items.filter((s) => s.name.startsWith("account:"))}
           locked={!secrets.encryptionAvailable}
+          onOpenWorkspace={props.onOpenWorkspace}
           onChanged={async () => {
             await reload();
             props.onChanged();
@@ -58,6 +50,6 @@ export function TestAccountsPage(props: { onOpenWorkspace: () => void; onChanged
       ) : (
         <p>불러오는 중</p>
       )}
-    </>
+    </div>
   );
 }

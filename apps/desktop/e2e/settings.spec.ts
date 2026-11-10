@@ -197,22 +197,34 @@ test("테스트 계정 값: 워크스페이스 accounts.yaml 의 앱·키 이름
     // 앱마다 accounts.yaml 의 키가 줄로 나온다(Demo 1개 + Sample 2개). 사이드바에 빈 값 수가 보인다
     await expect(section.getByTestId("account-values-summary")).toHaveText("아직 넣지 않은 값 3개");
     await expect(nav.getByTestId("nav-badge-accounts")).toHaveText("3");
+    // 왼쪽 목록에 앱마다 넣은 값 수가 보이고, 넣지 않은 값이 있는 첫 앱이 열려 있다
+    await expect(section.getByTestId("account-nav-demo")).toContainText("값 1개 중 0개 넣음");
+    await expect(section.getByTestId("account-nav-sample")).toContainText("값 2개 중 0개 넣음");
+    await expect(section.getByTestId("account-nav-demo")).toHaveAttribute("aria-current", "page");
     const demo = section.getByTestId("account-app-demo");
     await expect(demo).toContainText("signup 역할");
     const row = demo.getByTestId("secret-account:demo:DEMO_TEST_PASSWORD");
     await expect(row.getByTestId("secret-status")).toHaveText("저장 안 됨");
-    await expect(section.getByTestId("account-app-sample").getByTestId("secret-account:sample:SAMPLE_TEST_STUDENT_ID")).toBeVisible();
 
-    // 값만 넣으면 된다
-    await row.getByLabel("demo · DEMO_TEST_PASSWORD 입력").fill("e2e-local-pw-2026");
+    // 값만 넣으면 된다. 값을 다 넣어도 보던 앱이 그대로 열려 있다
+    await row.getByLabel("DEMO_TEST_PASSWORD 입력").fill("e2e-local-pw-2026");
     await row.getByRole("button", { name: "저장" }).click();
     await expect(row.getByTestId("secret-status")).toHaveText("저장됨");
     await expect(section.getByTestId("account-values-summary")).toHaveText("아직 넣지 않은 값 2개");
     await expect(nav.getByTestId("nav-badge-accounts")).toHaveText("2");
+    await expect(section.getByTestId("account-nav-demo")).toContainText("값 1개 모두 넣음");
+    await expect(section.getByTestId("account-nav-demo")).toHaveAttribute("aria-current", "page");
 
-    // 워크스페이스에 없는 키는 따로, 직접 추가는 접혀 있다
-    await expect(section.getByTestId("account-values-others")).toContainText("old-app · OLD_KEY");
+    // 다른 앱을 고르면 그 앱의 키가 나온다
+    await section.getByTestId("account-nav-sample").click();
+    await expect(section.getByTestId("account-app-sample").getByTestId("secret-account:sample:SAMPLE_TEST_STUDENT_ID")).toBeVisible();
     await expect(section.getByRole("form", { name: "테스트 계정 값 추가" })).toBeHidden();
+
+    // 워크스페이스에 없는 키와 직접 추가는 "그 밖의 값"에 있다
+    await expect(section.getByTestId("account-nav-others")).toContainText("워크스페이스에 없는 키 1개");
+    await section.getByTestId("account-nav-others").click();
+    await expect(section.getByTestId("account-values-others")).toContainText("old-app · OLD_KEY");
+    await expect(section.getByRole("form", { name: "테스트 계정 값 추가" })).toBeVisible();
     expect(await page.content()).not.toContain("e2e-local-pw-2026");
     await app.close();
   } finally {

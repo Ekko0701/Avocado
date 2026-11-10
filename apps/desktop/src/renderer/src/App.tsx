@@ -128,7 +128,7 @@ export function App() {
       </aside>
       <div className="main">
         <Toolbar page={page} onNavigate={go} inspectorOpen={inspectorOpen} onToggleInspector={() => setInspectorOpen((open) => !open)} />
-        <main className={page === "home" ? "content wide" : page === "testcases" || page === "results" || page === "author" || page === "settings" || page === "workspace" ? "content fill" : "content"}>
+        <main className={page === "home" ? "content wide" : page === "testcases" || page === "results" || page === "author" || page === "settings" || page === "workspace" || page === "accounts" || page === "devices" || page === "builds" || page === "setup" ? "content fill" : "content"}>
           <UpdateBanner />
           {page === "home" ? (
             <HomePage

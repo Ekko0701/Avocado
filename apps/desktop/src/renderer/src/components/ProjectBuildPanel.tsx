@@ -91,10 +91,9 @@ export function ProjectBuildPanel(props: { app: string; disabled: boolean; onBus
   const tools = useMemo(() => (ios?.tools ?? []).map((t) => TOOL_TEXT[t]).join(", "), [ios]);
 
   return (
-    <section className="card stack" aria-label="프로젝트로 빌드" data-testid="project-build">
-      <h2>프로젝트로 빌드 (iOS)</h2>
+    <div className="stack" aria-label="프로젝트로 빌드" data-testid="project-build">
       <p className="hint">
-        Xcode 프로젝트 폴더를 연결하면 Avocado 가 시뮬레이터용으로 빌드해 등록합니다. 폴더 위치는 이 Mac 에만 저장합니다. 지금 폴더의 코드(커밋하지 않은 변경 포함)로
+        iOS 만 됩니다. Xcode 프로젝트 폴더를 연결하면 Avocado 가 시뮬레이터용으로 빌드해 등록합니다. 폴더 위치는 이 Mac 에만 저장합니다. 지금 폴더의 코드(커밋하지 않은 변경 포함)로
         빌드하고, Tuist·XcodeGen·CocoaPods 프로젝트는 빌드 전에 프로젝트 폴더에서 생성·pod install 을 합니다.
       </p>
       {status === null && !message ? <p className="hint">불러오는 중</p> : null}
@@ -171,6 +170,6 @@ export function ProjectBuildPanel(props: { app: string; disabled: boolean; onBus
           {message}
         </p>
       ) : null}
-    </section>
+    </div>
   );
 }

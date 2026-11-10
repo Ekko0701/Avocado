@@ -1,8 +1,10 @@
 import { accountSecretName, type SecretName, type SecretStatus, type WorkspaceAccounts } from "@qa/shared";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { missingAccountValues } from "../lib/account-values";
+import { accountAppHint, accountApps } from "../lib/account-values";
 import { errorMessage } from "../lib/errors";
 import { SecretRow } from "./SecretRow";
+
+const OTHERS = "__others__";
 
 function accountLabel(name: string): string {
   const [, appId, key] = name.split(":");
@@ -10,13 +12,16 @@ function accountLabel(name: string): string {
 }
 
 /**
- * 테스트 계정 값. 앱 ID·키 이름은 워크스페이스의 apps/<앱>/accounts.yaml 에서 읽어 줄로 보이고, 사용자는 값만 넣는다.
+ * 테스트 계정 값. 위는 요약 한 줄, 왼쪽은 앱 목록(앱마다 넣은 값 수)과 "그 밖의 값", 오른쪽은 고른 앱의 키들이다.
+ * 앱 ID·키 이름은 워크스페이스의 apps/<앱>/accounts.yaml 에서 읽어 줄로 보이고, 사용자는 값만 넣는다.
  * 값은 main 의 키체인 암호화로만 저장하고 화면에는 저장 여부만 온다(CLAUDE.md 5·6장).
- * 워크스페이스에 없는 키는 직접 추가할 수 있고, 워크스페이스에서 빠진 키의 값은 따로 보여 지울 수 있게 한다.
+ * 워크스페이스에 없는 키는 "그 밖의 값"에서 직접 추가하거나 지운다.
  */
-export function AccountValues(props: { secrets: SecretStatus[]; locked: boolean; onChanged: () => Promise<void> }) {
+export function AccountValues(props: { secrets: SecretStatus[]; locked: boolean; onChanged: () => Promise<void>; onOpenWorkspace: () => void }) {
   const [accounts, setAccounts] = useState<WorkspaceAccounts | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** 왼쪽에서 고른 앱(또는 그 밖의 값). 목록을 처음 읽었을 때 한 번 정한다(값을 넣는 동안 고른 것이 바뀌지 않게) */
+  const [picked, setPicked] = useState<string | null>(null);
 
   const load = useCallback(() => {
     window.qa.workspace.accounts().then(setAccounts, (e: unknown) => setError(`워크스페이스의 계정 목록을 읽지 못했습니다: ${errorMessage(e)}`));
@@ -25,72 +30,120 @@ export function AccountValues(props: { secrets: SecretStatus[]; locked: boolean;
 
   const stored = new Map(props.secrets.map((s) => [s.name, s]));
   const status = (name: string): SecretStatus => stored.get(name as SecretName) ?? { name: name as SecretName, stored: false, updatedAt: null };
-  // 앱마다 키 하나는 한 번만 보인다(여러 역할이 같은 키를 쓰면 역할을 함께 적는다)
-  const apps = (accounts?.apps ?? []).map((a) => {
-    const keys = new Map<string, { roles: string[]; descriptions: string[] }>();
-    for (const r of a.roles) {
-      for (const key of r.keys) {
-        const entry = keys.get(key) ?? { roles: [], descriptions: [] };
-        entry.roles.push(r.role);
-        if (r.description) entry.descriptions.push(r.description);
-        keys.set(key, entry);
-      }
-    }
-    return { ...a, keys: [...keys.entries()].map(([key, info]) => ({ key, name: accountSecretName(a.app, key), ...info })) };
-  });
+  const apps = accounts ? accountApps(accounts, props.secrets) : [];
   const needed = new Set(apps.flatMap((a) => a.keys.map((k) => k.name)));
-  const missing = accounts ? missingAccountValues(accounts, props.secrets).length : 0;
+  const missing = apps.reduce((n, a) => n + a.keys.length - a.stored, 0);
   const others = props.secrets.filter((s) => s.name.startsWith("account:") && s.stored && !needed.has(s.name));
+  const connected = accounts?.connected === true;
+
+  // 넣지 않은 값이 있는 첫 앱을 연다. 연결 전이거나 앱이 없으면 그 밖의 값(직접 추가)
+  const fallback = connected && apps.length > 0 ? (apps.find((a) => a.stored < a.keys.length) ?? apps[0])?.app ?? OTHERS : OTHERS;
+  useEffect(() => {
+    if (accounts !== null) setPicked((current) => current ?? fallback);
+    // 처음 읽었을 때만 정한다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts]);
+  const selected = picked ?? fallback;
+  const app = apps.find((a) => a.app === selected) ?? null;
 
   return (
-    <section className="card stack" aria-labelledby="accounts-title" data-testid="account-values">
-      <h2 id="accounts-title">테스트 계정 값</h2>
-      <p className="hint">
-        워크스페이스의 앱마다 accounts.yaml 에 적힌 키 이름입니다. 값만 넣습니다. 값은 이 Mac 의 키체인에만 두고, 플로우를 실행할 때만 앱이 꺼내 넘긴 뒤 결과에서 가립니다. 실제
-        사용자 계정이 아니라 테스트 계정 값만 씁니다.
-      </p>
+    <div className="split-fill" data-testid="account-values">
       {error ? (
         <p role="alert" className="error">
           {error}
         </p>
       ) : null}
-      {accounts && !accounts.connected ? <p className="hint">워크스페이스를 연결하면 앱마다 필요한 계정 값이 여기 나옵니다.</p> : null}
-      {accounts?.connected && apps.length === 0 ? <p className="hint">워크스페이스에 앱이 없습니다.</p> : null}
-      {accounts?.connected && apps.length > 0 ? (
-        <p className="hint" data-testid="account-values-summary">
-          {missing === 0 ? "필요한 계정 값을 모두 넣었습니다." : `아직 넣지 않은 값 ${missing}개`}
-        </p>
+      {connected && apps.length > 0 ? (
+        <section className="card strip" aria-label="테스트 계정 요약">
+          <span className={missing === 0 ? "dot on" : "dot waiting"} aria-hidden="true" />
+          <div className="strip-text">
+            <strong data-testid="account-values-summary">{missing === 0 ? "필요한 계정 값을 모두 넣었습니다." : `아직 넣지 않은 값 ${missing}개`}</strong>
+            <span className="hint">값은 이 Mac 의 키체인에만 두고, 값이 없는 키를 쓰는 플로우는 실행을 시작하지 않습니다.</span>
+          </div>
+          <button type="button" className="secondary small" onClick={props.onOpenWorkspace}>
+            역할·키 이름 바꾸기
+          </button>
+        </section>
       ) : null}
-      {apps.map((a) => (
-        <div key={a.app} className="stack" data-testid={`account-app-${a.app}`}>
-          <h3>
-            {a.name} <span className="hint">({a.app})</span>
-          </h3>
-          {a.keys.length === 0 ? <p className="hint">이 앱은 계정 값이 필요 없습니다.</p> : null}
-          {a.keys.map((k) => (
-            <div key={k.name} className="stack">
-              <small className="hint">
-                {k.roles.join(", ")} 역할{k.descriptions.length ? ` · ${k.descriptions.join(" / ")}` : ""}
-              </small>
-              <SecretRow status={status(k.name)} label={accountLabel(k.name)} disabled={props.locked} onChanged={props.onChanged} />
+
+      <div className="split-panes">
+        <nav className="card pane-nav" aria-label="앱">
+          <strong className="group-label">앱</strong>
+          {accounts === null && !error ? <p className="hint">불러오는 중</p> : null}
+          {accounts && !connected ? <p className="hint">워크스페이스를 연결하면 앱마다 필요한 계정 값이 여기 나옵니다.</p> : null}
+          {connected && apps.length === 0 ? <p className="hint">워크스페이스에 앱이 없습니다.</p> : null}
+          {apps.map((a) => (
+            <button key={a.app} type="button" className={a.app === selected ? "run-item selected" : "run-item"} aria-current={a.app === selected ? "page" : undefined} data-testid={`account-nav-${a.app}`} onClick={() => setPicked(a.app)}>
+              <span className="run-item-body">
+                <strong>
+                  {a.name} <span className="ws-app-id">({a.app})</span>
+                </strong>
+                <small className="hint">{accountAppHint(a)}</small>
+              </span>
+              {a.keys.length > 0 ? <span className={a.stored === a.keys.length ? "dot on" : "dot waiting"} aria-hidden="true" /> : <span />}
+            </button>
+          ))}
+          <span className="pane-nav-gap" />
+          <button type="button" className={selected === OTHERS ? "run-item selected" : "run-item"} aria-current={selected === OTHERS ? "page" : undefined} data-testid="account-nav-others" onClick={() => setPicked(OTHERS)}>
+            <span className="run-item-body">
+              <strong>그 밖의 값</strong>
+              <small className="hint">{others.length > 0 ? `워크스페이스에 없는 키 ${others.length}개` : "직접 추가"}</small>
+            </span>
+            <span />
+          </button>
+        </nav>
+
+        {app ? (
+          <section className="card pane" aria-label={`${app.name} 계정 값`} data-testid={`account-app-${app.app}`}>
+            <div className="pane-head">
+              <h2>
+                {app.name} ({app.app})
+              </h2>
+              <small className="hint">apps/{app.app}/accounts.yaml 에 적힌 키입니다. 값만 넣습니다. 실제 사용자 계정이 아니라 테스트 계정 값만 씁니다. 플로우를 실행할 때만 앱이 꺼내 넘기고 결과에서 가립니다.</small>
             </div>
-          ))}
-        </div>
-      ))}
-      {others.length > 0 ? (
-        <div className="stack" data-testid="account-values-others">
-          <h3>워크스페이스에 없는 계정 값</h3>
-          <p className="hint">지금 워크스페이스의 accounts.yaml 에 없는 키입니다. 더 쓰지 않으면 지웁니다.</p>
-          {others.map((s) => (
-            <SecretRow key={s.name} status={s} label={accountLabel(s.name)} disabled={props.locked} onChanged={props.onChanged} />
-          ))}
-        </div>
-      ) : null}
-      <details open={accounts !== null && !accounts.connected}>
-        <summary>직접 추가(워크스페이스에 없는 키)</summary>
-        <AddAccountSecret disabled={props.locked} onAdded={props.onChanged} />
-      </details>
-    </section>
+            <div className="pane-body">
+              {app.keys.length === 0 ? <p className="hint">이 앱은 계정 값이 필요 없습니다.</p> : null}
+              <ul className="key-rows">
+                {app.keys.map((k) => (
+                  <li key={k.name}>
+                    <small className="hint">
+                      {k.roles.join(", ")} 역할{k.descriptions.length ? ` · ${k.descriptions.join(" / ")}` : ""}
+                    </small>
+                    <SecretRow status={status(k.name)} label={k.key} disabled={props.locked} onChanged={props.onChanged} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+        ) : (
+          <section className="card pane" aria-label="그 밖의 값">
+            <div className="pane-head">
+              <h2>그 밖의 값</h2>
+              <small className="hint">워크스페이스의 accounts.yaml 에 없는 키의 값입니다.</small>
+            </div>
+            <div className="pane-body">
+              {others.length > 0 ? (
+                <>
+                  <strong className="group-label">워크스페이스에 없는 계정 값</strong>
+                  <p className="hint">지금 워크스페이스의 accounts.yaml 에 없는 키입니다. 더 쓰지 않으면 지웁니다.</p>
+                  <ul className="key-rows" data-testid="account-values-others">
+                    {others.map((s) => (
+                      <li key={s.name}>
+                        <SecretRow status={s} label={accountLabel(s.name)} disabled={props.locked} onChanged={props.onChanged} />
+                      </li>
+                    ))}
+                  </ul>
+                  <hr className="rule" />
+                </>
+              ) : null}
+              <strong className="group-label">직접 추가</strong>
+              <p className="hint">키 이름은 보통 워크스페이스 앱 설정에서 정합니다. 워크스페이스에 아직 없는 키의 값을 먼저 넣어 둘 때만 씁니다.</p>
+              <AddAccountSecret disabled={props.locked} onAdded={props.onChanged} />
+            </div>
+          </section>
+        )}
+      </div>
+    </div>
   );
 }
 

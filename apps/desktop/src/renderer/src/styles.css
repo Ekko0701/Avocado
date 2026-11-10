@@ -815,36 +815,7 @@ button.badge.cell:hover:not(:disabled) {
   font-weight: 600;
 }
 
-/* ---- 설정 마법사 (T-103) ---- */
-.stepper {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.stepper li {
-  padding: 3px 12px;
-  border-radius: var(--radius-capsule);
-  background: var(--fill);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 500;
-}
-.stepper li.current {
-  background: var(--accent);
-  color: var(--on-accent);
-  font-weight: 600;
-}
-.stepper li.done {
-  color: var(--success);
-}
-.stepper li.later {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--separator);
-  opacity: 0.7;
-}
+/* ---- 설정 마법사 (T-103): 점검 목록. 단계 표시줄은 .phase-steps 를 쓴다 ---- */
 .checks {
   list-style: none;
   padding: 0;
@@ -2693,6 +2664,267 @@ ul.notes {
   .ws-status-note {
     order: 5;
     flex-basis: 100%;
+  }
+}
+
+/* ---- 2단 화면 공통(테스트 계정·기기·빌드·설정 마법사): 창 높이에 맞추고 칸마다 따로 스크롤한다 ----
+ * .split-page > h1, (.strip), .split-panes > .pane-nav | .card.pane(.pane-head · .pane-body · .pane-foot) */
+.content.fill > .split-page {
+  flex: 1;
+  min-height: 0;
+  max-width: 1240px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.split-page > h1 {
+  margin: 6px 0 4px;
+}
+.split-page > p {
+  margin: 0;
+}
+/* 요약 줄과 2단을 함께 감싸는 묶음(화면 높이를 채운다) */
+.split-fill {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.split-fill > p {
+  margin: 0;
+}
+/* 한 줄 요약: 상태 점 · 굵은 글 · 안내 · 오른쪽 버튼 */
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  font-size: 13px;
+}
+.strip-text {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px 10px;
+  flex-wrap: wrap;
+}
+.strip-text .hint {
+  font-size: 12px;
+}
+.split-panes {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 14px;
+}
+/* 왼쪽이 주 내용(목록), 오른쪽이 좁은 작업 칸 */
+.split-panes.side-right {
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+.pane-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.pane-nav > .group-label,
+.pane-nav > p {
+  margin: 0;
+  padding: 4px 10px;
+}
+.pane-nav > p {
+  font-size: 12px;
+}
+.pane-nav .run-item {
+  flex: none;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 8px 10px;
+}
+.pane-nav .run-item-body {
+  min-width: 0;
+}
+.pane-nav .run-item small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pane-nav-gap {
+  flex: 1;
+  min-height: 8px;
+}
+/* 양식인 칸은 form.card 의 가로 배치(끝 정렬·줄바꿈·간격)를 물려받는다. 여기서 푼다 */
+.card.pane {
+  container: pane / inline-size;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  gap: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.pane-head {
+  display: grid;
+  gap: 6px;
+  padding: 14px 18px 10px;
+}
+.pane-head-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pane-head h2 {
+  flex: 1;
+  font-size: 15px;
+}
+.pane-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 4px 18px 16px;
+}
+.pane-body p {
+  margin: 0;
+}
+.pane-body p.hint {
+  font-size: 12px;
+}
+.pane-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 18px 14px;
+  border-top: 0.5px solid var(--separator);
+}
+.pane-foot p {
+  margin: 0;
+  font-size: 12.5px;
+}
+/* 칸 안의 탭은 줄바꿈하지 않는다 */
+.card.pane [role="tab"] {
+  white-space: nowrap;
+}
+/* 좁은 작업 칸 안의 입력 줄: 레이블은 내용 높이만(가로 줄에서 늘어나는 기본값을 푼다) */
+.pane-body > label {
+  flex: none;
+}
+.pane-empty {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+}
+/* 테스트 계정: 키마다 역할·설명 한 줄과 값 넣는 줄 */
+.key-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.key-rows > li {
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 0.5px solid var(--separator);
+}
+.key-rows > li:last-child {
+  border-bottom: none;
+}
+/* 설정 마법사: 위 단계 표시줄(지나온 단계는 눌러 돌아간다), 아래 단계 하나(본문 스크롤, 붙박이 줄에 나중에 하기·이전·다음) */
+.content.fill > .wizard-page {
+  max-width: 980px;
+}
+.card.phase-steps {
+  border-bottom: none;
+  padding: 14px 18px;
+}
+button.step-node-mark {
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+}
+button.step-node-mark:hover:not(:disabled) {
+  filter: none;
+  background: color-mix(in srgb, var(--success) 28%, transparent);
+}
+.wizard-page > .card.wizard-step {
+  flex: 1;
+}
+.wizard-later {
+  margin-right: auto;
+}
+/* 빌드: 오른쪽 칸은 진행 중인 빌드와 빌드 더하기를 쌓고 함께 스크롤한다 */
+.split-panes.builds-panes {
+  grid-template-columns: minmax(0, 1fr) 380px;
+}
+.builds-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.builds-side > .card {
+  flex: none;
+}
+.builds-side > .card.pane,
+.builds-side .pane-body {
+  overflow: visible;
+}
+.builds-side .build-log {
+  max-height: 160px;
+}
+.build-row select {
+  max-width: 200px;
+}
+/* 목록 칸이 좁으면 설치·삭제를 이름 아래 줄로 내린다(이름이 여러 줄로 쪼개지지 않게) */
+@container pane (max-width: 639px) {
+  .checks > .check.build-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .build-row > .row {
+    grid-column: 2;
+  }
+}
+/* 본문이 좁으면 위아래로 쌓고 화면 전체를 스크롤한다 */
+@container main (max-width: 839px) {
+  .content.fill > .split-page {
+    flex: none;
+    min-height: auto;
+  }
+  .split-panes,
+  .split-panes.side-right,
+  .split-panes.builds-panes {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+  }
+  .builds-side {
+    overflow: visible;
+  }
+  .pane-nav,
+  .card.pane,
+  .pane-body {
+    overflow: visible;
+  }
+  .pane-nav-gap {
+    display: none;
   }
 }
 

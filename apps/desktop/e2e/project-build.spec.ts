@@ -55,6 +55,7 @@ test("프로젝트로 빌드(ADR 0025): 연결하면 팀 기본 스킴·구성�
   );
   await page.getByRole("button", { name: "빌드", exact: true }).click();
   await page.getByLabel("앱 ID").fill("demo");
+  await page.getByRole("tab", { name: "프로젝트" }).click();
   const panel = page.getByTestId("project-build");
   await panel.getByRole("button", { name: "프로젝트 연결" }).click();
   await expect(panel.getByTestId("project-info")).toContainText("/Users/me/src/Demo");

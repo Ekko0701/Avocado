@@ -43,6 +43,7 @@ test("빌드 등록: 화면에서 파일·스크립트로 등록하면 앱 데�
   const out = makeFakeApp(join(work, "out"), { name: "Built", bundleId: "net.example.built", version: "2.0.0", build: "9" });
   const script = makeScript(work, `printf 'ARTIFACT=%s\\nCOMMIT=0123456789abcdef\\n' "${out}" > "$QA_BUILD_INFO"`);
   await stubOpenDialog(app, script);
+  await page.getByRole("tab", { name: "스크립트" }).click();
   await page.getByRole("button", { name: "빌드 스크립트 실행" }).click();
   await expect(page.getByTestId("build-message")).toHaveText("등록했습니다: net.example.built 2.0.0 (9)");
 

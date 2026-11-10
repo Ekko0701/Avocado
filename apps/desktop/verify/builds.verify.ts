@@ -32,6 +32,7 @@ test("빌드: 같은 버전의 빌드 구분과 삭제", async () => {
     await page.getByRole("button", { name: "파일로 등록" }).click();
     await expect(page.getByTestId("build-message")).toContainText("등록했습니다");
     await stubOpenDialog(run.app, script);
+    await page.getByRole("tab", { name: "스크립트" }).click();
     await page.getByRole("button", { name: "빌드 스크립트 실행" }).click();
     await expect(page.getByTestId("build-message")).toContainText("등록했습니다");
     const builds = await page.evaluate(() => window.qa.builds.list());
@@ -41,6 +42,22 @@ test("빌드: 같은 버전의 빌드 구분과 삭제", async () => {
     await expect(page.getByTestId(`build-${filed.id}`)).toContainText("파일 · ");
     await expect(page.getByTestId(`build-${scripted.id}`)).toContainText("스크립트 · 0123456789");
     await run.shot("two-builds");
+    // 프로젝트 탭, 넓은 창(목록 줄이 한 줄), 페이지가 창 높이에 맞는지
+    await page.getByRole("tab", { name: "프로젝트" }).click();
+    await expect(page.getByTestId("project-build")).toBeVisible();
+    await run.shot("project-tab");
+    await run.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1440, 900));
+    await page.waitForTimeout(500);
+    await run.shot("wide");
+    run.note("main-fits", await page.evaluate(() => {
+      const main = document.querySelector("main");
+      return main ? { scroll: main.scrollHeight, client: main.clientHeight } : null;
+    }));
+    await run.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(900, 760));
+    await page.waitForTimeout(500);
+    await run.shot("narrow");
+    await run.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(1200, 800));
+    await page.waitForTimeout(300);
 
     // 고르는 목록에서도 구분된다
     await nav.getByRole("button", { name: "실행", exact: true }).click();

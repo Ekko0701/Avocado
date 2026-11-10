@@ -47,6 +47,7 @@ test("Android 에뮬레이터: 기기 준비 → 빌드 등록·설치 → 플�
 
     // 1. 기기: AVD 를 화면에서 준비한다(화면 없이 부팅, 언어·애니메이션 설정)
     await nav.getByRole("button", { name: "기기", exact: true }).click();
+    await page.getByRole("region", { name: "QA 기기 준비" }).getByRole("tab", { name: "Android 에뮬레이터" }).click();
     await page.getByLabel("AVD").selectOption(AVD);
     await run.shot("devices-before");
     await page.getByRole("button", { name: "Android 에뮬레이터 준비" }).click();
