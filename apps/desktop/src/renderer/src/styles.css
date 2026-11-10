@@ -2419,6 +2419,283 @@ ul.notes {
   }
 }
 
+/* ---- 워크스페이스: 위 저장소 상태 한 줄 | 왼쪽 앱 목록과 문제 | 오른쪽 고른 앱의 탭(앱 설정·공통 서브플로우) ---- */
+.content.fill > .ws-page {
+  flex: 1;
+  min-height: 0;
+  max-width: 1240px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ws-page > h1 {
+  margin: 6px 0 4px;
+}
+.ws-page > p {
+  margin: 0;
+}
+.ws-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  font-size: 13px;
+}
+.ws-status > p {
+  margin: 0;
+}
+.ws-status-text {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px 10px;
+  flex-wrap: wrap;
+}
+.ws-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ws-status-text > strong,
+.ws-branch {
+  white-space: nowrap;
+}
+.ws-status-note {
+  font-size: 12px;
+}
+.ws-panes {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 14px;
+}
+.ws-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.ws-nav > .group-label,
+.ws-nav > p {
+  margin: 0;
+  padding: 4px 10px;
+}
+.ws-nav > p {
+  font-size: 12px;
+}
+.ws-nav .run-item {
+  flex: none;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 8px 10px;
+}
+.ws-nav .run-item-body {
+  min-width: 0;
+}
+.ws-nav .run-item small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-app-id {
+  font-weight: 400;
+  opacity: 0.7;
+}
+/* 문제·폴더 구조는 목록 맨 아래에 붙인다 */
+.ws-nav-gap {
+  flex: 1;
+  min-height: 8px;
+}
+/* 양식(앱 설정·서브플로우)은 form.card 의 가로 배치를 물려받는다. 설정 화면의 구역과 같이 여기서 푼다 */
+.card.ws-detail {
+  container: wsdetail / inline-size;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  gap: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.card.ws-detail[hidden] {
+  display: none;
+}
+.ws-head {
+  display: grid;
+  gap: 6px;
+  padding: 14px 18px 10px;
+}
+.ws-head-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ws-head h2 {
+  flex: 1;
+  font-size: 15px;
+}
+.ws-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 4px 18px 16px;
+}
+.ws-body p {
+  margin: 0;
+}
+.ws-foot {
+  display: grid;
+  gap: 8px;
+  padding: 12px 18px 14px;
+  border-top: 0.5px solid var(--separator);
+}
+.ws-foot:empty {
+  display: none;
+}
+.ws-foot p {
+  margin: 0;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+/* 형식 문제는 저장 줄 바로 위에 늘 보이게 둔다. 많으면 그 안에서 스크롤한다 */
+.ws-foot .checks {
+  max-height: 96px;
+  overflow-y: auto;
+  font-size: 12.5px;
+}
+/* 공통 서브플로우: 파일 | 편집기 | 자주 쓰는 Maestro 명령. 칸마다 따로 스크롤한다 */
+.ws-subflow {
+  grid-template-columns: 160px minmax(0, 1fr) 260px;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 14px;
+  overflow: hidden;
+  padding-bottom: 12px;
+}
+.ws-files,
+.ws-editor,
+.ws-ref {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+.ws-files {
+  gap: 2px;
+}
+.ws-files .group-label {
+  padding: 2px 8px 4px;
+}
+.ws-files .run-item {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 6px 8px;
+}
+.ws-files .run-item strong {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.ws-editor textarea.editor {
+  min-height: 240px;
+}
+.ws-ref {
+  padding-right: 4px;
+}
+.ws-ref .maestro-ref {
+  margin: 0;
+}
+/* 좁은 옆 칸에서는 명령 이름 아래에 쓰임과 예를 둔다 */
+.ws-ref .maestro-ref-row {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 6px 0;
+}
+.ws-ref .maestro-ref dd {
+  margin: 0;
+  font-size: 12px;
+}
+.ws-ref .maestro-ref dd code {
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+.ws-ref p.hint {
+  font-size: 12px;
+}
+.ws-ref-links {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+.ws-empty {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+}
+.ws-empty strong {
+  font-size: 14px;
+}
+.ws-empty p {
+  margin: 0;
+  font-size: 12px;
+  max-width: 420px;
+}
+.ws-layout {
+  align-content: start;
+  overflow-y: auto;
+}
+/* 상세 칸이 좁으면 서브플로우의 세 칸을 위아래로 쌓고 본문 전체를 스크롤한다 */
+/* 격자 줄은 min-height: 0 인 칸을 내용보다 작게 줄여 서로 겹친다. 쌓을 때는 세로 flex 로 바꿔 칸마다 내용 높이를 지킨다 */
+@container wsdetail (max-width: 719px) {
+  .ws-subflow {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .ws-files,
+  .ws-editor,
+  .ws-ref {
+    flex: none;
+    overflow: visible;
+  }
+}
+/* 본문이 좁으면 앱 목록 아래에 상세를 두고 화면 전체를 스크롤한다 */
+@container main (max-width: 839px) {
+  .content.fill > .ws-page {
+    flex: none;
+    min-height: auto;
+  }
+  .ws-panes {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+  }
+  .ws-nav,
+  .card.ws-detail,
+  .ws-body {
+    overflow: visible;
+  }
+  .ws-nav-gap {
+    display: none;
+  }
+  /* 안내 글은 아래 줄로 내려 저장소·브랜치가 한 줄에 남게 한다 */
+  .ws-status-note {
+    order: 5;
+    flex-basis: 100%;
+  }
+}
+
 /* ---- 카드 안 구역: 제목 줄 오른쪽에 탭을 두고, 구역 사이는 가는 선으로 나눈다(실행 준비) ---- */
 .card-head {
   display: flex;

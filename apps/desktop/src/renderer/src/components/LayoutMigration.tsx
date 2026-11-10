@@ -5,6 +5,11 @@ import { notifyWorkspaceChanged } from "../lib/workspace-events";
 
 const LAYOUT_BRANCH = /^qa\/[^/]+\/workspace\//;
 
+/** 폴더 구조 바꾸기를 보여 줄 때인가: 예전 구조이거나, 구조를 바꾼 작업 브랜치에 있을 때 */
+export function needsLayoutMigration(status: WorkspaceStatus): boolean {
+  return status.connected && (status.layout === 1 || (status.layout === 2 && LAYOUT_BRANCH.test(status.branch ?? "")));
+}
+
 /**
  * 워크스페이스 폴더 구조 바꾸기(ADR 0032). 예전 구조(testcases/<앱>, flows/<앱>)일 때 새 구조(apps/<앱>/…)로 옮기는 커밋을 만들고,
  * 그 작업 브랜치에 있을 때 PR 을 올린다. 그 밖에는 아무것도 그리지 않는다.
@@ -15,8 +20,7 @@ export function LayoutMigration(props: { status: WorkspaceStatus; onChanged: (st
   const [confirm, setConfirm] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [pr, setPr] = useState<RequestReviewResult | null>(null);
-  const onLayoutBranch = status.layout === 2 && LAYOUT_BRANCH.test(status.branch ?? "");
-  if (!status.connected || (status.layout !== 1 && !onLayoutBranch)) return null;
+  if (!needsLayoutMigration(status)) return null;
 
   async function migrate() {
     setBusy("migrate");
@@ -54,7 +58,7 @@ export function LayoutMigration(props: { status: WorkspaceStatus; onChanged: (st
   }
 
   return (
-    <section className="card stack" aria-label="폴더 구조" data-testid="layout-migration">
+    <section className="card stack ws-layout" aria-label="폴더 구조" data-testid="layout-migration">
       <h2>폴더 구조</h2>
       {status.layout === 1 ? (
         <>

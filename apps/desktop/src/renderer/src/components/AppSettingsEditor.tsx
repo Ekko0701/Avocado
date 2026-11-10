@@ -1,5 +1,5 @@
 import type { AccountRoleEdit, AppSettingsDoc, AppTargetEdit, RequestReviewResult } from "@qa/shared";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { errorMessage } from "../lib/errors";
 import { notifyWorkspaceChanged } from "../lib/workspace-events";
 
@@ -10,7 +10,8 @@ const TARGETS: { id: TargetId; label: string; hint: string }[] = [
   { id: "flutter-ios", label: "Flutter iOS", hint: "번들 ID" },
   { id: "flutter-android", label: "Flutter Android", hint: "패키지 이름" },
 ];
-const NEW_APP = "__new__";
+/** 왼쪽 목록에서 "새 앱"을 골랐을 때의 값 */
+export const NEW_APP = "__new__";
 const APP_ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const LOCALE = /^[a-z]{2}_[A-Z]{2}$/;
 const ROLE = /^[a-z][a-z0-9-]{0,39}$/;
@@ -82,9 +83,11 @@ function formProblems(form: Form, newApp: { id: string; taken: boolean } | null)
  * 앱 설정(apps/<앱>/app.yaml·accounts.yaml): 이름·언어·타깃별 앱 ID 와 계정 역할. 새 앱도 여기서 만든다.
  * 저장하면 그 앱의 앱 설정 작업 브랜치에 커밋하고, PR 작성으로 PR 을 만든다. 계정 값은 검증 → 테스트 계정에서 넣는다.
  * TC·플로우가 쓰는 타깃·역할·키는 main 이 지우지 못하게 막는다.
+ * 어느 앱인지는 워크스페이스 화면의 왼쪽 목록이 정한다(selected). 새 앱을 저장하면 onSelect 로 그 앱을 고른다.
  */
-export function AppSettingsEditor(props: { apps: { app: string; name: string }[] }) {
-  const [selected, setSelected] = useState(props.apps[0]?.app ?? NEW_APP);
+export function AppSettingsEditor(props: { apps: { app: string; name: string }[]; selected: string; onSelect: (app: string) => void; tabs?: ReactNode; hidden?: boolean }) {
+  const { selected } = props;
+  const setSelected = props.onSelect;
   const [newId, setNewId] = useState("");
   const [form, setForm] = useState<Form | null>(null);
   const [source, setSource] = useState<string | null>(null);
@@ -184,33 +187,27 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
     }
   }
 
+  const title = creating ? "새 앱" : `${props.apps.find((a) => a.app === selected)?.name ?? (form?.name || selected)} (${selected})`;
+
   return (
-    <form className="card stack" aria-label="앱 설정" data-testid="app-settings" onSubmit={(e) => void save(e)}>
-      <h2>앱 설정</h2>
-      <p className="hint">
-        테스트할 앱의 이름·언어·타깃별 앱 ID 와, 테스트 케이스가 고르는 계정 역할입니다(apps/&lt;앱&gt;/app.yaml, accounts.yaml). 저장하면 그 앱의 앱 설정 작업 브랜치에
-        커밋하고, PR 작성을 누르면 PR 을 만듭니다. 계정 값은 여기서 넣지 않고 검증 → 테스트 계정에서 넣습니다. 테스트 케이스·플로우가 쓰는 타깃·역할·키는 지울 수 없습니다.
-      </p>
-      <div className="row">
-        <label>
-          앱
-          <select aria-label="설정할 앱" value={selected} onChange={(e) => setSelected(e.target.value)}>
-            {props.apps.map((a) => (
-              <option key={a.app} value={a.app}>
-                {a.name} ({a.app})
-              </option>
-            ))}
-            {props.apps.some((a) => a.app === selected) || selected === NEW_APP ? null : <option value={selected}>{selected}</option>}
-            <option value={NEW_APP}>＋ 새 앱</option>
-          </select>
-        </label>
-        {creating ? (
-          <label className="grow">
-            새 앱 ID
-            <input aria-label="새 앱 ID" value={newId} onChange={(e) => setNewId(e.target.value)} placeholder="예: my-app (영문 소문자·숫자·하이픈, 나중에 바꿀 수 없음)" />
-          </label>
-        ) : null}
+    <form className="card ws-detail" aria-label="앱 설정" data-testid="app-settings" hidden={props.hidden} onSubmit={(e) => void save(e)}>
+      <div className="ws-head">
+        <div className="ws-head-title">
+          <h2>{title}</h2>
+          {props.tabs}
+        </div>
+        <small className="hint">
+          이름·언어·타깃별 앱 ID 와 테스트 케이스가 고르는 계정 역할입니다(apps/&lt;앱&gt;/app.yaml, accounts.yaml). 계정 값은 여기서 넣지 않고 검증 → 테스트 계정에서 넣습니다. 테스트 케이스·플로우가 쓰는
+          타깃·역할·키는 지울 수 없습니다.
+        </small>
       </div>
+      <div className="ws-body">
+      {creating ? (
+        <label>
+          새 앱 ID
+          <input aria-label="새 앱 ID" value={newId} onChange={(e) => setNewId(e.target.value)} placeholder="예: my-app (영문 소문자·숫자·하이픈, 나중에 바꿀 수 없음)" />
+        </label>
+      ) : null}
       {source ? (
         <p className="hint" data-testid="app-settings-source">
           아직 머지되지 않은 작업 브랜치 <code>{source}</code> 의 내용입니다.
@@ -291,8 +288,11 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
               역할 추가
             </button>
           </div>
-
-          {problems.length > 0 ? (
+        </>
+      )}
+      </div>
+      <div className="ws-foot">
+        {problems.length > 0 ? (
             <ul className="checks" data-testid="app-settings-problems">
               {problems.map((p) => (
                 <li key={p} className="error">
@@ -301,22 +301,20 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
               ))}
             </ul>
           ) : null}
-          <div className="row">
-            <label className="grow">
-              변경 요약
-              <input value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={80} placeholder="예: add android target" />
-            </label>
-            <button type="submit" disabled={!canSave}>
-              {busy ? "저장 중" : "저장(커밋)"}
+        <div className="row">
+          <label className="grow">
+            변경 요약
+            <input value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={80} placeholder="예: add android target" />
+          </label>
+          <button type="submit" disabled={!canSave}>
+            {busy ? "저장 중" : "저장(커밋)"}
+          </button>
+          {saved ? (
+            <button type="button" className="secondary" disabled={busy} onClick={() => void review()}>
+              PR 작성
             </button>
-            {saved ? (
-              <button type="button" className="secondary" disabled={busy} onClick={() => void review()}>
-                PR 작성
-              </button>
-            ) : null}
-          </div>
-        </>
-      )}
+          ) : null}
+        </div>
       {message ? (
         <p role="status" data-testid="app-settings-message">
           {message}
@@ -328,6 +326,7 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
           <code>{pr.url}</code>
         </p>
       ) : null}
+      </div>
     </form>
   );
 }

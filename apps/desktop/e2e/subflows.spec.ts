@@ -35,15 +35,26 @@ test("공통 서브플로우: 워크스페이스 화면에서 common/launch-clea
     await page.evaluate(() => window.qa.workspace.connect());
     await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("button", { name: "워크스페이스", exact: true }).click();
 
+    // 왼쪽 목록에서 앱을 고르고 공통 서브플로우 탭을 연다. 탭에 파일 수가 붙는다
+    // 이미 골라진 앱을 다시 눌러도 탭의 파일 수가 남아 있다
+    await expect(page.getByRole("tab", { name: "공통 서브플로우 1" })).toBeVisible();
+    await page.getByTestId("ws-nav-demo").click();
+    await page.getByRole("tab", { name: /^공통 서브플로우/ }).click();
+    await expect(page.getByRole("tab", { name: "공통 서브플로우 1" })).toHaveAttribute("aria-selected", "true");
     const panel = page.getByTestId("subflows");
-    await panel.getByLabel("서브플로우 앱").selectOption("demo");
-    await expect(panel.getByLabel("서브플로우 파일")).toHaveValue("apps/demo/flows/ios/common/launch-clean.yaml");
+    await expect(panel.getByTestId("subflow-file-ios-launch-clean.yaml")).toHaveAttribute("aria-current", "true");
     await expect(page.getByTestId("subflow-used-by")).toHaveText("이 서브플로우를 부르는 플로우: TC-0101");
 
-    // 자주 쓰는 Maestro 명령은 접혀 있다가 펼치면 보이고, 공식 문서 링크가 있다
+    // 자주 쓰는 Maestro 명령은 편집기 옆(창이 좁으면 아래)에 늘 있고, 공식 문서 링크가 있다.
+    // 파일·편집기·명령 칸은 스크롤하지 않는 칸이면 내용이 칸 밖으로 넘치지 않는다(넘치면 아래 칸 위에 겹쳐 그려진다)
+    const spill = await panel.evaluate((form) =>
+      [".ws-files", ".ws-editor", ".ws-ref"].map((sel) => {
+        const el = form.querySelector<HTMLElement>(sel);
+        return el === null ? "없음" : getComputedStyle(el).overflowY === "visible" && el.scrollHeight > el.clientHeight + 1 ? `${sel} 넘침 ${el.scrollHeight}>${el.clientHeight}` : "";
+      }),
+    );
+    expect(spill).toEqual(["", "", ""]);
     const help = page.getByTestId("maestro-help");
-    await expect(help.getByText("visible 과 notVisible 중 하나는 꼭 있어야 한다", { exact: false })).toBeHidden();
-    await help.getByText("자주 쓰는 Maestro 명령").click();
     await expect(help.getByText("visible 과 notVisible 중 하나는 꼭 있어야 한다", { exact: false })).toBeVisible();
     await expect(help.getByRole("button", { name: "모든 명령과 옵션 (Maestro 공식 문서)" })).toBeVisible();
     await expect(help.getByRole("button", { name: "요소 고르는 법 (선택자)" })).toBeVisible();

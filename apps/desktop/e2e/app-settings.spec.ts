@@ -14,8 +14,18 @@ test("앱 설정: 워크스페이스 화면에서 타깃·계정 역할을 고�
     const nav = page.getByRole("navigation", { name: "주 메뉴" });
     await nav.getByRole("button", { name: "워크스페이스", exact: true }).click();
 
+    // 화면을 열면 첫 앱이 골라져 있다. 왼쪽 목록에 타깃과 테스트 케이스 수가 보인다
     const panel = page.getByTestId("app-settings");
-    await panel.getByLabel("설정할 앱").selectOption("demo");
+    await expect(page.getByTestId("ws-nav-demo")).toHaveAttribute("aria-current", "page");
+    await expect(page.getByTestId("ws-nav-demo")).toContainText("iOS · 테스트 케이스 1개");
+    await expect(panel.getByRole("heading", { name: "Demo (demo)" })).toBeVisible();
+    // 양식 카드의 머리말·본문·저장 줄이 폭을 다 쓰고(왼쪽에서 시작), 페이지는 창 높이에 맞는다
+    const widths = await panel.evaluate((form) => [form.clientWidth, ...[...form.children].map((c) => (c as HTMLElement).offsetWidth)]);
+    expect(widths.slice(1).every((w) => w === widths[0])).toBe(true);
+    expect(await page.evaluate(() => {
+      const main = document.querySelector("main");
+      return main ? main.scrollHeight - main.clientHeight : -1;
+    })).toBeLessThanOrEqual(1);
     await expect(panel.getByLabel("앱 이름")).toHaveValue("Demo");
     await expect(panel.getByLabel("iOS 사용", { exact: true })).toBeChecked();
     await expect(panel.getByLabel("iOS 앱 ID", { exact: true })).toHaveValue("com.example.demo");
@@ -53,7 +63,8 @@ test("앱 설정: 워크스페이스 화면에서 타깃·계정 역할을 고�
 
     // 새 앱을 만든다: workspace.yaml 앱 목록과 app.yaml
     await nav.getByRole("button", { name: "워크스페이스", exact: true }).click();
-    await panel.getByLabel("설정할 앱").selectOption({ label: "＋ 새 앱" });
+    await page.getByTestId("ws-nav-new").click();
+    await expect(panel.getByRole("heading", { name: "새 앱" })).toBeVisible();
     await panel.getByLabel("새 앱 ID").fill("demo");
     await expect(page.getByTestId("app-settings-problems")).toContainText("이미 있는 앱입니다: demo");
     await panel.getByLabel("새 앱 ID").fill("notes");
@@ -64,7 +75,8 @@ test("앱 설정: 워크스페이스 화면에서 타깃·계정 역할을 고�
     await panel.getByRole("button", { name: "저장(커밋)" }).click();
     await expect(page.getByTestId("app-settings-message")).toContainText("qa/qa-bot/app/notes/add-notes-app 에 커밋했습니다");
     await expect(page.getByTestId("app-settings-message")).toContainText("새 앱을 워크스페이스에 더했습니다");
-    await expect(panel.getByLabel("설정할 앱")).toHaveValue("notes");
+    // 만든 앱이 왼쪽 목록에서 골라진다(main 에 들어가기 전)
+    await expect(page.getByTestId("ws-nav-notes")).toHaveAttribute("aria-current", "page");
     await expect(panel.getByLabel("앱 이름")).toHaveValue("Notes");
     await nav.getByRole("button", { name: "테스트 케이스", exact: true }).click();
     await expect(page.getByLabel("새 테스트 케이스 앱").locator("option", { hasText: "Notes" })).toHaveCount(1);
