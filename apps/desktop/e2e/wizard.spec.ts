@@ -106,7 +106,8 @@ test("마법사의 GitHub·워크스페이스 단계: 토큰으로 볼 수 있�
     const wsStep = page.getByRole("region", { name: "워크스페이스 단계" });
     await wsStep.getByRole("button", { name: "저장소 목록 불러오기" }).click();
     await wsStep.getByLabel("워크스페이스(테스트 케이스·플로우)").selectOption("acme/qa-workspace");
-    await wsStep.getByLabel("증적(연도별)").selectOption(`qa-evidence-${new Date().getFullYear()}`);
+    await wsStep.getByLabel("증적 저장소 고르기").selectOption(`acme/qa-evidence-${new Date().getFullYear()}`);
+    await expect(wsStep.getByTestId("github-picker-evidence-mode")).toContainText("연도별로 씁니다");
     await wsStep.getByRole("button", { name: "고른 저장소로 저장" }).click();
     await expect(wsStep.getByTestId("wizard-github-verify")).toContainText("로그인: qa-bot");
     await expect(wsStep.getByTestId("wizard-github-verify")).toContainText(`acme/qa-evidence-${new Date().getFullYear()}: 읽기·쓰기`);

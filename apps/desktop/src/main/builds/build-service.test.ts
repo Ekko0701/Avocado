@@ -92,6 +92,49 @@ describe("파일 등록", () => {
   });
 });
 
+describe("삭제", () => {
+  it("앱 데이터의 사본 폴더와 기록을 지우고 다른 빌드는 그대로 둔다", async () => {
+    const s = service();
+    const first = await s.registerPath("sample", makeFakeApp(join(dir, "a"), { name: "Sample", bundleId: "com.example.sample.dev" }));
+    const second = await s.registerPath("sample", makeFakeApp(join(dir, "b"), { name: "Sample", bundleId: "com.example.sample.dev" }));
+    expect(s.remove(first.id)).toEqual([second]);
+    expect(existsSync(join(dir, "builds", first.id))).toBe(false);
+    expect(existsSync(second.path)).toBe(true);
+    expect(() => s.get(first.id)).toThrow(/빌드를 찾지 못했다/);
+    expect(() => s.remove(first.id)).toThrow(/빌드를 찾지 못했다/);
+  });
+
+  it("그 빌드로 실행이 대기·진행 중이면 거부하고, 끝난 뒤에는 지운다. 실행 기록은 남고 빌드 참조만 비워진다", async () => {
+    const s = service();
+    const build = await s.registerPath("sample", makeFakeApp(join(dir, "a"), { name: "Sample" }));
+    const at = "2026-10-21T09:00:00.000Z";
+    db.db
+      .prepare("INSERT INTO run (id, workspace, trigger, status, summary, created_at, started_at) VALUES ('run-1', 'local', 'manual', 'running', ?, ?, ?)")
+      .run(JSON.stringify({ buildId: build.id, buildLabel: "net.example.fake 1.2.3 (45)" }), at, at);
+    db.db
+      .prepare("INSERT INTO execution (id, run_id, tc_id, target, flow_path, build_id, attempt, status) VALUES ('exec-1', 'run-1', 'TC-0001', 'ios', '/flows/TC-0001.yaml', ?, 1, 'running')")
+      .run(build.id);
+    expect(() => s.remove(build.id)).toThrow(/실행이 진행 중이라 지울 수 없다/);
+    expect(existsSync(build.path)).toBe(true);
+
+    db.db.prepare("UPDATE run SET status = 'passed', finished_at = ? WHERE id = 'run-1'").run(at);
+    expect(s.remove(build.id)).toEqual([]);
+    expect(existsSync(join(dir, "builds", build.id))).toBe(false);
+    expect(db.db.prepare("SELECT build_id FROM execution WHERE id = 'exec-1'").get()).toEqual({ build_id: null });
+    expect(db.db.prepare("SELECT summary FROM run WHERE id = 'run-1'").get()).toEqual({ summary: JSON.stringify({ buildId: build.id, buildLabel: "net.example.fake 1.2.3 (45)" }) });
+  });
+
+  it("기록된 경로가 빌드 폴더 밖이면 지우지 않는다", async () => {
+    const s = service();
+    const build = await s.registerPath("sample", makeFakeApp(join(dir, "a"), { name: "Sample" }));
+    const outside = makeFakeApp(join(dir, "outside"), { name: "Keep" });
+    db.db.prepare("UPDATE build SET path = ? WHERE id = ?").run(outside, build.id);
+    expect(() => s.remove(build.id)).toThrow(/빌드 폴더 밖/);
+    expect(existsSync(outside)).toBe(true);
+    expect(s.list()).toHaveLength(1);
+  });
+});
+
 describe("빌드 스크립트", () => {
   it("스크립트가 QA_BUILD_INFO 에 적은 결과물을 스크립트 출처로 등록하고 출력은 로그로 남긴다", async () => {
     const app = makeFakeApp(join(dir, "out"), { name: "Sample" });

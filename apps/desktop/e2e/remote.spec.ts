@@ -81,21 +81,41 @@ test("저장소 고르기: 사용자마다 다른 저장소 이름을 토큰으�
     await expect(tokenRow.getByTestId("secret-status")).toHaveText("저장됨");
 
     await picker.getByRole("button", { name: "저장소 목록 불러오기" }).click();
-    // 연도로 끝나는 증적 저장소가 없는 주인을 고르면 알려 준다
-    await picker.getByLabel("워크스페이스(테스트 케이스·플로우)").selectOption("other/no-year");
-    await expect(picker.getByTestId("github-picker-no-evidence")).toContainText("연도로 끝나는 증적 저장소");
+    const evidence = picker.getByLabel("증적 저장소 고르기");
     await expect(picker.getByRole("button", { name: "고른 저장소로 저장" })).toBeDisabled();
-
     await picker.getByLabel("워크스페이스(테스트 케이스·플로우)").selectOption("me/Avocado-workspace");
-    await picker.getByLabel("증적(연도별)").selectOption(`Avocado-qa-evidence-${year}`);
+    // 증적 저장소는 토큰으로 볼 수 있는 어느 저장소든 고를 수 있다(ADR 0033): 연도로 끝나지 않아도, 주인이 달라도 된다
+    expect(await evidence.locator("option").allTextContents()).toEqual(["선택", "me/Avocado", `me/Avocado-qa-evidence-${year}`, "me/Avocado-workspace", "other/no-year"]);
+    await evidence.selectOption("other/no-year");
+    await expect(picker.getByTestId("github-picker-evidence-mode")).toContainText("해가 바뀌어도 other/no-year 하나에 계속 올립니다");
+    await expect(picker).toContainText("증적 저장소의 주인(other)이 워크스페이스(me)와 다릅니다");
+    await picker.getByRole("button", { name: "고른 저장소로 저장" }).click();
+    await expect(github.getByLabel("증적 저장소", { exact: true })).toHaveValue("no-year");
+    await expect(github.getByLabel("증적 저장소 주인(워크스페이스와 다를 때만)")).toHaveValue("other");
+    expect(await page.evaluate(() => window.qa.settings.get().then((s) => s.settings.github))).toEqual({
+      owner: "me",
+      workspaceRepo: "Avocado-workspace",
+      evidenceRepoPrefix: "qa-evidence-",
+      evidenceRepo: "no-year",
+      evidenceOwner: "other",
+    });
+    await github.getByRole("button", { name: "연결 확인" }).click();
+    await expect(page.getByTestId("github-verify").locator("li", { hasText: "other/no-year" })).toContainText("쓰기 가능");
+
+    // 연도로 끝나는 저장소를 고르면 연도별로 쓴다(접두사만 저장)
+    await evidence.selectOption(`me/Avocado-qa-evidence-${year}`);
+    await expect(picker.getByTestId("github-picker-evidence-mode")).toContainText(`연도별로 씁니다: 올해는 Avocado-qa-evidence-${year}`);
     await picker.getByRole("button", { name: "고른 저장소로 저장" }).click();
     await expect(github.getByLabel("GitHub 조직")).toHaveValue("me");
     await expect(github.getByLabel("워크스페이스 저장소")).toHaveValue("Avocado-workspace");
-    await expect(github.getByLabel("증적 저장소 접두사")).toHaveValue("Avocado-qa-evidence-");
+    await expect(github.getByLabel("증적 저장소", { exact: true })).toHaveValue(`Avocado-qa-evidence-${year}`);
+    await expect(github.getByLabel("증적 저장소 주인(워크스페이스와 다를 때만)")).toHaveValue("");
     expect(await page.evaluate(() => window.qa.settings.get().then((s) => s.settings.github))).toEqual({
       owner: "me",
       workspaceRepo: "Avocado-workspace",
       evidenceRepoPrefix: "Avocado-qa-evidence-",
+      evidenceRepo: null,
+      evidenceOwner: null,
     });
 
     // 고른 이름으로 연결 확인이 된다

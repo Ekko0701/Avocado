@@ -3,7 +3,9 @@ import {
   APP_SECRET_NAMES,
   applySettingsPatch,
   DEFAULT_SETTINGS,
+  evidenceChoice,
   evidencePrefixOf,
+  evidenceRepoOf,
   SecretNameSchema,
   SecretStatusSchema,
   SecretValueSchema,
@@ -36,6 +38,27 @@ describe("Settings", () => {
     expect(evidencePrefixOf("qa-evidence2027")).toEqual({ prefix: "qa-evidence", year: 2027 });
     expect(evidencePrefixOf("Avocado-qa-evidence")).toBeNull();
     expect(evidencePrefixOf("2026")).toBeNull();
+  });
+
+  it("증적 저장소: 이름을 그대로 정하면 그 저장소, 아니면 접두사 + 연도. 주인을 따로 정하면 그 주인 (ADR 0033)", () => {
+    const base = { ...DEFAULT_SETTINGS.github, owner: "acme", evidenceRepoPrefix: "Avocado-qa-evidence-" };
+    expect(evidenceRepoOf(base, 2026)).toEqual({ owner: "acme", repo: "Avocado-qa-evidence-2026" });
+    expect(evidenceRepoOf(base, 2027)).toEqual({ owner: "acme", repo: "Avocado-qa-evidence-2027" });
+    expect(evidenceRepoOf({ ...base, evidenceRepo: "QA-Evidences" }, 2027)).toEqual({ owner: "acme", repo: "QA-Evidences" });
+    expect(evidenceRepoOf({ ...base, evidenceOwner: "acme-archive" }, 2026)).toEqual({ owner: "acme-archive", repo: "Avocado-qa-evidence-2026" });
+    expect(evidenceRepoOf({ ...base, owner: null }, 2026)).toBeNull();
+    // 고른 이름이 연도로 끝나면 연도별(접두사만 저장), 아니면 이름 그대로. 접두사는 연도별이 아닐 때 그대로 둔다
+    expect(evidenceChoice("Avocado-qa-evidence-2026", "qa-evidence-")).toEqual({ evidenceRepo: null, evidenceRepoPrefix: "Avocado-qa-evidence-" });
+    expect(evidenceChoice("QA-Evidences", "qa-evidence-")).toEqual({ evidenceRepo: "QA-Evidences", evidenceRepoPrefix: "qa-evidence-" });
+    expect(evidenceChoice("Avocado-Evidence2", "qa-evidence-")).toEqual({ evidenceRepo: "Avocado-Evidence2", evidenceRepoPrefix: "qa-evidence-" });
+  });
+
+  it("증적 저장소 이름·주인 필드가 없는 이전 설정도 그대로 읽는다(연도별로 동작)", () => {
+    const legacy = { ...DEFAULT_SETTINGS, github: { owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-" } };
+    const parsed = SettingsSchema.parse(legacy);
+    expect(parsed.github).toEqual({ owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-", evidenceRepo: null, evidenceOwner: null });
+    expect(evidenceRepoOf(parsed.github, 2026)).toEqual({ owner: "acme", repo: "qa-evidence-2026" });
+    expect(SettingsPatchSchema.safeParse({ github: { evidenceRepo: "has space" } }).success).toBe(false);
   });
 
   it("setup 필드가 없는 이전 버전 설정도 그대로 읽고, 패치로는 setup 을 바꿀 수 없다", () => {

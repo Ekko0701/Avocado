@@ -2,7 +2,7 @@ import { BuildSchema, type Build, type BuildActivity, type BuildJobKind, type In
 import { notReady } from "../devices/ready";
 import { randomUUID } from "node:crypto";
 import { accessSync, closeSync, constants, copyFileSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, isAbsolute, join } from "node:path";
+import { basename, dirname, isAbsolute, join, sep } from "node:path";
 import type { AppDatabase } from "../db/database";
 import type { DeviceService } from "../devices/device-service";
 import type { CommandRunner } from "../setup/command";
@@ -135,6 +135,24 @@ export class BuildService {
     const row = this.options.db.db.prepare("SELECT * FROM build WHERE id = ?").get(id) as unknown as BuildRow | undefined;
     if (!row) throw new BuildError(`빌드를 찾지 못했다: ${id}`);
     return toBuild(row);
+  }
+
+  /**
+   * 등록한 빌드를 지운다: 앱 데이터의 사본 폴더와 기록. 실행 기록은 남고 그 빌드 참조만 비워진다.
+   * 그 빌드로 실행이 대기·진행 중이면 거부한다(재생 중에 설치할 파일이 사라지지 않게)
+   */
+  remove(id: string): Build[] {
+    const build = this.get(id);
+    const active = this.options.db.db
+      .prepare("SELECT COUNT(*) AS n FROM run WHERE status IN ('queued', 'running') AND json_extract(summary, '$.buildId') = ?")
+      .get(id) as unknown as { n: number };
+    if (active.n > 0) throw new BuildError("이 빌드로 실행이 진행 중이라 지울 수 없다. 실행이 끝난 뒤 지운다");
+    const dir = join(this.options.buildsDir, build.id);
+    // 기록된 경로가 이 빌드의 폴더 안일 때만 지운다(앱 데이터 밖을 지우지 않는다)
+    if (!build.path.startsWith(`${dir}${sep}`)) throw new BuildError(`빌드 파일이 빌드 폴더 밖에 있다: ${build.path}`);
+    rmSync(dir, { recursive: true, force: true });
+    this.options.db.db.prepare("DELETE FROM build WHERE id = ?").run(id);
+    return this.list();
   }
 
   async registerPath(

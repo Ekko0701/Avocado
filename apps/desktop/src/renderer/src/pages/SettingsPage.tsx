@@ -1,4 +1,4 @@
-import type { AgentUsage, RemoteVerify, SecretsList, Settings, SettingsState, UpdateStatus } from "@qa/shared";
+import { evidenceChoice, type AgentUsage, type RemoteVerify, type SecretsList, type Settings, type SettingsState, type UpdateStatus } from "@qa/shared";
 import { ClaudeConnectionPanel } from "../components/ClaudeConnectionPanel";
 import { GitHubRepoPicker } from "../components/GitHubRepoPicker";
 import { SecretRow } from "../components/SecretRow";
@@ -279,7 +279,11 @@ function GitHubSection(props: { settings: Settings; tokenStored: boolean; onSave
   const g = props.settings.github;
   const [owner, setOwner] = useState(g.owner ?? "");
   const [workspaceRepo, setWorkspaceRepo] = useState(g.workspaceRepo);
-  const [prefix, setPrefix] = useState(g.evidenceRepoPrefix);
+  const year = new Date().getFullYear();
+  /** 증적 저장소 이름. 연도로 끝나면 연도별(접두사만 저장), 아니면 이름 그대로 쓴다(ADR 0033) */
+  const evidenceName = (s: Settings["github"]) => s.evidenceRepo ?? `${s.evidenceRepoPrefix}${year}`;
+  const [evidence, setEvidence] = useState(evidenceName(g));
+  const [evidenceOwner, setEvidenceOwner] = useState(g.evidenceOwner ?? "");
   const [message, setMessage] = useState<string | null>(null);
   const [result, setResult] = useState<RemoteVerify | null>(null);
   const [checking, setChecking] = useState(false);
@@ -287,7 +291,11 @@ function GitHubSection(props: { settings: Settings; tokenStored: boolean; onSave
   async function save(event: FormEvent) {
     event.preventDefault();
     try {
-      await window.qa.settings.update({ github: { owner: owner.trim() || null, workspaceRepo: workspaceRepo.trim(), evidenceRepoPrefix: prefix.trim() } });
+      const ownerName = owner.trim() || null;
+      const other = evidenceOwner.trim();
+      await window.qa.settings.update({
+        github: { owner: ownerName, workspaceRepo: workspaceRepo.trim(), ...evidenceChoice(evidence.trim(), g.evidenceRepoPrefix), evidenceOwner: other && other !== ownerName ? other : null },
+      });
       setMessage("저장했습니다");
       await props.onSaved();
     } catch (e) {
@@ -312,7 +320,7 @@ function GitHubSection(props: { settings: Settings; tokenStored: boolean; onSave
     <form className="card stack" onSubmit={save} aria-labelledby="github-title">
       <h2 id="github-title">GitHub</h2>
       <p className="hint">
-        테스트 케이스·플로우는 워크스페이스 저장소, 증적 요약은 연도별 증적 저장소에 둡니다. 토큰은 위의 &quot;GitHub 토큰&quot;에 저장하고, git 에는 URL·설정 파일 대신 인증 도우미로만
+        테스트 케이스·플로우는 워크스페이스 저장소, 증적 요약은 증적 저장소에 둡니다. 증적 저장소 이름이 연도로 끝나면(예: …-{year}) 해마다 다음 연도 저장소로 넘어가고, 아니면 그 저장소 하나에 계속 올립니다. 토큰은 위의 &quot;GitHub 토큰&quot;에 저장하고, git 에는 URL·설정 파일 대신 인증 도우미로만
         넘깁니다.
       </p>
       <GitHubRepoPicker
@@ -322,7 +330,8 @@ function GitHubSection(props: { settings: Settings; tokenStored: boolean; onSave
           // 아래 직접 입력 칸도 고른 값으로 맞춘다
           setOwner(next.owner ?? "");
           setWorkspaceRepo(next.workspaceRepo);
-          setPrefix(next.evidenceRepoPrefix);
+          setEvidence(evidenceName(next));
+          setEvidenceOwner(next.evidenceOwner ?? "");
           return props.onSaved();
         }}
       />
@@ -337,8 +346,12 @@ function GitHubSection(props: { settings: Settings; tokenStored: boolean; onSave
           <input value={workspaceRepo} onChange={(e) => setWorkspaceRepo(e.target.value)} />
         </label>
         <label>
-          증적 저장소 접두사
-          <input value={prefix} onChange={(e) => setPrefix(e.target.value)} />
+          증적 저장소
+          <input value={evidence} onChange={(e) => setEvidence(e.target.value)} />
+        </label>
+        <label>
+          증적 저장소 주인(워크스페이스와 다를 때만)
+          <input value={evidenceOwner} onChange={(e) => setEvidenceOwner(e.target.value)} placeholder="비우면 GitHub 조직과 같음" />
         </label>
       </div>
       <div className="row">

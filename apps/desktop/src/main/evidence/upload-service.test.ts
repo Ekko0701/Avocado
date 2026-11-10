@@ -1,6 +1,6 @@
 import { redactExecutionDir, type JpegConverter } from "@qa/evidence";
 import { GitHubProvider } from "@qa/remote";
-import type { RunDetail } from "@qa/shared";
+import type { GitHubSettings, RunDetail } from "@qa/shared";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -24,7 +24,7 @@ beforeEach(async () => {
   db = AppDatabase.open(join(dir, "db.sqlite"));
   db.db.prepare("INSERT INTO run (id, workspace, trigger, status, created_at) VALUES ('run-1', 'w', 'manual', 'failed', '2026-10-22T00:00:00.000Z')").run();
   db.db.prepare("INSERT INTO execution (id, run_id, tc_id, target, flow_path, status, evidence_dir) VALUES ('exec-1', 'run-1', 'TC-0009', 'ios', 'x', 'failed', 'run-1/exec-1')").run();
-  fake = await startFakeGitHub({ token: TOKEN, repos: { "acme/qa-evidence-2026": { push: true } } });
+  fake = await startFakeGitHub({ token: TOKEN, repos: { "acme/qa-evidence-2026": { push: true }, "acme-archive/QA-Evidences": { push: true } } });
   redactExecutionDir(join(FIXTURES, "ios-fail"), join(dir, "redacted"), { secrets: FAKE_SECRETS });
 });
 afterEach(async () => {
@@ -57,7 +57,7 @@ function run(status: RunDetail["status"]): RunDetail {
   };
 }
 
-function service(opts: { approved?: boolean; status?: RunDetail["status"]; secrets?: string[]; jpeg?: JpegConverter; maxImages?: number } = {}) {
+function service(opts: { approved?: boolean; status?: RunDetail["status"]; secrets?: string[]; jpeg?: JpegConverter; maxImages?: number; github?: Partial<GitHubSettings> } = {}) {
   const redacted = join(dir, "redacted");
   return new UploadService({
     db,
@@ -65,7 +65,7 @@ function service(opts: { approved?: boolean; status?: RunDetail["status"]; secre
     evidence: { redactedDir: () => redacted },
     remote: new GitHubProvider({ token: () => TOKEN, apiUrl: fake.url, webUrl: "https://github.com" }),
     uploadApproved: () => opts.approved ?? true,
-    github: () => ({ owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-" }),
+    github: () => ({ owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-", evidenceRepo: null, evidenceOwner: null, ...opts.github }),
     secrets: () => opts.secrets ?? [...FAKE_SECRETS, TOKEN],
     toJpeg: opts.jpeg ?? toJpeg,
     generator: "qa-tool test",
@@ -97,6 +97,15 @@ describe("증적 업로드 (PLAN 9.3·9.4)", () => {
     // 같은 미리보기로 두 번 올리지 않고, 이미 올린 실행은 다시 묶지 않는다
     await expect(s.upload({ bundleId: "bundle-1", privacyConfirmed: true })).rejects.toThrow("미리보기가 없거나 만료");
     await expect(s.prepare({ runId: "run-1", executionId: "exec-1", includePassScreens: false })).rejects.toThrow("이미 올린 실행");
+  });
+
+  it("증적 저장소 이름을 그대로 정했으면 연도를 붙이지 않은 그 저장소에, 주인이 다르면 그 주인의 저장소에 올린다 (ADR 0033)", async () => {
+    const s = service({ github: { evidenceRepo: "QA-Evidences", evidenceOwner: "acme-archive" } });
+    const preview = await s.prepare({ runId: "run-1", executionId: "exec-1", includePassScreens: false });
+    expect(preview).toMatchObject({ repo: "acme-archive/QA-Evidences", root: "runs/2026/10/22/run-1/exec-1", blocked: false });
+    const record = await s.upload({ bundleId: "bundle-1", privacyConfirmed: true });
+    expect(record.repo).toBe("acme-archive/QA-Evidences");
+    expect(record.url).toBe(`https://github.com/acme-archive/QA-Evidences/blob/${record.commitSha}/runs/2026/10/22/run-1/exec-1/report.md`);
   });
 
   it("묶음에 비밀 값이 남으면 막고(미리보기에 경로·개수만), 올리지 않는다", async () => {

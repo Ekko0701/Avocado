@@ -1,6 +1,7 @@
 import type { AgentProvider, AgentUsage, AuthorJob, Build, ClaudeConnection, Device, TestcaseSummary } from "@qa/shared";
 import { useCallback, useEffect, useState } from "react";
 import { ClaudeRequest } from "../components/ClaudeRequest";
+import { buildLabel } from "../lib/build-label";
 import { errorMessage } from "../lib/errors";
 import { deviceLabel } from "../lib/device-label";
 
@@ -202,7 +203,7 @@ export function AuthorPage(props: { onOpenResults?: (runId: string) => void }) {
               <option value="">기기에 설치된 앱</option>
               {usableBuilds.map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.appId} {b.version} ({b.buildNumber})
+                  {buildLabel(b)}
                 </option>
               ))}
             </select>

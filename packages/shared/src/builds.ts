@@ -26,6 +26,8 @@ export type Build = z.infer<typeof BuildSchema>;
 export const PickBuildInputSchema = z.strictObject({ app: AppIdSchema });
 export const RunBuildScriptInputSchema = z.strictObject({ app: AppIdSchema });
 export const InstallBuildInputSchema = z.strictObject({ buildId: z.string().min(1), deviceId: z.string().min(1) });
+/** 등록한 빌드 지우기. 앱 데이터의 사본과 기록을 지운다(실행 기록은 남는다) */
+export const RemoveBuildInputSchema = z.strictObject({ buildId: z.string().min(1) });
 export const InstallResultSchema = z.strictObject({ buildId: z.string(), deviceId: z.string(), appId: z.string(), installed: z.boolean() });
 export type InstallResult = z.infer<typeof InstallResultSchema>;
 

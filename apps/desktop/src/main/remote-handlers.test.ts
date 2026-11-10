@@ -15,11 +15,25 @@ describe("GitHub 연결 확인 핸들러", () => {
   });
 
   it("워크스페이스와 올해 증적 저장소를 확인한다", async () => {
-    const settings: Settings = { ...DEFAULT_SETTINGS, github: { owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-" } };
+    const settings: Settings = { ...DEFAULT_SETTINGS, github: { owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-", evidenceRepo: null, evidenceOwner: null } };
     await createRemoteHandlers(remote, () => settings, at)["remote:verify"](undefined);
     expect(seen.at(-1)).toEqual([
       { owner: "acme", repo: "qa-workspace" },
       { owner: "acme", repo: "qa-evidence-2026" },
+    ]);
+  });
+
+  it("증적 저장소 이름을 그대로 정했으면 연도를 붙이지 않고, 주인이 다르면 그 주인의 저장소를 확인한다 (ADR 0033)", async () => {
+    const github = { owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-", evidenceRepo: "QA-Evidences", evidenceOwner: null };
+    await createRemoteHandlers(remote, () => ({ ...DEFAULT_SETTINGS, github }), at)["remote:verify"](undefined);
+    expect(seen.at(-1)).toEqual([
+      { owner: "acme", repo: "qa-workspace" },
+      { owner: "acme", repo: "QA-Evidences" },
+    ]);
+    await createRemoteHandlers(remote, () => ({ ...DEFAULT_SETTINGS, github: { ...github, evidenceRepo: null, evidenceOwner: "acme-archive" } }), at)["remote:verify"](undefined);
+    expect(seen.at(-1)).toEqual([
+      { owner: "acme", repo: "qa-workspace" },
+      { owner: "acme-archive", repo: "qa-evidence-2026" },
     ]);
   });
 });

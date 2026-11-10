@@ -3,6 +3,7 @@ import { AppIdSchema } from "@qa/shared";
 import { useCallback, useEffect, useState } from "react";
 import { BuildActivityCard } from "../components/BuildActivityCard";
 import { ProjectBuildPanel } from "../components/ProjectBuildPanel";
+import { buildOrigin } from "../lib/build-label";
 import { errorMessage, formatDateTime } from "../lib/errors";
 import { deviceLabel } from "../lib/device-label";
 
@@ -112,12 +113,24 @@ export function BuildsPage() {
         {builds && builds.length === 0 ? <p className="hint">등록한 빌드가 없습니다.</p> : null}
         <ul className="checks">
           {builds?.map((b) => (
-            <BuildRow key={b.id} build={b} devices={devices.filter((d) => d.platform === b.target)} disabled={busy !== null || projectBusy} onInstall={(deviceId, deviceName) =>
-              void act("설치", async () => {
-                const r = await window.qa.builds.install({ buildId: b.id, deviceId });
-                return r.installed ? `${deviceName} 에 설치했습니다: ${r.appId}` : `설치 명령은 끝났지만 ${deviceName} 에서 ${r.appId} 를 찾지 못했습니다`;
-              })
-            } />
+            <BuildRow
+              key={b.id}
+              build={b}
+              devices={devices.filter((d) => d.platform === b.target)}
+              disabled={busy !== null || projectBusy}
+              onInstall={(deviceId, deviceName) =>
+                void act("설치", async () => {
+                  const r = await window.qa.builds.install({ buildId: b.id, deviceId });
+                  return r.installed ? `${deviceName} 에 설치했습니다: ${r.appId}` : `설치 명령은 끝났지만 ${deviceName} 에서 ${r.appId} 를 찾지 못했습니다`;
+                })
+              }
+              onRemove={() =>
+                void act("삭제", async () => {
+                  setBuilds(await window.qa.builds.remove({ buildId: b.id }));
+                  return `지웠습니다: ${b.appId} ${b.version} (${b.buildNumber}) · ${buildOrigin(b)}`;
+                })
+              }
+            />
           ))}
         </ul>
       </section>
@@ -125,9 +138,11 @@ export function BuildsPage() {
   );
 }
 
-function BuildRow(props: { build: Build; devices: Device[]; disabled: boolean; onInstall: (deviceId: string, deviceName: string) => void }) {
+function BuildRow(props: { build: Build; devices: Device[]; disabled: boolean; onInstall: (deviceId: string, deviceName: string) => void; onRemove: () => void }) {
   const { build: b, devices } = props;
   const [deviceId, setDeviceId] = useState("");
+  /** 지우기는 되돌릴 수 없어 한 번 더 확인한다 */
+  const [confirming, setConfirming] = useState(false);
   const selected = devices.find((d) => d.id === deviceId) ?? devices[0];
   return (
     <li className="check" data-testid={`build-${b.id}`}>
@@ -142,22 +157,38 @@ function BuildRow(props: { build: Build; devices: Device[]; disabled: boolean; o
           {b.commit ? ` · ${b.commit.slice(0, 10)}` : ""} · {formatDateTime(b.createdAt)}
         </small>
       </div>
-      {devices.length > 0 ? (
-        <div className="row">
-          <select aria-label="설치할 기기" value={selected?.id ?? ""} onChange={(e) => setDeviceId(e.target.value)}>
-            {devices.map((d) => (
-              <option key={d.id} value={d.id}>
-                {deviceLabel(d)}
-              </option>
-            ))}
-          </select>
-          <button type="button" disabled={props.disabled || !selected} onClick={() => selected && props.onInstall(selected.id, selected.name)}>
-            설치
+      <div className="row center">
+        {devices.length > 0 ? (
+          <>
+            <select aria-label="설치할 기기" value={selected?.id ?? ""} onChange={(e) => setDeviceId(e.target.value)}>
+              {devices.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {deviceLabel(d)}
+                </option>
+              ))}
+            </select>
+            <button type="button" disabled={props.disabled || !selected} onClick={() => selected && props.onInstall(selected.id, selected.name)}>
+              설치
+            </button>
+          </>
+        ) : (
+          <small className="hint">실행 중인 {TARGET_TEXT[b.target]} 기기 없음</small>
+        )}
+        {confirming ? (
+          <>
+            <button type="button" className="danger" disabled={props.disabled} onClick={props.onRemove}>
+              정말 삭제
+            </button>
+            <button type="button" className="secondary" disabled={props.disabled} onClick={() => setConfirming(false)}>
+              취소
+            </button>
+          </>
+        ) : (
+          <button type="button" className="secondary" disabled={props.disabled} aria-label={`빌드 삭제: ${b.appId} ${b.version} (${b.buildNumber}) · ${buildOrigin(b)}`} onClick={() => setConfirming(true)}>
+            삭제
           </button>
-        </div>
-      ) : (
-        <small className="hint">실행 중인 {TARGET_TEXT[b.target]} 기기 없음</small>
-      )}
+        )}
+      </div>
     </li>
   );
 }
