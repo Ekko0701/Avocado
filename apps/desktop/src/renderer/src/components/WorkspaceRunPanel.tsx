@@ -1,6 +1,7 @@
 import type { Build, Device, RunQueueStatus, TestcaseList } from "@qa/shared";
 import { useEffect, useMemo, useState } from "react";
 import { errorMessage } from "../lib/errors";
+import { deviceLabel } from "../lib/device-label";
 
 const TARGETS = ["ios", "android"] as const;
 
@@ -93,7 +94,7 @@ export function WorkspaceRunPanel(props: { builds: Build[]; devices: Device[]; o
             <option value="">선택</option>
             {devices.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.name}
+                {deviceLabel(d)}
               </option>
             ))}
           </select>

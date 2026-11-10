@@ -1,4 +1,5 @@
 import { findSecretResidue, parseExecution, redactExecutionDir, type ParsedExecution } from "@qa/evidence";
+import { notReady } from "../devices/ready";
 import type { Build, Device, Execution, RunDetail, RunStep, RunSummary, StartRunInput } from "@qa/shared";
 import { ExecutionSchema, RunDetailSchema, RunSummarySchema } from "@qa/shared";
 import { randomUUID } from "node:crypto";
@@ -176,8 +177,8 @@ export class RunService {
 
     const device = (await this.options.devices.list()).devices.find((d) => d.id === input.deviceId);
     if (!device) throw new RunError(`기기를 찾지 못했다: ${input.deviceId}`);
-    if (device.state !== "booted") throw new RunError(`기기가 실행 중이 아니다: ${device.name}. 기기 화면에서 먼저 준비한다`);
-    if (device.platform === "android" && !device.serial) throw new RunError(`에뮬레이터 serial 을 알 수 없다: ${device.name}`);
+    if (device.state !== "booted") throw new RunError(notReady(device));
+    if (device.platform === "android" && !device.serial) throw new RunError(`Android serial 을 알 수 없다: ${device.name}`);
     const build = input.buildId ? this.options.builds.get(input.buildId) : null;
     if (build) {
       if (build.app !== input.app) throw new RunError(`빌드의 앱(${build.app})과 실행할 앱(${input.app})이 다르다`);

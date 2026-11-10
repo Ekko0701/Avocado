@@ -3,6 +3,7 @@ import { AppIdSchema } from "@qa/shared";
 import { useCallback, useEffect, useState } from "react";
 import { WorkspaceRunPanel } from "../components/WorkspaceRunPanel";
 import { errorMessage, formatDateTime } from "../lib/errors";
+import { deviceLabel } from "../lib/device-label";
 
 const RUN_STATUS: Record<RunSummary["status"], string> = {
   queued: "대기",
@@ -161,7 +162,7 @@ export function RunsPage(props: { onOpenResults?: (runId: string) => void }) {
               <option value="">기기 선택</option>
               {usableDevices.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {d.name}
+                  {deviceLabel(d)}
                 </option>
               ))}
             </select>

@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { notReady } from "../devices/ready";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
   AUTHOR_SYSTEM_PROMPT,
@@ -249,7 +250,7 @@ export class AuthorService {
 
     const device = (await this.options.devices.list()).devices.find((d) => d.id === input.deviceId);
     if (!device || device.platform !== input.target) throw new AuthorError(`${input.target} 기기를 찾지 못했다: ${input.deviceId}`);
-    if (device.state !== "booted") throw new AuthorError(`기기가 실행 중이 아니다: ${device.name}. 기기 화면에서 먼저 준비한다`);
+    if (device.state !== "booted") throw new AuthorError(notReady(device));
     if (input.buildId) {
       const build = this.options.builds.get(input.buildId);
       if (build.app !== input.app || build.target !== input.target) throw new AuthorError(`빌드가 ${input.app} ${input.target} 용이 아니다`);

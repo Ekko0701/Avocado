@@ -1,6 +1,7 @@
 import type { Device, DeviceList, IosDeviceOptions } from "@qa/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { errorMessage } from "../lib/errors";
+import { deviceKindText } from "../lib/device-label";
 
 const STATE_TEXT: Record<Device["state"], string> = { booted: "실행 중", shutdown: "꺼짐", booting: "부팅 중", unknown: "알 수 없음" };
 
@@ -45,7 +46,8 @@ export function DevicesPage() {
     );
   }, [types, options]);
 
-  const avds = useMemo(() => list?.devices.filter((d) => d.platform === "android") ?? [], [list]);
+  const avds = useMemo(() => list?.devices.filter((d) => d.kind === "emulator") ?? [], [list]);
+  const phones = list?.devices.filter((d) => d.kind === "real") ?? [];
   useEffect(() => {
     if (avds.length === 0 || avds.some((d) => d.id === avd)) return;
     setAvd((avds.find((d) => d.managed) ?? avds[0])?.id ?? "");
@@ -151,6 +153,14 @@ export function DevicesPage() {
         </div>
         {list && !list.androidAvailable ? <p className="hint">Android SDK 를 찾지 못했습니다. Android 테스트에만 필요합니다.</p> : null}
         {list?.androidAvailable && avds.length === 0 ? <p className="hint">AVD 가 없습니다. Android Studio 의 Device Manager 에서 만듭니다.</p> : null}
+        <p className="hint" data-testid="phone-hint">
+          Android 폰은 개발자 옵션에서 USB 디버깅을 켜고 케이블로 연결한 뒤 새로고침하면 목록에 나옵니다. 폰의 언어·애니메이션 설정은 바꾸지 않습니다.
+        </p>
+        {phones.some((d) => d.state !== "booted") ? (
+          <p className="hint" role="status" data-testid="phone-unauthorized">
+            연결된 폰이 아직 허용되지 않았습니다. 폰 화면의 &quot;USB 디버깅을 허용하시겠습니까?&quot; 창에서 허용한 뒤 새로고침합니다.
+          </p>
+        ) : null}
         {message ? (
           <p role="status" data-testid="device-message">
             {message}
@@ -163,15 +173,15 @@ export function DevicesPage() {
         <ul className="checks">
           {list?.devices.map((d) => (
             <li key={`${d.platform}:${d.id}`} className="check" data-testid={`device-${d.platform}-${d.id}`}>
-              <span className={`badge ${d.state === "booted" ? "ok" : ""}`}>{STATE_TEXT[d.state]}</span>
+              <span className={`badge ${d.state === "booted" ? "ok" : ""}`}>{d.kind === "real" ? (d.state === "booted" ? "연결됨" : "허용 필요") : STATE_TEXT[d.state]}</span>
               <div className="check-body">
                 <strong>{d.name}</strong>
                 <small className="hint">
-                  {d.platform === "ios" ? `iOS ${d.osVersion} 시뮬레이터` : `Android 에뮬레이터${d.serial ? ` · ${d.serial}` : ""}`}
+                  {deviceKindText(d)}
                 </small>
               </div>
               <div className="row">
-                {d.state === "booted" ? (
+                {d.state === "booted" && d.kind !== "real" ? (
                   <button
                     type="button"
                     className="secondary"

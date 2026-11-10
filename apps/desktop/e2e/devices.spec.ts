@@ -10,6 +10,11 @@ test("기기 화면이 iOS 버전·기종을 고르는 칸, QA 기기 목록과 
   const list = await page.evaluate(() => window.qa.devices.list());
   expect(Array.isArray(list.devices)).toBe(true);
   for (const d of list.devices.filter((x) => x.platform === "ios")) expect(d.name.startsWith("Avocado ") || d.name.startsWith("QA Tool ")).toBe(true);
+  // Android 폰 연결 안내(ADR 0030). 연결된 폰이 있으면 종료 버튼이 없다(사람의 폰은 끄지 않는다)
+  await expect(page.getByTestId("phone-hint")).toBeVisible();
+  for (const d of list.devices.filter((x) => x.kind === "real")) {
+    await expect(page.getByTestId(`device-android-${d.id}`).getByRole("button", { name: "종료" })).toHaveCount(0);
+  }
 
   // 고를 수 있는 iOS 버전(최신 먼저)과 그 버전의 iPhone·iPad. 화면의 기본값은 기본 기종을 지원하는 가장 새 iOS
   const options = await page.evaluate(() => window.qa.devices.iosOptions());

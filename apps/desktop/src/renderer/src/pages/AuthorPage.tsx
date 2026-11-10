@@ -2,6 +2,7 @@ import type { AgentProvider, AgentUsage, AuthorJob, Build, ClaudeConnection, Dev
 import { useCallback, useEffect, useState } from "react";
 import { ClaudeRequest } from "../components/ClaudeRequest";
 import { errorMessage } from "../lib/errors";
+import { deviceLabel } from "../lib/device-label";
 
 const PHASE: Record<AuthorJob["phase"], string> = {
   preparing: "준비",
@@ -190,7 +191,7 @@ export function AuthorPage(props: { onOpenResults?: (runId: string) => void }) {
               <option value="">선택</option>
               {usableDevices.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {d.name} · {d.osVersion}
+                  {deviceLabel(d)} · {d.osVersion}
                 </option>
               ))}
             </select>

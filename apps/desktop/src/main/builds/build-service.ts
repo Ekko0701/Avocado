@@ -1,4 +1,5 @@
 import { BuildSchema, type Build, type BuildActivity, type BuildJobKind, type InstallResult } from "@qa/shared";
+import { notReady } from "../devices/ready";
 import { randomUUID } from "node:crypto";
 import { accessSync, closeSync, constants, copyFileSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
@@ -320,7 +321,7 @@ export class BuildService {
     const build = this.get(buildId);
     const device = (await this.options.devices.list()).devices.find((d) => d.id === deviceId && d.platform === build.target);
     if (!device) throw new BuildError(`${build.target} 기기를 찾지 못했다: ${deviceId}`);
-    if (device.state !== "booted") throw new BuildError(`기기가 실행 중이 아니다: ${device.name}. 기기 화면에서 먼저 준비한다`);
+    if (device.state !== "booted") throw new BuildError(notReady(device));
 
     if (build.target === "ios") {
       const r = await this.options.run("/usr/bin/xcrun", ["simctl", "install", device.id, build.path], { timeoutMs: 300_000 });
@@ -330,7 +331,7 @@ export class BuildService {
     }
     const adb = join(this.options.androidHome, "platform-tools", "adb");
     const serial = device.serial;
-    if (!serial) throw new BuildError(`에뮬레이터 serial 을 알 수 없다: ${device.name}`);
+    if (!serial) throw new BuildError(`Android serial 을 알 수 없다: ${device.name}`);
     const r = await this.options.run(adb, ["-s", serial, "install", "-r", build.path], { timeoutMs: 300_000 });
     if (r.code !== 0 || /Failure/.test(r.stdout)) throw new BuildError(`설치 실패: ${(r.stdout + r.stderr).trim().slice(0, 300)}`);
     const check = await this.options.run(adb, ["-s", serial, "shell", "pm", "path", build.appId]);

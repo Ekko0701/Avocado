@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BuildActivityCard } from "../components/BuildActivityCard";
 import { ProjectBuildPanel } from "../components/ProjectBuildPanel";
 import { errorMessage, formatDateTime } from "../lib/errors";
+import { deviceLabel } from "../lib/device-label";
 
 const TARGET_TEXT: Record<Build["target"], string> = { ios: "iOS", android: "Android" };
 const SOURCE_TEXT: Record<Build["source"], string> = { file: "파일", script: "스크립트", project: "프로젝트" };
@@ -64,7 +65,7 @@ export function BuildsPage() {
       <BuildActivityCard onRunningChange={setBuildRunning} onFinished={reload} />
       <section className="card stack" aria-label="빌드 등록">
         <p className="hint">
-          시뮬레이터용 .app 또는 .apk 를 등록합니다. 빌드 스크립트를 고르면 실행한 뒤, 스크립트가 QA_BUILD_INFO 파일에 적은 ARTIFACT 경로를 등록합니다.
+          iOS 시뮬레이터용 .app 또는 Android .apk 를 등록합니다. .apk 는 에뮬레이터와 USB 로 연결한 Android 폰에 설치할 수 있습니다. 빌드 스크립트를 고르면 실행한 뒤, 스크립트가 QA_BUILD_INFO 파일에 적은 ARTIFACT 경로를 등록합니다.
         </p>
         <label>
           앱 ID
@@ -146,7 +147,7 @@ function BuildRow(props: { build: Build; devices: Device[]; disabled: boolean; o
           <select aria-label="설치할 기기" value={selected?.id ?? ""} onChange={(e) => setDeviceId(e.target.value)}>
             {devices.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.name}
+                {deviceLabel(d)}
               </option>
             ))}
           </select>
