@@ -114,6 +114,7 @@ test("Android 에뮬레이터: 기기 준비 → 빌드 등록·설치 → 플�
       await showResult(run, tcRun.id, "result-tc");
       expect(tcRun).toMatchObject({ status: "passed", tcId: TC, target: "android" });
       await nav.getByRole("button", { name: "결과", exact: true }).click();
+      await page.getByRole("region", { name: "실행", exact: true }).getByRole("tab", { name: "테스트 케이스" }).click();
       await expect(page.getByTestId(`tc-cell-${TC}-android`)).toHaveText("통과");
       await run.shot("results-matrix");
     }

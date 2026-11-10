@@ -925,16 +925,6 @@ button.badge.cell:hover:not(:disabled) {
 }
 
 /* ---- 결과 (T-108): 고른 줄은 강조색으로 채운다 ---- */
-.results {
-  display: grid;
-  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
-  gap: 14px;
-  align-items: start;
-}
-.run-list {
-  max-height: 80vh;
-  overflow: auto;
-}
 .run-item,
 .step-row {
   text-align: left;
@@ -986,7 +976,8 @@ button.badge.cell:hover:not(:disabled) {
 .step-row {
   width: 100%;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) 120px auto auto;
+  /* 상태 · 설명 · 시간 · 캡처 표시 · 판정 */
+  grid-template-columns: auto minmax(0, 1fr) auto 1.4em auto;
   gap: 8px;
   align-items: center;
   padding: 4px 8px;
@@ -995,16 +986,6 @@ button.badge.cell:hover:not(:disabled) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.step-row .bar {
-  height: 6px;
-  border-radius: 3px;
-  background: var(--accent);
-  opacity: 0.55;
-  justify-self: start;
-}
-.step-row.selected .bar {
-  background: var(--on-accent);
 }
 .capture {
   max-height: 520px;
@@ -1700,6 +1681,205 @@ button.tc-row:active:not(:disabled) {
   .tc-empty {
     flex: none;
     min-height: 180px;
+  }
+}
+
+/* ---- 결과: 왼쪽 실행 목록 | 오른쪽 상세(머리말 고정, 본문 스크롤). 페이지는 창 높이에 맞춘다 ---- */
+.content.fill > .results-page {
+  flex: 1;
+  min-height: 0;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.results-page > h1 {
+  margin: 6px 0 4px;
+}
+.results-panes {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 14px;
+}
+.results-list-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 12px;
+}
+.results-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.results-chips button {
+  padding: 2px 10px;
+  font-size: 12px;
+}
+.results-run-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  margin: 0 -4px;
+}
+/* 목록 줄의 날짜·타깃·기기는 한 줄로 두고 넘치면 자른다(기기 이름이 잘린다) */
+.results-run-list .run-item-body {
+  min-width: 0;
+}
+.results-run-list .run-item-body small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.results-list-foot {
+  font-size: 11px;
+  padding: 0 6px;
+}
+.results-matrix {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.results-matrix > p {
+  font-size: 12px;
+}
+button.badge.cell.selected {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.results-detail {
+  container: detail / inline-size;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.results-detail-head {
+  display: grid;
+  gap: 8px;
+  padding: 14px 18px 10px;
+  border-bottom: 0.5px solid var(--separator);
+}
+.results-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.results-detail-title h2 {
+  flex: 1;
+  font-size: 15px;
+}
+.results-detail-title .check {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.results-detail-head p {
+  margin: 0;
+}
+.results-detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.results-step-capture {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 214px;
+  gap: 14px;
+  padding: 12px 18px;
+  align-items: start;
+}
+.results-steps {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.results-label {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.results-capture {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+/* 창 높이의 절반 안쪽으로 줄여 아래 증적 탭(로그)이 첫 화면에 같이 보이게 한다 */
+.results-capture .capture {
+  width: 214px;
+  max-height: min(440px, 40vh);
+  object-fit: contain;
+  justify-self: center;
+}
+.results-capture figcaption {
+  font-size: 11px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.results-evidence {
+  display: grid;
+  gap: 10px;
+  padding: 12px 18px 16px;
+  border-top: 0.5px solid var(--separator);
+}
+.results-evidence .log,
+.results-evidence .tree {
+  max-height: 280px;
+}
+.results-empty {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+}
+.results-empty strong {
+  font-size: 14px;
+}
+.results-empty .hint {
+  font-size: 12px;
+}
+/* 상세 칸이 좁으면 캡처를 스텝 아래로 내린다 */
+@container detail (max-width: 560px) {
+  .results-step-capture {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* 본문이 좁으면 목록 아래에 상세를 두고 화면 전체를 스크롤한다(테스트 케이스 화면과 같다) */
+@container main (max-width: 839px) {
+  .content.fill > .results-page {
+    flex: none;
+    min-height: auto;
+  }
+  .results-panes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .results-run-list,
+  .results-matrix {
+    flex: none;
+    max-height: 248px;
+  }
+  .results-detail {
+    overflow: visible;
+  }
+  .results-detail-body {
+    overflow: visible;
   }
 }
 

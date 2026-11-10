@@ -128,7 +128,7 @@ export function App() {
       </aside>
       <div className="main">
         <Toolbar page={page} onNavigate={go} inspectorOpen={inspectorOpen} onToggleInspector={() => setInspectorOpen((open) => !open)} />
-        <main className={page === "results" || page === "home" ? "content wide" : page === "testcases" ? "content fill" : "content"}>
+        <main className={page === "home" ? "content wide" : page === "testcases" || page === "results" ? "content fill" : "content"}>
           <UpdateBanner />
           {page === "home" ? (
             <HomePage
@@ -158,7 +158,7 @@ export function App() {
               }}
             />
           ) : null}
-          {page === "results" ? <ResultsPage key={resultsRunId ?? "none"} initialRunId={resultsRunId} /> : null}
+          {page === "results" ? <ResultsPage key={resultsRunId ?? "none"} initialRunId={resultsRunId} onOpenRuns={() => go("runs")} /> : null}
           {page === "accounts" ? <TestAccountsPage onOpenWorkspace={() => go("workspace")} onChanged={refreshMissing} /> : null}
           {page === "devices" ? <DevicesPage /> : null}
           {page === "builds" ? <BuildsPage /> : null}

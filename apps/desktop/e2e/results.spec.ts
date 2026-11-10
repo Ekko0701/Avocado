@@ -62,10 +62,29 @@ test("결과 화면: 실패 실행 하나를 누르면 실패 스텝 캡처와 �
   ]);
 
   const { app, page } = await launchApp({ userDataDir });
-  // 클릭 1: 메뉴 "결과", 클릭 2: 실패한 실행
+  // 메뉴 "결과" 를 누르면 가장 최근 실행(실패)이 열려 있다
   await page.getByRole("button", { name: "결과", exact: true }).click();
+  await expect(page.getByTestId("results-run-run-fail")).toHaveClass(/selected/);
+  await expect(page.getByTestId("results-detail")).toContainText("TC-0101 설정 검색");
+
+  // 왼쪽 목록: 상태 칩과 검색으로 거른다
+  const list = page.getByRole("region", { name: "실행", exact: true });
+  await list.getByRole("button", { name: "실패 1" }).click();
+  await expect(list.getByTestId(/^results-run-/)).toHaveCount(1);
+  await expect(list.getByTestId("results-run-run-fail")).toBeVisible();
+  await list.getByRole("button", { name: "전체 2" }).click();
+  await list.getByLabel("실행 검색").fill("android");
+  await expect(list.getByTestId(/^results-run-/)).toHaveCount(1);
+  await expect(list.getByTestId("results-run-run-pass")).toBeVisible();
+  await expect(list).toContainText("2건 가운데 1건");
+  await list.getByLabel("실행 검색").fill("");
+
+  // 테스트 케이스 탭: 테스트 케이스 × 타깃의 마지막 결과
+  await list.getByRole("tab", { name: "테스트 케이스" }).click();
   await expect(page.getByTestId("tc-cell-TC-0101-ios")).toHaveText("실패");
   await expect(page.getByTestId("tc-cell-TC-0101-android")).toHaveText("통과");
+  await expect(page.getByTestId("tc-cell-TC-0101-ios")).toHaveClass(/selected/);
+  await list.getByRole("tab", { name: "실행" }).click();
   await page.getByTestId("results-run-run-fail").click();
 
   await expect(page.getByTestId("results-failure")).toContainText("Element not found");
@@ -74,8 +93,14 @@ test("결과 화면: 실패 실행 하나를 누르면 실패 스텝 캡처와 �
   await expect(img).toBeVisible();
   expect(await img.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(100);
   await expect(page.getByTestId("log-view").locator(".log-line.focus")).toContainText(/FAILED|Element not found/);
-  // 로그 상자 안에서만 스크롤하고 페이지는 움직이지 않는다. 실패 줄은 상자 안에 보인다
+  // 페이지는 창 높이에 맞고(칸마다 따로 스크롤), 로그 상자 안에서만 스크롤한다. 실패 줄은 상자 안에 보인다
   expect(await page.evaluate(() => document.querySelector("main")?.scrollTop ?? 0)).toBe(0);
+  expect(await page.evaluate(() => {
+    const main = document.querySelector("main");
+    return main ? main.scrollHeight - main.clientHeight : -1;
+  })).toBeLessThanOrEqual(1);
+  // 스텝 옆에 고른 스텝(실패)의 캡처가 있다
+  await expect(page.getByRole("figure", { name: "스텝 캡처" })).toContainText("6. 실패 캡처");
   expect(
     await page.getByTestId("log-view").evaluate((box) => {
       const line = box.querySelector<HTMLElement>(".log-line.focus");
@@ -83,9 +108,10 @@ test("결과 화면: 실패 실행 하나를 누르면 실패 스텝 캡처와 �
     }),
   ).toBe(true);
 
-  // 캡처 모아 보기: 이 시도의 캡처(플로우 캡처 + 실패 캡처)가 한 줄에 보이고, 누르면 그 스텝을 고른다
+  // 캡처 모아 보기 탭: 이 시도의 캡처(플로우 캡처 + 실패 캡처)가 한 줄에 보이고, 누르면 그 스텝을 고른다
+  const evidenceTabs = page.getByRole("tablist", { name: "증적" });
+  await evidenceTabs.getByRole("tab", { name: "캡처 2장" }).click();
   const strip = page.getByTestId("capture-strip");
-  await expect(strip.getByRole("heading")).toHaveText("캡처 2장");
   await expect(strip.locator("img")).toHaveCount(2);
   await expect(strip.getByRole("button", { name: /^6\. .* 캡처 보기$/ })).toHaveAttribute("aria-pressed", "true");
   await strip.getByRole("button", { name: /takeScreenshot 01_search_typed 캡처 보기/ }).click();
@@ -96,7 +122,7 @@ test("결과 화면: 실패 실행 하나를 누르면 실패 스텝 캡처와 �
   await page.getByTestId("step-4").click();
   await expect(page.getByTestId("capture-img")).toHaveAttribute("alt", /takeScreenshot 01_search_typed/);
   await page.getByTestId("step-5").click();
-  await page.getByRole("button", { name: "화면 트리" }).click();
+  await evidenceTabs.getByRole("tab", { name: "화면 트리" }).click();
   await expect(page.getByTestId("hierarchy")).toContainText("#magnifyingglass");
   const allNodes = await page.getByTestId("hierarchy").locator("li").count();
   await page.getByLabel("트리 필터").fill("magnifying");
@@ -104,6 +130,12 @@ test("결과 화면: 실패 실행 하나를 누르면 실패 스텝 캡처와 �
   expect(filtered.length).toBeGreaterThan(0);
   expect(filtered.length).toBeLessThan(allNodes);
   expect(filtered.every((t) => t.toLowerCase().includes("magnifying"))).toBe(true);
+  // 트리 탭을 연 채 다른 스텝을 고르면 그 스텝의 트리를 읽는다(트리가 없는 스텝은 그렇다고 말한다)
+  await page.getByTestId("step-4").click();
+  await expect(page.getByText("5번 스텝의 화면 트리가 없습니다.")).toBeVisible();
+  await page.getByTestId("step-5").click();
+  await expect(page.getByTestId("hierarchy")).toContainText("#magnifyingglass");
+  await evidenceTabs.getByRole("tab", { name: "로그" }).click();
   await page.getByLabel("로그 검색").fill("element not found");
   await page.getByRole("button", { name: "찾기" }).click();
   await expect(page.getByTestId("log-matches")).toContainText("junit.xml:");
@@ -112,6 +144,7 @@ test("결과 화면: 실패 실행 하나를 누르면 실패 스텝 캡처와 �
   await expect(page.getByTestId("log-view").locator(".log-line.focus")).toContainText(/Element not found/i);
 
   // 통과한 Android 실행: 마지막 캡처 스텝이 기본 선택
+  await list.getByRole("tab", { name: "테스트 케이스" }).click();
   await page.getByTestId("tc-cell-TC-0101-android").click();
   await expect(page.getByTestId("results-detail")).toContainText("통과");
   await expect(page.getByTestId("capture-img")).toBeVisible();
@@ -156,7 +189,8 @@ test("증적 올리기: 정책 스위치가 켜져야 보이고, 미리보기·�
     await page.getByRole("button", { name: "결과", exact: true }).click();
     await page.getByTestId("results-run-run-fail").click();
     await expect(page.getByTestId("results-detail")).toBeVisible();
-    // 정책 스위치가 꺼져 있으면 기능이 없고, IPC 로도 거부된다
+    // 정책 스위치가 꺼져 있으면 기능(탭)이 없고, IPC 로도 거부된다
+    await expect(page.getByRole("tab", { name: "증적 올리기" })).toHaveCount(0);
     await expect(page.getByTestId("evidence-upload")).toHaveCount(0);
     expect(
       await page.evaluate(() => window.qa.evidence.prepareUpload({ runId: "run-fail", executionId: "run-fail-e1", includePassScreens: false }).then(() => "ok", (e: unknown) => String(e))),
@@ -167,6 +201,7 @@ test("증적 올리기: 정책 스위치가 켜져야 보이고, 미리보기·�
     // 실행 목록의 각 행에도 "결과" 버튼이 있어 주 메뉴로 좁힌다
     await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("button", { name: "결과", exact: true }).click();
     await page.getByTestId("results-run-run-fail").click();
+    await page.getByRole("tablist", { name: "증적" }).getByRole("tab", { name: "증적 올리기" }).click();
     const panel = page.getByTestId("evidence-upload");
     await panel.getByRole("button", { name: "요약 묶음 만들기" }).click();
     const preview = panel.getByTestId("upload-preview");
@@ -329,5 +364,14 @@ test("결과 화면: 다른 실행으로 바꿔도 이전 실행의 시도로 �
   const requests = await app.evaluate(() => (globalThis as unknown as { evidenceRequests: string[] }).evidenceRequests);
   expect(requests.length).toBeGreaterThan(0);
   expect([...new Set(requests)].sort()).toEqual(["run-fail/run-fail-e1", "run-pass/run-pass-e1"]);
+  await app.close();
+});
+
+test("결과 화면: 실행 기록이 없으면 빈 안내와 실행 화면으로 가는 버튼이 있다", async () => {
+  const { app, page } = await launchApp();
+  await page.getByRole("button", { name: "결과", exact: true }).click();
+  await expect(page.getByRole("region", { name: "실행 상세" })).toContainText("아직 실행 기록이 없습니다");
+  await page.getByRole("region", { name: "실행 상세" }).getByRole("button", { name: "실행 열기" }).click();
+  await expect(page.getByRole("heading", { name: "실행", exact: true, level: 1 })).toBeVisible();
   await app.close();
 });

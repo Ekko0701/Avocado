@@ -59,8 +59,7 @@ export function EvidenceUploadPanel(props: { runId: string; executionId: string;
   }
 
   return (
-    <section className="card stack" aria-label="증적 올리기" data-testid="evidence-upload">
-      <h2>증적 올리기</h2>
+    <div className="stack" aria-label="증적 올리기" data-testid="evidence-upload">
       {uploads.map((u) => (
         <div key={u.commitSha} className="row" data-testid="upload-record">
           <span className="badge ok">올림</span>
@@ -135,6 +134,6 @@ export function EvidenceUploadPanel(props: { runId: string; executionId: string;
           {message}
         </p>
       ) : null}
-    </section>
+    </div>
   );
 }
