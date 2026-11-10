@@ -128,9 +128,18 @@ export function App() {
       </aside>
       <div className="main">
         <Toolbar page={page} onNavigate={go} inspectorOpen={inspectorOpen} onToggleInspector={() => setInspectorOpen((open) => !open)} />
-        <main className={page === "results" ? "content wide" : page === "testcases" ? "content fill" : "content"}>
+        <main className={page === "results" || page === "home" ? "content wide" : page === "testcases" ? "content fill" : "content"}>
           <UpdateBanner />
-          {page === "home" ? <HomePage /> : null}
+          {page === "home" ? (
+            <HomePage
+              onNavigate={go}
+              onOpenResults={(runId) => {
+                setResultsRunId(runId);
+                setPage("results");
+              }}
+              onOpenInspector={() => setInspectorOpen(true)}
+            />
+          ) : null}
           {page === "workspace" ? <WorkspacePage /> : null}
           {page === "testcases" ? <TestcasesPage /> : null}
           {page === "author" ? (

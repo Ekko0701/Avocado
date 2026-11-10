@@ -46,6 +46,7 @@
   --fill-hover: rgba(120, 120, 128, 0.2);
   --selection-fill: rgba(0, 0, 0, 0.075); /* 사이드바에서 고른 줄 */
   --inspector-fill: rgba(120, 120, 128, 0.09); /* 오른쪽 인스펙터 판. 창 바탕보다 한 단계 어둡다 */
+  --chart-gap: #ffffff; /* 차트 막대 사이·빗금 틈. 카드 위에서 보이는 불투명한 색 */
   --accent: #0071e3;
   --accent-text: #0066cc;
   --on-accent: #ffffff;
@@ -101,6 +102,7 @@
     --fill-hover: rgba(118, 118, 128, 0.36);
     --selection-fill: rgba(255, 255, 255, 0.11);
     --inspector-fill: rgba(255, 255, 255, 0.045);
+    --chart-gap: #2c2c2e;
     --accent: #0a84ff;
     --accent-text: #409cff;
     --danger: #ff6961;
@@ -1720,4 +1722,224 @@ hr.rule {
   margin: 4px 0;
   border: none;
   border-top: 0.5px solid var(--separator);
+}
+
+/* ---- 홈 대시보드: 진행 중 → 지표 4칸 → 추이 | 환경 → 살펴볼 테스트 케이스 | 최근 실행 ---- */
+.home-small {
+  font-size: 12px;
+}
+.badge.live {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent-text);
+}
+.badge.warn {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
+.home-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.home-tile {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+}
+.home-tile-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.home-tile-value {
+  font-size: 28px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.home-tile.ok .home-tile-value {
+  color: var(--success);
+}
+.home-tile.bad .home-tile-value {
+  color: var(--danger);
+}
+.home-two {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+@container main (max-width: 899px) {
+  .home-two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.home-live,
+.home-env {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.home-live li {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 0.5px solid var(--separator);
+}
+.home-live li:last-child,
+.home-env li:last-child {
+  border-bottom: none;
+}
+.home-live .badge {
+  justify-self: start;
+}
+.home-live-body,
+.home-env-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.home-live-title {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.home-progress {
+  height: 6px;
+  border-radius: var(--radius-capsule);
+  background: var(--fill);
+  overflow: hidden;
+}
+.home-progress > div {
+  height: 100%;
+  border-radius: var(--radius-capsule);
+  background: var(--accent);
+  transition: width 300ms var(--ease-out);
+}
+.home-env li {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 0.5px solid var(--separator);
+}
+.home-env .badge {
+  justify-self: start;
+}
+.home-env-body {
+  gap: 0;
+}
+.home-env-body strong {
+  font-size: 12px;
+}
+.home-env-body .hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.home-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.home-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.home-swatch.pass {
+  background: var(--success);
+}
+.home-swatch.fail {
+  background: repeating-linear-gradient(45deg, var(--danger) 0 3px, var(--chart-gap) 3px 5px);
+}
+.home-chart {
+  position: relative;
+}
+.home-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.home-grid {
+  stroke: var(--separator);
+  stroke-width: 1;
+}
+.home-axis {
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+.home-tick {
+  font-size: 11px;
+  fill: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.home-hit {
+  fill: transparent;
+}
+.home-hit:hover {
+  fill: color-mix(in srgb, var(--text) 5%, transparent);
+}
+.home-tooltip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: grid;
+  gap: 1px;
+  padding: 6px 10px;
+  border-radius: var(--radius-control);
+  background: var(--glass-fill-strong);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.home-trend-empty {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  border-radius: var(--radius-row);
+  background: var(--surface);
+}
+.home-tooltip.start {
+  transform: translateX(-12%);
+}
+.home-tooltip.end {
+  transform: translateX(-88%);
+}
+.nowrap {
+  white-space: nowrap;
+}
+.matrix td.num {
+  font-variant-numeric: tabular-nums;
+}
+.home-recent {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+.home-recent-name {
+  justify-self: start;
+  text-align: left;
+  font-weight: 600;
+}
+.home-foot {
+  font-size: 12px;
+}
+.home-attention-table th {
+  white-space: nowrap;
 }

@@ -11,14 +11,15 @@ const EXAMPLE = resolve(__dirname, "../../../examples/qa-workspace");
 /**
  * 예시 워크스페이스로 만든 bare 저장소 + 로컬 git HTTP 서버 + 가짜 GitHub API (E2E 전용).
  * legacyLayout: 예전 폴더 구조(schemaVersion 1)로 만든다(폴더 구조 바꾸기 시험, ADR 0032)
+ * seed: 예시 워크스페이스 대신 쓸 워크스페이스 폴더(실기기 검증에서 테스트 대상 앱을 더한 사본 등)
  */
-export async function startFakeWorkspaceRemote(token: string, options: { legacyLayout?: boolean } = {}) {
+export async function startFakeWorkspaceRemote(token: string, options: { legacyLayout?: boolean; seed?: string } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "qa-e2e-wsremote-"));
   const env = { PATH: "/usr/bin:/bin", HOME: dir, GIT_CONFIG_NOSYSTEM: "1" };
   const git = (cwd: string, ...args: string[]) =>
     execFileSync("/usr/bin/git", ["-c", "user.name=Seed", "-c", "user.email=seed@example.test", ...args], { cwd, env }).toString().trim();
   const seed = join(dir, "seed");
-  cpSync(EXAMPLE, seed, { recursive: true });
+  cpSync(options.seed ?? EXAMPLE, seed, { recursive: true });
   if (options.legacyLayout) toLegacyLayout(seed);
   git(seed, "init", "-q", "-b", "main");
   git(seed, "add", ".");

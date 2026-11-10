@@ -42,6 +42,7 @@ function service(opts: { run?: CommandRunner; devices?: Device[]; scriptTimeoutM
     scriptTimeoutMs: opts.scriptTimeoutMs,
     now: () => new Date("2026-10-21T09:00:00.000Z"),
     newId: () => `build-${++n}`,
+    sleep: () => Promise.resolve(),
   });
 }
 
@@ -278,6 +279,35 @@ describe("설치", () => {
     await expect(s.install(build.id, "R5CT123")).resolves.toMatchObject({ installed: true, deviceId: "R5CT123" });
     expect(calls.slice(1)).toEqual([`adb -s R5CT123 install -r ${build.path}`, "adb -s R5CT123 shell pm path com.example.app"]);
     await expect(s.install(build.id, "0123ABC")).rejects.toThrow(/USB 디버깅 허용/);
+  });
+
+  it("패키지 관리자가 잠깐 없으면 다시 시도해 설치하고, 계속 없으면 그 오류를 알린다", async () => {
+    const apk = join(dir, "app.apk");
+    writeFileSync(apk, "PK");
+    let down = 2;
+    const calls: string[] = [];
+    const run: CommandRunner = (file, args) => {
+      const cmd = [file.split("/").pop(), ...args].join(" ");
+      calls.push(cmd);
+      if (cmd.startsWith("aapt2")) return Promise.resolve({ code: 0, stdout: "package: name='com.example.app' versionCode='7' versionName='2.0.0'\n", stderr: "" });
+      if (cmd.startsWith("adb -s emulator-5554 install")) {
+        if (down > 0) {
+          down -= 1;
+          return Promise.resolve({ code: 1, stdout: "Performing Streamed Install\n", stderr: "adb: failed to install app.apk: cmd: Failure calling service package: Broken pipe (32)\n" });
+        }
+        return Promise.resolve({ code: 0, stdout: "Success\n", stderr: "" });
+      }
+      if (cmd.startsWith("adb -s emulator-5554 shell pm path")) return Promise.resolve({ code: 0, stdout: "package:/data/app/base.apk\n", stderr: "" });
+      return Promise.resolve({ code: 0, stdout: "", stderr: "" });
+    };
+    const s = service({ run });
+    const build = await s.registerPath("example", apk);
+    await expect(s.install(build.id, "qa_pixel")).resolves.toMatchObject({ installed: true });
+    expect(calls.filter((c) => c.startsWith("adb -s emulator-5554 install"))).toHaveLength(3);
+
+    down = 99;
+    await expect(s.install(build.id, "qa_pixel")).rejects.toThrow(/adb install 오류: .*Failure calling service package/s);
+    expect(calls.filter((c) => c.startsWith("adb -s emulator-5554 install"))).toHaveLength(3 + 5);
   });
 
   it("adb 가 Failure 를 출력하면 종료 코드가 0 이어도 실패로 본다", async () => {

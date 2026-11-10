@@ -1,4 +1,4 @@
-import { evidenceChoice, type AgentUsage, type RemoteVerify, type SecretsList, type Settings, type SettingsState, type UpdateStatus } from "@qa/shared";
+import { evidenceChoice, type AgentUsage, type AppInfo, type DbStatus, type RemoteVerify, type SecretsList, type Settings, type SettingsState, type UpdateStatus } from "@qa/shared";
 import { ClaudeConnectionPanel } from "../components/ClaudeConnectionPanel";
 import { GitHubRepoPicker } from "../components/GitHubRepoPicker";
 import { SecretRow } from "../components/SecretRow";
@@ -88,7 +88,73 @@ export function SettingsPage() {
         onSaved={reload}
       />
       <VersionSection />
+      <AppInfoSection />
     </>
+  );
+}
+
+/** 앱 정보와 진단(IPC 확인). 문제를 알릴 때 함께 보낸다. 홈에 있던 것을 옮겼다 */
+function AppInfoSection() {
+  const [info, setInfo] = useState<AppInfo | null>(null);
+  const [db, setDb] = useState<DbStatus | null>(null);
+  const [message, setMessage] = useState("hello");
+  const [pong, setPong] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    window.qa.app.getInfo().then(setInfo, (e: unknown) => setError(errorMessage(e)));
+    window.qa.db.status().then(setDb, (e: unknown) => setError(errorMessage(e)));
+  }, []);
+
+  async function onPing(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    try {
+      setPong((await window.qa.app.ping({ message })).message);
+    } catch (e) {
+      setPong(null);
+      setError(errorMessage(e));
+    }
+  }
+
+  return (
+    <section className="card stack" aria-labelledby="app-info-title">
+      <h2 id="app-info-title">앱 정보</h2>
+      {info ? (
+        <dl>
+          <dt>버전</dt>
+          <dd data-testid="settings-app-version">{info.version}</dd>
+          <dt>Electron</dt>
+          <dd data-testid="electron-version">{info.versions.electron}</dd>
+          <dt>Node</dt>
+          <dd>{info.versions.node}</dd>
+          <dt>플랫폼</dt>
+          <dd>
+            {info.platform} / {info.arch}
+          </dd>
+          <dt>로컬 DB</dt>
+          <dd data-testid="db-status">{db ? `스키마 v${db.schemaVersion}/${db.latestVersion} · ${db.journalMode} · 테이블 ${db.tables.length}개` : "확인 중"}</dd>
+        </dl>
+      ) : (
+        <p className="hint">불러오는 중</p>
+      )}
+      <form className="row" onSubmit={onPing} aria-label="진단">
+        <label className="grow">
+          IPC 확인 메시지
+          <input value={message} onChange={(e) => setMessage(e.target.value)} maxLength={200} />
+        </label>
+        <button type="submit" className="secondary">
+          보내기
+        </button>
+        <output data-testid="pong">{pong}</output>
+      </form>
+      {error ? (
+        <p role="alert" className="error">
+          {error}
+        </p>
+      ) : null}
+      <p className="hint">문제를 알릴 때 이 정보를 함께 보내 주세요.</p>
+    </section>
   );
 }
 
