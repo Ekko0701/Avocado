@@ -124,6 +124,8 @@ interface Live {
   input: StartAuthorInput;
   driver: AgentProvider;
   phase: AuthorPhase;
+  /** 통과하지 못하고 끝났을 때 멈춘 단계 */
+  stoppedAt: AuthorJob["stoppedAt"];
   attempt: number;
   step: number;
   totalSteps: number;
@@ -272,6 +274,7 @@ export class AuthorService {
       input,
       driver,
       phase: "preparing",
+      stoppedAt: null,
       attempt: 0,
       step: 0,
       totalSteps: ctx.tc.steps,
@@ -321,6 +324,7 @@ export class AuthorService {
         tcId: live.input.tcId,
         target: live.input.target,
         phase: live.phase,
+        stoppedAt: live.stoppedAt,
         driver: live.driver,
         claudeRequest: live.claude && live.phase !== "done" ? claudeRequest(jobId, live.input) : null,
         claudeClient: live.claude?.client ?? null,
@@ -338,7 +342,7 @@ export class AuthorService {
     if (job.type !== "author") throw new AuthorError(`플로우 만들기 작업이 아니다: ${jobId}`);
     const stored = this.options.jobs.record(jobId);
     const input = StartAuthorInputSchema.parse(stored.input);
-    const output = AuthorJobSchema.pick({ submission: true, lint: true, replays: true, result: true })
+    const output = AuthorJobSchema.pick({ submission: true, lint: true, replays: true, result: true, stoppedAt: true })
       .extend({ questions: AuthorJobSchema.shape.submission.unwrap().shape.questions })
       .partial()
       .parse(stored.output ?? {});
@@ -348,6 +352,7 @@ export class AuthorService {
       tcId: input.tcId,
       target: input.target,
       phase: "done",
+      stoppedAt: output.stoppedAt ?? null,
       driver: job.model === CLAUDE_APP_MODEL ? "claude-app" : "api",
       claudeRequest: null,
       claudeClient: null,
@@ -587,6 +592,7 @@ export class AuthorService {
       finished = true;
       if (live.claude) live.claude.handlers = null;
       if (budget) jobs.recordUsage(jobId, budget.snapshot());
+      if (status !== "succeeded" && live.phase !== "done") live.stoppedAt = live.phase;
       jobs.finish(jobId, status, { output: this.storedOutput(live), error });
       live.phase = "done";
       this.log(live, `끝(${status})${error ? `: ${error}` : ""}`);
@@ -713,7 +719,7 @@ export class AuthorService {
     const submission = live.submission
       ? { yaml: live.submission.yaml, missingIdentifiers: live.submission.missingIdentifiers, questions: [...live.questions, ...live.submission.questions], confidence: live.submission.confidence }
       : null;
-    return { submission, questions: live.questions, lint: live.lint, replays: live.replays, result: live.result };
+    return { submission, questions: live.questions, lint: live.lint, replays: live.replays, result: live.result, stoppedAt: live.stoppedAt };
   }
 
   private authorInput(input: StartAuthorInput, ctx: AuthorContext, previous: { yaml: string; problems: string[] } | null): AuthorInput {

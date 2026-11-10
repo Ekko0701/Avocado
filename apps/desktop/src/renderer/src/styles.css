@@ -1883,6 +1883,350 @@ button.badge.cell.selected {
   }
 }
 
+/* ---- 플로우 만들기: 왼쪽 준비(만들 것·만들 곳) | 오른쪽 진행(단계 표시줄 + 지금 단계의 내용) ---- */
+.content.fill > .author-page {
+  flex: 1;
+  min-height: 0;
+  max-width: 1240px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.author-page > h1 {
+  margin: 6px 0 4px;
+}
+.author-panes {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 14px;
+}
+.author-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 14px;
+  overflow-y: auto;
+}
+.author-setup > label,
+.author-setup > hr {
+  flex: none;
+}
+.author-setup > p {
+  margin: 0;
+}
+.author-note {
+  font-size: 12px;
+}
+.author-ready {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+.author-ready li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.author-ready-mark {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.author-ready li.ok .author-ready-mark {
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success);
+}
+.author-ready li.wait .author-ready-mark {
+  box-shadow: inset 0 0 0 1.5px var(--warning);
+}
+.author-ready li.wait {
+  color: var(--muted);
+}
+.author-setup-foot {
+  margin-top: auto;
+  display: grid;
+  gap: 6px;
+  padding-top: 6px;
+}
+.author-setup-foot small {
+  font-size: 11px;
+  text-align: center;
+}
+.author-setup-foot p {
+  margin: 0;
+  font-size: 12px;
+}
+.author-progress {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.author-progress-head {
+  display: grid;
+  gap: 6px;
+  padding: 14px 18px 10px;
+}
+.author-progress-head h2 {
+  font-size: 15px;
+}
+.author-progress-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  padding: 16px 18px;
+}
+.author-intro {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+  max-width: 560px;
+}
+.author-intro li {
+  display: grid;
+  gap: 2px;
+}
+.author-intro .hint {
+  font-size: 12px;
+}
+.author-now {
+  display: grid;
+  gap: 8px;
+}
+.author-now-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.author-now-title strong {
+  flex: 1;
+  font-size: 14px;
+}
+.author-now-title .hint {
+  font-size: 12px;
+}
+.author-replays {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.author-replays strong {
+  color: var(--muted);
+}
+.author-tabs {
+  display: grid;
+  gap: 10px;
+}
+.author-tabs .log {
+  max-height: 300px;
+}
+.author-tabs .ln.time {
+  min-width: 6em;
+}
+/* 진행 중에는 타깃을 바꿀 수 없지만 고른 타깃은 또렷이 보인다 */
+.author-setup [role="tab"][aria-selected="true"]:disabled {
+  opacity: 1;
+}
+.author-questions {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+/* 단계 표시줄: 끝난 단계는 초록 체크, 지금 단계는 강조색 고리, 멈춘 단계는 빨강 */
+.phase-steps {
+  list-style: none;
+  margin: 0;
+  padding: 14px 18px 12px;
+  display: grid;
+  border-bottom: 0.5px solid var(--separator);
+}
+.step-node {
+  display: grid;
+  gap: 3px;
+  align-content: start;
+  min-width: 0;
+}
+.step-node-track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.step-node-mark {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--fill);
+  color: var(--muted);
+  transition:
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+}
+.step-node-line {
+  flex: 1;
+  height: 2px;
+  border-radius: 1px;
+  margin-right: 8px;
+  background: var(--fill);
+  transition: background-color 200ms ease;
+}
+.step-node strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.step-node small {
+  font-size: 11px;
+  color: var(--muted);
+  padding-right: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.step-node.pending strong {
+  color: var(--muted);
+}
+.step-node.done .step-node-mark {
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success);
+}
+.step-node.done .step-node-line {
+  background: color-mix(in srgb, var(--success) 45%, transparent);
+}
+.step-node.active .step-node-mark,
+.step-node.mine .step-node-mark {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.step-node.failed .step-node-mark {
+  background: var(--danger);
+  color: #fff;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent);
+}
+.step-node.active strong,
+.step-node.mine strong,
+.step-node.failed strong {
+  font-weight: 600;
+}
+.step-node.mine small {
+  color: var(--accent-text);
+}
+.step-node.failed small {
+  color: var(--danger);
+}
+
+/* 안내 판: 지금 할 일(강조색), 결과(초록), 멈춤(빨강) */
+.callout {
+  --callout: var(--accent);
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-row);
+  background: color-mix(in srgb, var(--callout) 8%, transparent);
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--callout) 30%, transparent);
+}
+.callout.success {
+  --callout: var(--success);
+}
+.callout.danger {
+  --callout: var(--danger);
+}
+.callout-text {
+  display: grid;
+  gap: 3px;
+  font-size: 12.5px;
+}
+.callout-text > strong {
+  font-size: 14px;
+}
+.callout.danger .callout-text > strong,
+.callout .error-text {
+  color: var(--danger);
+}
+.callout-text .hint {
+  font-size: 12px;
+}
+.callout-text code {
+  overflow-wrap: anywhere;
+}
+.callout-code {
+  display: block;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  background: var(--card-fill);
+  font-size: 12.5px;
+  line-height: 1.5;
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+.callout p {
+  margin: 0;
+  font-size: 12px;
+}
+.progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--fill);
+  overflow: hidden;
+}
+.progress > div {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width 300ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .step-node-mark,
+  .step-node-line,
+  .progress > div {
+    transition: none;
+  }
+}
+/* 본문이 좁으면 준비 아래에 진행을 두고 화면 전체를 스크롤한다 */
+@container main (max-width: 839px) {
+  .content.fill > .author-page {
+    flex: none;
+    min-height: auto;
+  }
+  .author-panes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .author-setup,
+  .author-progress,
+  .author-progress-body {
+    overflow: visible;
+  }
+  .author-setup-foot {
+    margin-top: 0;
+  }
+  .step-node small {
+    white-space: normal;
+  }
+}
+
 /* ---- 카드 안 구역: 제목 줄 오른쪽에 탭을 두고, 구역 사이는 가는 선으로 나눈다(실행 준비) ---- */
 .card-head {
   display: flex;

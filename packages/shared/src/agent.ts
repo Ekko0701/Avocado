@@ -56,6 +56,8 @@ export const AuthorJobSchema = z.strictObject({
   tcId: z.string(),
   target: z.enum(["ios", "android"]),
   phase: AuthorPhaseSchema,
+  /** 통과하지 못하고(실패·취소·예산 초과) 끝난 작업이 멈춘 단계. 진행 중이거나 성공했거나 예전 기록이면 null */
+  stoppedAt: AuthorPhaseSchema.exclude(["done"]).nullable().default(null),
   /** 누가 탐색하나: 앱이 API 로(api) 또는 사용자의 Claude 앱이 MCP 로(claude-app) */
   driver: z.enum(["api", "claude-app"]),
   /** Claude 앱 방식: Claude 에 붙여 넣을 요청 문장. 끝난 작업이나 API 방식은 null */
