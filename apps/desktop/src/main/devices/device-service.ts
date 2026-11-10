@@ -2,7 +2,7 @@ import type { Device, DeviceList, IosDeviceOptions } from "@qa/shared";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { CommandRunner } from "../setup/command";
-import { androidLocale, chooseAvd, parseAvdList, parseEmulatorSerials } from "./android";
+import { androidLocale, chooseAvd, parseAvdList, parseEmulatorSerials, parseRealSerials } from "./android";
 import {
   appleLocaleValues,
   findNewestDevice,
@@ -55,6 +55,7 @@ const ANIMATION_KEYS = ["window_animation_scale", "transition_animation_scale", 
  * - iOS: 앱 전용 시뮬레이터("Avocado <기종> (iOS <버전>)". 예전 "Avocado <기종>", "QA Tool <기종>"도 그대로 쓴다)를 고른 기종·iOS 런타임으로 만들고,
  *   언어와 동작 줄이기를 맞춘다. 사용자가 직접 만든 시뮬레이터는 목록에 넣지도, 바꾸지도, 지우지도 않는다.
  * - Android: 기존 AVD 를 화면 없이 설정 언어로 부팅하고 애니메이션을 끈다.
+ *   USB 로 연결된 실기기는 목록에만 넣는다. 언어·애니메이션 같은 기기 설정은 바꾸지 않고, 끄지도 않는다.
  * 언어가 실제로 적용되지 않으면 조용히 넘어가지 않고 오류를 낸다(ADR 0001 발견 2).
  */
 export class DeviceService {
@@ -138,6 +139,24 @@ export class DeviceService {
           osVersion: "",
           state: serial ? "booted" : "shutdown",
           managed: avd.startsWith("qa_"),
+          serial,
+          locale: null,
+        });
+      }
+    }
+    // 실기기는 adb 만 있으면 된다(에뮬레이터가 없는 Mac 에서도 쓴다)
+    if (existsSync(this.adb)) {
+      for (const serial of parseRealSerials((await this.options.run(this.adb, ["devices"])).stdout)) {
+        const model = (await this.adbShell(serial, ["getprop", "ro.product.model"])).stdout.trim();
+        const release = (await this.adbShell(serial, ["getprop", "ro.build.version.release"])).stdout.trim();
+        devices.push({
+          id: serial,
+          platform: "android",
+          kind: "real",
+          name: model || serial,
+          osVersion: release,
+          state: "booted",
+          managed: false,
           serial,
           locale: null,
         });
@@ -313,6 +332,7 @@ export class DeviceService {
       const r = await this.options.run("/usr/bin/xcrun", ["simctl", "shutdown", ref.id]);
       if (r.code !== 0 && !/current state: Shutdown/i.test(r.stderr)) throw new DeviceError(`시뮬레이터 종료 실패: ${r.stderr.trim()}`);
     } else {
+      if (parseRealSerials((await this.options.run(this.adb, ["devices"])).stdout).includes(ref.id)) throw new DeviceError("실기기는 앱에서 끄지 않는다");
       const serial = (await this.runningAvds()).get(ref.id);
       if (serial) {
         await this.options.run(this.adb, ["-s", serial, "emu", "kill"]);

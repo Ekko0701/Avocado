@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { UpdateStatusSchema, type UpdateStatus } from "../update";
+import { QaJobSchema, type QaJob } from "../qa-jobs";
 import { AgentJobRefSchema, AgentUsageSchema, AuthorJobSchema, ClaudeConnectionSchema, ClaudeJudgeJobSchema, JudgementSchema, StartAuthorInputSchema, type AgentUsage, type AuthorJob, type ClaudeConnection, type ClaudeJudgeJob, type Judgement, type StartAuthorInput } from "../agent";
 import {
   SecretNameSchema,
@@ -252,6 +253,7 @@ export const ipcContract = {
   "update:check": { input: z.undefined(), output: UpdateStatusSchema },
   "update:download": { input: z.undefined(), output: UpdateStatusSchema },
   "update:install": { input: z.undefined(), output: UpdateStatusSchema },
+  "qajobs:list": { input: z.undefined(), output: z.array(QaJobSchema) },
 } as const satisfies Record<string, { input: z.ZodType; output: z.ZodType }>;
 
 export type IpcContract = typeof ipcContract;
@@ -405,6 +407,11 @@ export interface QaApi {
     status(): Promise<ClaudeConnection>;
     /** Claude 데스크톱 앱 설정에 Avocado 를 등록한다(다른 항목은 그대로, 사본을 남긴다) */
     connectDesktop(): Promise<ClaudeConnection>;
+  };
+  /** QA 수정 작업 모니터링. Claude Code 가 MCP 로 보고한 진행을 읽기만 한다 */
+  qajobs: {
+    /** 최근 작업부터 */
+    list(): Promise<QaJob[]>;
   };
   /** 새 버전 확인과 받기(SHA-256·서명 확인 뒤에만 연다). 받은 .zip 은 재시작으로 적용한다(ADR 0027) */
   update: {

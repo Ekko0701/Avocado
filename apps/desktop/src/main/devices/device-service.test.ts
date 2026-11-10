@@ -275,3 +275,47 @@ describe("prepareAndroid", () => {
     await expect(service(a.run, { androidHome: join(sdk, "none") }).prepareAndroid({})).rejects.toThrow(/Android SDK/);
   });
 });
+
+describe("Android 실기기", () => {
+  /** USB 로 연결된 실기기 하나(R58M123)와 실행 중인 에뮬레이터 하나를 흉내 낸다. iOS 시뮬레이터는 없다 */
+  function fakeReal() {
+    const calls: string[] = [];
+    const adb = join(sdk, "platform-tools", "adb");
+    const run: CommandRunner = async (file, args) => {
+      const cmd = [file, ...args].join(" ");
+      calls.push(cmd);
+      if (args.slice(1).join(" ") === "list devices -j") return ok(JSON.stringify({ devices: {} }));
+      if (file.endsWith("/emulator/emulator") && args[0] === "-list-avds") return ok("qa_pixel_7_api35\n");
+      if (file === adb && args[0] === "devices") return ok("List of devices attached\nemulator-5554\tdevice\nR58M123\tdevice\nR3CN456\tunauthorized\n");
+      if (file === adb && args.join(" ") === "-s emulator-5554 emu avd name") return ok("qa_pixel_7_api35\nOK\n");
+      if (file === adb && args.join(" ") === "-s R58M123 shell getprop ro.product.model") return ok("SM-P610\n");
+      if (file === adb && args.join(" ") === "-s R58M123 shell getprop ro.build.version.release") return ok("13\n");
+      return { code: 1, stdout: "", stderr: `not mocked: ${cmd}` };
+    };
+    return { run, calls };
+  }
+
+  it("연결된 실기기를 기종 이름·OS 버전과 함께 목록에 넣고, 기기 설정은 건드리지 않는다", async () => {
+    const a = fakeReal();
+    const list = await service(a.run).list();
+    expect(list.devices).toContainEqual({
+      id: "R58M123",
+      platform: "android",
+      kind: "real",
+      name: "SM-P610",
+      osVersion: "13",
+      state: "booted",
+      managed: false,
+      serial: "R58M123",
+      locale: null,
+    });
+    expect(list.devices.filter((d) => d.kind === "real")).toHaveLength(1);
+    expect(a.calls.some((c) => c.includes("settings put"))).toBe(false);
+  });
+
+  it("실기기는 끄지 않는다", async () => {
+    const a = fakeReal();
+    await expect(service(a.run).shutdown({ platform: "android", id: "R58M123" })).rejects.toThrow(/실기기/);
+    expect(a.calls.some((c) => c.includes("emu kill"))).toBe(false);
+  });
+});

@@ -9,3 +9,4 @@ export * from "./remote";
 export * from "./workspace";
 export * from "./agent";
 export * from "./update";
+export * from "./qa-jobs";

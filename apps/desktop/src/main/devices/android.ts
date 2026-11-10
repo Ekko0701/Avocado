@@ -14,6 +14,15 @@ export function parseEmulatorSerials(stdout: string): string[] {
     .map(([serial]) => serial as string);
 }
 
+/** `adb devices` 출력에서 연결돼 쓸 수 있는(device 상태) 실기기 serial 만 뽑는다. 에뮬레이터와 승인 전(unauthorized)·오프라인 기기는 뺀다. */
+export function parseRealSerials(stdout: string): string[] {
+  return stdout
+    .split("\n")
+    .map((line) => line.trim().split(/\s+/))
+    .filter(([serial, state]) => serial !== undefined && !serial.startsWith("emulator-") && state === "device")
+    .map(([serial]) => serial as string);
+}
+
 export function parseAvdList(stdout: string): string[] {
   return stdout
     .split("\n")

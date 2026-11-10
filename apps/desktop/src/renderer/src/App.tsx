@@ -7,6 +7,7 @@ import { BuildsPage } from "./pages/BuildsPage";
 import { DevicesPage } from "./pages/DevicesPage";
 import { HomePage } from "./pages/HomePage";
 import { ResultsPage } from "./pages/ResultsPage";
+import { QaJobsPage } from "./pages/QaJobsPage";
 import { RunsPage } from "./pages/RunsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TestcasesPage } from "./pages/TestcasesPage";
@@ -16,7 +17,7 @@ import { TestAccountsPage } from "./pages/TestAccountsPage";
 import { missingAccountValues } from "./lib/account-values";
 import { onWorkspaceChanged } from "./lib/workspace-events";
 
-type Page = "home" | "workspace" | "testcases" | "author" | "runs" | "results" | "accounts" | "devices" | "builds" | "settings" | "setup";
+type Page = "home" | "workspace" | "testcases" | "author" | "runs" | "results" | "qajobs" | "accounts" | "devices" | "builds" | "settings" | "setup";
 
 /** 사이드바 구역(Fork 의 Branches·Remotes 처럼 작은 머리글로 묶는다). 머리글은 제목 요소가 아니다 */
 const NAV: { group: string | null; items: { id: Page; label: string; icon: IconName }[] }[] = [
@@ -33,6 +34,8 @@ const NAV: { group: string | null; items: { id: Page; label: string; icon: IconN
     items: [
       { id: "runs", label: "실행", icon: "play" },
       { id: "results", label: "결과", icon: "chart" },
+      // Claude Code 가 진행하는 QA 티켓 수정 작업의 진행 상황(사이드 브랜치)
+      { id: "qajobs", label: "QA 작업", icon: "sync" },
       // 플로우가 ${KEY} 로 쓰는 값. 실행하려면 갖춰야 해서 실행·결과 옆에 둔다
       { id: "accounts", label: "테스트 계정", icon: "key" },
     ],
@@ -140,6 +143,14 @@ export function App() {
           ) : null}
           {page === "runs" ? (
             <RunsPage
+              onOpenResults={(runId) => {
+                setResultsRunId(runId);
+                setPage("results");
+              }}
+            />
+          ) : null}
+          {page === "qajobs" ? (
+            <QaJobsPage
               onOpenResults={(runId) => {
                 setResultsRunId(runId);
                 setPage("results");

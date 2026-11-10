@@ -45,7 +45,7 @@ export function DevicesPage() {
     );
   }, [types, options]);
 
-  const avds = useMemo(() => list?.devices.filter((d) => d.platform === "android") ?? [], [list]);
+  const avds = useMemo(() => list?.devices.filter((d) => d.kind === "emulator") ?? [], [list]);
   useEffect(() => {
     if (avds.length === 0 || avds.some((d) => d.id === avd)) return;
     setAvd((avds.find((d) => d.managed) ?? avds[0])?.id ?? "");
@@ -86,7 +86,7 @@ export function DevicesPage() {
       <section className="card stack" aria-label="QA 기기 준비">
         <p className="hint">
           QA 기기를 설정의 기기 언어로 맞추고 애니메이션을 줄여 준비합니다. iOS 는 고른 기종·iOS 버전으로 앱 전용 시뮬레이터를 만들고(이미 있으면 다시 씁니다), Android 는
-          고른 AVD 를 화면 없이 띄웁니다. 직접 만든 시뮬레이터는 건드리지 않습니다.
+          고른 AVD 를 화면 없이 띄웁니다. 직접 만든 시뮬레이터는 건드리지 않습니다. USB 로 연결한 Android 실기기는 목록에 그대로 나오고, 기기 설정은 바꾸지 않습니다.
         </p>
         <div className="row">
           <label>
@@ -167,11 +167,15 @@ export function DevicesPage() {
               <div className="check-body">
                 <strong>{d.name}</strong>
                 <small className="hint">
-                  {d.platform === "ios" ? `iOS ${d.osVersion} 시뮬레이터` : `Android 에뮬레이터${d.serial ? ` · ${d.serial}` : ""}`}
+                  {d.platform === "ios"
+                    ? `iOS ${d.osVersion} 시뮬레이터`
+                    : d.kind === "real"
+                      ? `Android ${d.osVersion} 실기기 · ${d.id}`
+                      : `Android 에뮬레이터${d.serial ? ` · ${d.serial}` : ""}`}
                 </small>
               </div>
               <div className="row">
-                {d.state === "booted" ? (
+                {d.state === "booted" && d.kind !== "real" ? (
                   <button
                     type="button"
                     className="secondary"

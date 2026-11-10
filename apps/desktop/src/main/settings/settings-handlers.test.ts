@@ -198,6 +198,9 @@ function setup() {
     "update:download": () => {
       throw new Error("not used");
     },
+    "qajobs:list": () => {
+      throw new Error("not used");
+    },
     "agent:judge": () => {
       throw new Error("not used");
     },

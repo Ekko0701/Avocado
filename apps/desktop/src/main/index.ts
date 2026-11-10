@@ -28,6 +28,8 @@ import { ClaudeConnectService } from "./claude/claude-connect";
 import { createAvocadoMcpServer, routeMcpPorts } from "./claude/mcp-server";
 import { McpSocketHost } from "./claude/socket-host";
 import { JudgeService } from "./agent/judge-service";
+import { QaJobService } from "./qa/qa-job-service";
+import { QaJobStore } from "./qa/qa-job-store";
 import { createSquirrelInstaller } from "./update/native-updater";
 import { UpdateService } from "./update/update-service";
 import { UPDATE_RELEASE_REPO, UPDATE_SIGNER_TEAM_ID } from "./update/trust";
@@ -191,7 +193,8 @@ void app.whenReady().then(() => {
         .map((i) => settings.getSecret(i.name))
         .filter((v): v is string => v !== null),
     evidenceRoot: join(app.getPath("userData"), "evidence"),
-    trustedFlowRoots: [join(app.getPath("userData"), "workspaces")],
+    // qa-jobs/flows: QA 수정 작업이 MCP 로 보낸 플로우를 적어 두는 곳
+    trustedFlowRoots: [join(app.getPath("userData"), "workspaces"), join(app.getPath("userData"), "qa-jobs", "flows")],
     home: app.getPath("home"),
     androidHome: process.env["ANDROID_HOME"] || join(app.getPath("home"), "Library", "Android", "sdk"),
     run: runCommand,
@@ -315,12 +318,20 @@ void app.whenReady().then(() => {
       appendFileSync(join(logDir, "agent.log"), `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`, { mode: 0o600 });
     },
   });
+  const qaJobs = new QaJobService({
+    store: new QaJobStore(join(app.getPath("userData"), "qa-jobs", "jobs.json")),
+    devices,
+    runs,
+    flowsDir: join(app.getPath("userData"), "qa-jobs", "flows"),
+    evidenceRoot: join(app.getPath("userData"), "evidence"),
+  });
   onRunFinished = (runId) => void judge.autoJudge(runId);
   authorBusy = () => author.busy();
   // 각자의 Claude 앱 연결(D17, ADR 0022): Claude 앱이 nc 로 이 소켓에 붙어 author 도구를 부른다
   const mcpPort = routeMcpPorts([
     { tools: () => AuthorService.mcpTools(), call: (connection, name, args, signal) => author.mcpCall(connection, name, args, signal) },
     { tools: () => JudgeService.mcpTools(), call: (connection, name, args) => judge.mcpCall(connection, name, args) },
+    { tools: () => QaJobService.mcpTools(), call: (connection, name, args, signal) => qaJobs.mcpCall(connection, name, args, signal) },
   ]);
   const mcpHost = new McpSocketHost({
     socketPath: join(app.getPath("userData"), "mcp", "avocado.sock"),
@@ -384,7 +395,7 @@ void app.whenReady().then(() => {
   });
   registerIpcHandlers(
     ipcMain,
-    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, runPickers, runQueue: new RunQueue(runs), evidence, upload, remote, workspace, agentJobs, author, judge, claude, update }),
+    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, runPickers, runQueue: new RunQueue(runs), evidence, upload, remote, workspace, agentJobs, author, judge, claude, update, qaJobs }),
     isAllowed,
   );
   createMainWindow();

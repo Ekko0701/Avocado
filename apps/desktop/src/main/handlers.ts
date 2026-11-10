@@ -29,6 +29,7 @@ import type { JudgeService } from "./agent/judge-service";
 import type { ClaudeConnectService } from "./claude/claude-connect";
 import { createUpdateHandlers } from "./update/update-handlers";
 import type { UpdateService } from "./update/update-service";
+import type { QaJobService } from "./qa/qa-job-service";
 
 export interface HandlerDeps {
   settings: SettingsService;
@@ -50,6 +51,7 @@ export interface HandlerDeps {
   judge: JudgeService;
   claude: ClaudeConnectService;
   update: UpdateService;
+  qaJobs: QaJobService;
 }
 
 export function createHandlers(deps: HandlerDeps): IpcHandlers {
@@ -91,5 +93,6 @@ export function createHandlers(deps: HandlerDeps): IpcHandlers {
     "claude:status": () => deps.claude.status(),
     "claude:connectDesktop": () => deps.claude.connectDesktop(),
     ...createUpdateHandlers(deps.update),
+    "qajobs:list": () => deps.qaJobs.list(),
   };
 }
