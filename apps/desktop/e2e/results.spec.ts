@@ -296,3 +296,38 @@ test("보관 표시: 결과 화면에서 켜면 다시 열어도 유지된다 (P
   await expect(page.getByTestId("evidence-removed")).toHaveCount(0);
   await app.close();
 });
+
+test("결과 화면: 다른 실행으로 바꿔도 이전 실행의 시도로 증적을 찾지 않는다", async () => {
+  const first = await launchApp();
+  const { userDataDir } = first;
+  await first.app.close();
+  seed(userDataDir, [
+    { id: "run-fail", fixture: "ios-fail", tcId: "TC-0101", flowName: "TC-0101 설정 검색", target: "ios", status: "failed", createdAt: "2026-10-22T01:00:00.000Z" },
+    { id: "run-pass", fixture: "android-pass", tcId: "TC-0101", flowName: "TC-0101 설정 검색", target: "android", status: "passed", createdAt: "2026-10-22T00:30:00.000Z" },
+  ]);
+  const { app, page } = await launchApp({ userDataDir });
+  // main 이 받는 증적 요청을 적는다(화면이 실행과 시도를 짝 맞춰 보내는지)
+  await app.evaluate(({ ipcMain }) => {
+    const seen: string[] = [];
+    (globalThis as unknown as { evidenceRequests: string[] }).evidenceRequests = seen;
+    const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (event: unknown, ...args: unknown[]) => unknown> })._invokeHandlers;
+    const original = handlers.get("evidence:list");
+    if (!original) throw new Error("evidence:list 핸들러가 없다");
+    handlers.set("evidence:list", (event, ...args) => {
+      const input = args[0] as { runId: string; executionId: string };
+      seen.push(`${input.runId}/${input.executionId}`);
+      return original(event, ...args);
+    });
+  });
+  await page.getByRole("button", { name: "결과", exact: true }).click();
+  for (const id of ["run-fail", "run-pass", "run-fail", "run-pass"]) {
+    await page.getByTestId(`results-run-${id}`).click();
+    await expect(page.getByTestId("results-detail")).toContainText(id === "run-fail" ? "실패" : "통과");
+    await expect(page.getByTestId("log-view")).toBeVisible();
+  }
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  const requests = await app.evaluate(() => (globalThis as unknown as { evidenceRequests: string[] }).evidenceRequests);
+  expect(requests.length).toBeGreaterThan(0);
+  expect([...new Set(requests)].sort()).toEqual(["run-fail/run-fail-e1", "run-pass/run-pass-e1"]);
+  await app.close();
+});

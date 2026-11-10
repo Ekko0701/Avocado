@@ -115,14 +115,24 @@ test("워크스페이스에서 실행: TC·태그를 고르면 main 이 플로�
     await page.evaluate(() => window.qa.workspace.connect());
 
     await page.getByRole("button", { name: "실행", exact: true }).click();
-    const panel = page.getByTestId("workspace-run");
-    await expect(panel).toBeVisible();
+    // 실행할 것은 탭으로 고른다. 워크스페이스가 있으면 테스트 케이스가 기본이다
+    const panel = page.getByTestId("run-setup");
+    await expect(panel.getByRole("tab", { name: "테스트 케이스" })).toHaveAttribute("aria-selected", "true");
     await panel.getByLabel("실행할 앱").selectOption("demo");
+    await expect(panel.getByTestId("run-what-hint")).toContainText("플로우가 있는 테스트 케이스 1개");
     await panel.getByLabel("실행할 테스트 케이스").selectOption("TC-0101");
-    // 실행 중인 기기가 없으면 시작할 수 없다
+    // 실행 중인 기기가 없으면 시작할 수 없다. 실행 버튼은 하나이고 고른 방법에 따라 이름이 바뀐다
     await expect(panel.getByRole("button", { name: "테스트 케이스 실행" })).toBeDisabled();
+    await panel.getByRole("tab", { name: "태그" }).click();
     await panel.getByLabel("실행할 태그").selectOption("smoke");
+    await expect(panel.getByTestId("run-what-hint")).toContainText("smoke 태그가 붙은 테스트 케이스 1개를 차례로 실행합니다: TC-0101");
     await expect(panel.getByRole("button", { name: /태그로 차례 실행 \(1개\)/ })).toBeDisabled();
+    await panel.getByRole("tab", { name: "플로우 파일" }).click();
+    await expect(panel.getByRole("button", { name: "플로우 파일 고르기" })).toBeVisible();
+    await expect(panel.getByRole("button", { name: "플로우 실행" })).toBeDisabled();
+    // 기기·빌드는 방법과 상관없이 한 번만 고른다
+    await expect(panel.getByLabel("실행 기기")).toHaveCount(1);
+    await expect(panel.getByLabel("실행 빌드")).toHaveCount(1);
 
     // 화면을 우회한 요청: 없는 플로우는 main 이 거부하고, 기기가 없으면 차례 실행에 오류로 남는다
     expect(

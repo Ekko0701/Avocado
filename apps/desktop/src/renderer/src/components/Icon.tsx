@@ -1,9 +1,27 @@
 import type { ReactNode } from "react";
 
-export type IconName = "home" | "folder" | "doc" | "sparkle" | "play" | "chart" | "phone" | "box" | "wand" | "gear" | "sync" | "branch" | "key";
+export type IconName = "home" | "folder" | "doc" | "sparkle" | "play" | "chart" | "phone" | "box" | "wand" | "gear" | "sync" | "branch" | "key" | "close" | "commit" | "pull" | "check";
 
 /** 24×24 선 아이콘(직접 그림). 글자색을 따른다 */
 const PATHS: Record<IconName, ReactNode> = {
+  close: <path d="M6 6l12 12M18 6 6 18" />,
+  commit: (
+    <>
+      <circle cx="12" cy="12" r="3.5" />
+      <path d="M3 12h5.5M15.5 12H21" />
+    </>
+  ),
+  pull: (
+    <>
+      <circle cx="6" cy="6" r="2.2" />
+      <circle cx="6" cy="18" r="2.2" />
+      <circle cx="18" cy="18" r="2.2" />
+      <path d="M6 8.2v7.6" />
+      <path d="M18 15.8V10a3 3 0 0 0-3-3h-3" />
+      <path d="M14 4.5 11.5 7 14 9.5" />
+    </>
+  ),
+  check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   key: (
     <>
       <circle cx="8" cy="15" r="4" />

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { GitInspector } from "./components/GitInspector";
 import { Icon, type IconName } from "./components/Icon";
 import { Toolbar } from "./components/Toolbar";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -58,6 +59,8 @@ const NAV: { group: string | null; items: { id: Page; label: string; icon: IconN
 export function App() {
   const [page, setPage] = useState<Page | null>(null);
   const [resultsRunId, setResultsRunId] = useState<string | null>(null);
+  /** 오른쪽 Git 상태 인스펙터. 화면을 옮겨도 열린 채로 둔다 */
+  const [inspectorOpen, setInspectorOpen] = useState(false);
 
   // 마법사를 끝내지 않았으면 마법사부터 연다.
   useEffect(() => {
@@ -94,7 +97,7 @@ export function App() {
   }
 
   return (
-    <div className="window">
+    <div className={inspectorOpen ? "window with-inspector" : "window"}>
       {/* 떠 있는 유리 사이드바. 머리는 신호등 버튼 자리이자 창 끌기 영역이다 */}
       <aside className="sidebar glass">
         <div className="sidebar-head" />
@@ -124,8 +127,8 @@ export function App() {
         </nav>
       </aside>
       <div className="main">
-        <Toolbar page={page} onNavigate={go} />
-        <main className={page === "results" ? "content wide" : "content"}>
+        <Toolbar page={page} onNavigate={go} inspectorOpen={inspectorOpen} onToggleInspector={() => setInspectorOpen((open) => !open)} />
+        <main className={page === "results" ? "content wide" : page === "testcases" ? "content fill" : "content"}>
           <UpdateBanner />
           {page === "home" ? <HomePage /> : null}
           {page === "workspace" ? <WorkspacePage /> : null}
@@ -154,6 +157,7 @@ export function App() {
           {page === "setup" ? <SetupWizard onFinished={() => setPage("home")} onClose={() => setPage("home")} /> : null}
         </main>
       </div>
+      {inspectorOpen ? <GitInspector onClose={() => setInspectorOpen(false)} /> : null}
     </div>
   );
 }

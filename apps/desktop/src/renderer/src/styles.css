@@ -45,6 +45,7 @@
   --fill: rgba(120, 120, 128, 0.12);
   --fill-hover: rgba(120, 120, 128, 0.2);
   --selection-fill: rgba(0, 0, 0, 0.075); /* 사이드바에서 고른 줄 */
+  --inspector-fill: rgba(120, 120, 128, 0.09); /* 오른쪽 인스펙터 판. 창 바탕보다 한 단계 어둡다 */
   --accent: #0071e3;
   --accent-text: #0066cc;
   --on-accent: #ffffff;
@@ -55,6 +56,7 @@
 
   --toolbar-height: 52px;
   --sidebar-width: 232px;
+  --inspector-width: 336px;
   --gutter: 8px;
   /* 둥근 정도는 바깥(창) → 안쪽으로 동심원을 이룬다 */
   --radius-sidebar: 18px;
@@ -98,6 +100,7 @@
     --fill: rgba(118, 118, 128, 0.24);
     --fill-hover: rgba(118, 118, 128, 0.36);
     --selection-fill: rgba(255, 255, 255, 0.11);
+    --inspector-fill: rgba(255, 255, 255, 0.045);
     --accent: #0a84ff;
     --accent-text: #409cff;
     --danger: #ff6961;
@@ -650,7 +653,7 @@ button:active:not(:disabled) {
   filter: brightness(0.92);
 }
 /* 누름 피드백은 누르는 즉시. 넓은 줄(사이드바·목록·탭)은 크기를 바꾸지 않는다 */
-button:where(:not(.nav-item, .run-item, .step-row, .link, .cell, [role="tab"])):active:not(:disabled) {
+button:where(:not(.nav-item, .run-item, .step-row, .tc-row, .link, .cell, [role="tab"])):active:not(:disabled) {
   transform: scale(0.97);
   transition-duration: 60ms;
 }
@@ -1202,4 +1205,519 @@ fieldset.targets legend {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ---- Git 상태 인스펙터: 툴바 버튼으로 여닫는 오른쪽 유리 판. 열리면 본문이 그만큼 좁아진다 ---- */
+.window.with-inspector {
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--inspector-width);
+}
+.inspector.glass {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  margin: var(--gutter) var(--gutter) var(--gutter) 0;
+  border-radius: var(--radius-sidebar);
+  background: var(--inspector-fill);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: var(--sidebar-shadow);
+  overflow: hidden;
+  animation: inspector-in 180ms var(--ease-out);
+}
+@keyframes inspector-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+/* 창이 좁으면 본문을 줄이지 않고 그 위에 띄운다 */
+@media (max-width: 1099px) {
+  .window.with-inspector {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  }
+  .inspector.glass {
+    position: fixed;
+    inset: 0 0 0 auto;
+    z-index: 3;
+    width: var(--inspector-width);
+    background: var(--window-fill);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+}
+.inspector-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 8px 8px 16px;
+  -webkit-app-region: drag;
+}
+.inspector-head h2 {
+  flex: 1;
+  font-size: 15px;
+}
+.inspector-head .tool {
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+}
+.inspector-summary,
+.inspector-item {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-row);
+  background: var(--card-fill);
+  box-shadow:
+    inset 0 0 0 0.5px var(--card-edge),
+    0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.inspector-summary {
+  gap: 3px;
+  margin: 0 10px;
+}
+.inspector-summary .hint,
+.inspector-item .hint,
+.inspector-empty .hint {
+  font-size: 12px;
+}
+.inspector-summary-branch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 600;
+}
+.inspector-summary-branch svg {
+  flex: none;
+  color: var(--muted);
+}
+.inspector-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  padding: 14px 10px;
+}
+.inspector-section {
+  display: grid;
+  gap: 6px;
+}
+.inspector-section-head,
+.inspector-merged summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  /* 판 위 글자는 회색 대신 글자색을 옅게 써서 바탕이 바뀌어도 읽히게 한다 */
+  color: color-mix(in srgb, var(--text) 72%, transparent);
+}
+.inspector-section-head span:first-of-type,
+.inspector-merged summary span:first-of-type {
+  flex: 1;
+}
+.inspector-count {
+  font-variant-numeric: tabular-nums;
+}
+.inspector-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.inspector-item.inline {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+.inspector-item-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.inspector-item-head .hint {
+  margin-left: auto;
+}
+.inspector-item strong {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.inspector-ellipsis,
+.inspector-branch {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inspector-branch {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+.inspector-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-top: 2px;
+}
+button.small {
+  padding: 3px 12px;
+  font-size: 12px;
+}
+.inspector-form {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 0.5px solid var(--separator);
+}
+.inspector-form textarea {
+  resize: vertical;
+}
+.inspector-empty {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  text-align: center;
+  padding: 48px 20px;
+}
+.inspector-empty svg {
+  color: var(--success);
+}
+.inspector-empty strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.inspector-merged summary {
+  list-style: none;
+}
+.inspector-merged summary::-webkit-details-marker {
+  display: none;
+}
+.inspector-merged .inspector-list {
+  padding: 8px 6px 0;
+}
+.inspector-merged-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.inspector-body > p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 툴바의 Git 상태 버튼: 열려 있으면 강조색으로 채운다. 배지는 진행 중인 작업 브랜치 수 */
+.toolbar .tool.git-toggle {
+  gap: 7px;
+  padding: 0 12px;
+}
+.tool-count {
+  min-width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border-radius: var(--radius-capsule);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.toolbar .tool.git-toggle.on,
+.toolbar .tool.git-toggle.on:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.toolbar .tool.git-toggle.on svg {
+  color: var(--on-accent);
+  opacity: 1;
+}
+.tool.git-toggle.on .tool-count {
+  background: var(--on-accent);
+  color: var(--accent-text);
+}
+@media (prefers-reduced-motion: reduce) {
+  .inspector.glass {
+    animation: none;
+  }
+}
+
+/* ---- 테스트 케이스: 왼쪽 목록 | 오른쪽 편집. 칸마다 따로 스크롤하고 저장 줄은 편집 칸 아래에 붙어 있다 ---- */
+.main {
+  container: main / inline-size;
+}
+.content.fill {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 16px;
+}
+.content.fill > .tc-page {
+  flex: 1;
+  min-height: 0;
+  max-width: 1240px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.tc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tc-head h1 {
+  flex: 1;
+  margin: 6px 0 4px;
+}
+.tc-head select {
+  flex: none;
+}
+.tc-page > p {
+  margin: 0;
+}
+.tc-panes {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 304px minmax(0, 1fr);
+  gap: 14px;
+}
+.tc-list-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 12px;
+}
+.tc-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.tc-filters select {
+  font-size: 12px;
+  padding: 5px 6px;
+}
+.tc-list {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden auto;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  margin: 0 -4px;
+}
+.tc-group {
+  display: grid;
+  gap: 2px;
+}
+.tc-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.tc-group-head {
+  padding: 6px 10px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--text) 72%, transparent);
+}
+.tc-row {
+  display: grid;
+  gap: 3px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-row);
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.35;
+  text-align: left;
+}
+button.tc-row:hover:not(.active):not(:disabled) {
+  filter: none;
+  background: color-mix(in srgb, var(--selection-fill) 55%, transparent);
+}
+button.tc-row:active:not(:disabled) {
+  filter: none;
+}
+.tc-row.active {
+  background: var(--selection-fill);
+}
+.tc-row-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tc-row-head code {
+  font-weight: 600;
+}
+.tc-row-head .badge {
+  margin-left: auto;
+}
+.tc-row .hint,
+.tc-list-foot {
+  font-size: 11px;
+}
+.tc-list-foot,
+.tc-list-none {
+  padding: 0 6px;
+}
+.tc-detail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.tc-editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.tc-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px 18px 10px;
+}
+.tc-editor-head h2 {
+  flex: 1;
+  font-size: 15px;
+}
+.tc-editor-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 2px 18px 16px;
+}
+.tc-editor-foot {
+  display: grid;
+  gap: 8px;
+  padding: 12px 18px 14px;
+  border-top: 0.5px solid var(--separator);
+}
+.tc-editor-foot p.ok-text {
+  padding: 6px 12px;
+}
+.tc-editor-foot .checks {
+  max-height: 132px;
+  overflow-y: auto;
+}
+.tc-review {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 0.5px solid var(--separator);
+}
+.tc-idle {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.tc-empty {
+  flex: 1 0 220px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+}
+.tc-empty svg {
+  color: var(--muted);
+}
+.tc-empty strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.tc-empty .hint {
+  font-size: 12px;
+}
+/* 본문이 좁으면(창이 작거나 Git 상태 인스펙터를 열었을 때) 예전처럼 목록 아래에 편집을 두고 화면 전체를 스크롤한다.
+ * 칸마다 높이를 채우던 규칙(flex: 1, min-height: 0)을 모두 풀어 내용 높이대로 쌓는다 */
+@container main (max-width: 839px) {
+  .content.fill {
+    display: grid;
+    overflow-y: auto;
+    padding-bottom: 48px;
+  }
+  .content.fill > .tc-page {
+    flex: none;
+    min-height: auto;
+  }
+  .tc-panes {
+    flex: none;
+    min-height: auto;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tc-list-pane,
+  .tc-detail {
+    min-height: auto;
+  }
+  .tc-list {
+    flex: none;
+    max-height: 248px;
+  }
+  .tc-detail,
+  .tc-editor {
+    display: block;
+  }
+  .tc-editor,
+  .tc-editor-body,
+  .tc-idle {
+    flex: none;
+    min-height: auto;
+    overflow: visible;
+  }
+  .tc-empty {
+    flex: none;
+    min-height: 180px;
+  }
+}
+
+/* ---- 카드 안 구역: 제목 줄 오른쪽에 탭을 두고, 구역 사이는 가는 선으로 나눈다(실행 준비) ---- */
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.card-head h2 {
+  flex: 1;
+}
+.row.center {
+  align-items: center;
+}
+hr.rule {
+  width: 100%;
+  height: 0;
+  margin: 4px 0;
+  border: none;
+  border-top: 0.5px solid var(--separator);
 }

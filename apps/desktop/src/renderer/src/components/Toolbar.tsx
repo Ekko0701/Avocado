@@ -1,18 +1,21 @@
 import type { ClaudeConnection, WorkspaceStatus } from "@qa/shared";
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../lib/errors";
+import { inProgressCount } from "../lib/git-state";
 import { notifyWorkspaceChanged, onWorkspaceChanged } from "../lib/workspace-events";
 import { Icon } from "./Icon";
 
 /**
- * 본문 위에 뜬 툴바(Liquid Glass). 바 자체는 투명하고 항목은 유리 캡슐이다. 왼쪽 동기화, 가운데 워크스페이스·브랜치, 오른쪽 Claude 연결 상태.
+ * 본문 위에 뜬 툴바(Liquid Glass). 바 자체는 투명하고 항목은 유리 캡슐이다. 왼쪽 동기화, 가운데 워크스페이스·브랜치, 오른쪽 Claude 연결 상태와 Git 상태 인스펙터 버튼.
  * 본문은 툴바 밑으로 스크롤된다. 툴바 전체가 창 끌기 영역이고 버튼만 누를 수 있다. 상태는 8초마다, 창에 돌아올 때, 다른 화면이 바꿨다고 알릴 때 다시 읽는다.
  */
-export function Toolbar(props: { page: string | null; onNavigate: (page: "workspace" | "settings") => void }) {
+export function Toolbar(props: { page: string | null; onNavigate: (page: "workspace" | "settings") => void; inspectorOpen: boolean; onToggleInspector: () => void }) {
   const [ws, setWs] = useState<WorkspaceStatus | null>(null);
   const [claude, setClaude] = useState<ClaudeConnection | null>(null);
   const [provider, setProvider] = useState<"api" | "claude-app" | null>(null);
   const [syncing, setSyncing] = useState(false);
+  /** Git 상태 버튼의 배지: main 에 아직 없는 변경이 있는 작업 브랜치 수 */
+  const [inProgress, setInProgress] = useState(0);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
 
   const refresh = useCallback(() => {
@@ -21,22 +24,35 @@ export function Toolbar(props: { page: string | null; onNavigate: (page: "worksp
     window.qa.settings.get().then((s) => setProvider(s.settings.agent.provider), () => undefined);
   }, []);
 
+  // 작업 브랜치 수는 git 을 여러 번 불러 8초마다 읽지 않는다. 화면을 옮길 때, 창에 돌아올 때, 다른 화면이 바꿨다고 알릴 때만 읽는다
+  const refreshInProgress = useCallback(() => {
+    window.qa.workspace
+      .status()
+      .then((s) => (s.connected ? window.qa.workspace.branches().then((b) => inProgressCount(b.branches)) : 0))
+      .then(setInProgress, () => setInProgress(0));
+  }, []);
+
   useEffect(() => {
     refresh();
     const timer = setInterval(refresh, 8000);
-    const off = onWorkspaceChanged(refresh);
-    window.addEventListener("focus", refresh);
+    const changed = () => {
+      refresh();
+      refreshInProgress();
+    };
+    const off = onWorkspaceChanged(changed);
+    window.addEventListener("focus", changed);
     return () => {
       clearInterval(timer);
       off();
-      window.removeEventListener("focus", refresh);
+      window.removeEventListener("focus", changed);
     };
-  }, [refresh]);
+  }, [refresh, refreshInProgress]);
 
   // 다른 화면으로 옮기면 바로 다시 읽는다(그 화면에서 연결·브랜치를 바꿨을 수 있다)
   useEffect(() => {
     refresh();
-  }, [props.page, refresh]);
+    refreshInProgress();
+  }, [props.page, refresh, refreshInProgress]);
 
   useEffect(() => {
     if (!message) return;
@@ -107,6 +123,22 @@ export function Toolbar(props: { page: string | null; onNavigate: (page: "worksp
         <button type="button" className="tool status glass capsule" aria-label={`Claude 연결 상태: ${claudeText}`} onClick={() => props.onNavigate("settings")}>
           <span className={`dot ${claudeState}`} aria-hidden="true" />
           <span>{claudeText}</span>
+        </button>
+        <button
+          type="button"
+          className={props.inspectorOpen ? "tool status glass capsule git-toggle on" : "tool status glass capsule git-toggle"}
+          data-testid="toolbar-git"
+          aria-pressed={props.inspectorOpen}
+          aria-label={props.inspectorOpen ? "Git 상태 닫기" : inProgress > 0 ? `Git 상태 열기, 진행 중 ${inProgress}개` : "Git 상태 열기"}
+          onClick={props.onToggleInspector}
+        >
+          <Icon name="branch" size={16} />
+          <span>Git 상태</span>
+          {inProgress > 0 ? (
+            <span className="tool-count" data-testid="toolbar-git-count" aria-hidden="true">
+              {inProgress}
+            </span>
+          ) : null}
         </button>
       </div>
     </header>
