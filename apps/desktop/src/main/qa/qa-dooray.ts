@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from "node:fs";
 import { z } from "zod";
 
 export class QaDoorayError extends Error {
@@ -58,4 +59,24 @@ export class QaDooray {
     const items = await this.all(`/project/v1/projects/${encodeURIComponent(projectId)}/tags`);
     return items.flatMap((t) => (typeof t["name"] === "string" ? [t["name"]] : [])).sort((a, b) => a.localeCompare(b));
   }
+}
+
+const ClaudeConfigSchema = z.object({
+  mcpServers: z.record(z.string(), z.object({ env: z.record(z.string(), z.unknown()).optional() })).optional(),
+});
+
+/** Claude Code 설정 파일(~/.claude.json)에 등록된 MCP 서버 중 DOORAY_API_KEY 를 가진 것의 값. 없거나 읽을 수 없으면 null */
+export function findClaudeDoorayToken(file: string): string | null {
+  if (!existsSync(file)) return null;
+  let config: z.infer<typeof ClaudeConfigSchema>;
+  try {
+    config = ClaudeConfigSchema.parse(JSON.parse(readFileSync(file, "utf8")));
+  } catch {
+    return null;
+  }
+  for (const server of Object.values(config.mcpServers ?? {})) {
+    const value = server.env?.["DOORAY_API_KEY"];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
 }

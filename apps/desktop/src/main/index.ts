@@ -33,7 +33,7 @@ import { buildSecretSet, redactText } from "@qa/evidence";
 import { QA_WATCH_DOORAY_TOKEN_SECRET } from "@qa/shared";
 import { QaJobStore } from "./qa/qa-job-store";
 import { QaWatchService } from "./qa/qa-watch-service";
-import { QaDooray } from "./qa/qa-dooray";
+import { findClaudeDoorayToken, QaDooray } from "./qa/qa-dooray";
 import { createSquirrelInstaller } from "./update/native-updater";
 import { UpdateService } from "./update/update-service";
 import { UPDATE_RELEASE_REPO, UPDATE_SIGNER_TEAM_ID } from "./update/trust";
@@ -407,7 +407,11 @@ void app.whenReady().then(() => {
   });
   registerIpcHandlers(
     ipcMain,
-    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, runPickers, runQueue: new RunQueue(runs), evidence, upload, remote, workspace, agentJobs, author, judge, claude, update, qaJobs, qaWatch, qaDooray, pickFolder: () => pick({ title: "고칠 앱의 저장소 폴더 선택", properties: ["openDirectory"] }) }),
+    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, runPickers, runQueue: new RunQueue(runs), evidence, upload, remote, workspace, agentJobs, author, judge, claude, update, qaJobs, qaWatch, qaDooray, importDoorayToken: () => {
+      const token = findClaudeDoorayToken(join(app.getPath("home"), ".claude.json"));
+      if (token) settings.setSecret(QA_WATCH_DOORAY_TOKEN_SECRET, token);
+      return token !== null;
+    }, pickFolder: () => pick({ title: "고칠 앱의 저장소 폴더 선택", properties: ["openDirectory"] }) }),
     isAllowed,
   );
   createMainWindow();

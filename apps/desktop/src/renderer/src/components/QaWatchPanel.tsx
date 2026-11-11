@@ -86,6 +86,17 @@ export function QaWatchPanel() {
     }
   }
 
+  async function importToken() {
+    setMessage(null);
+    try {
+      const found = await window.qa.qawatch.importToken();
+      setTokenStored(found);
+      if (!found) setMessage({ text: "Claude Code 에 등록된 두레이 토큰을 찾지 못했습니다. 직접 붙여 넣어 주세요.", error: true });
+    } catch (e) {
+      fail(e);
+    }
+  }
+
   async function pickFolder(id: string) {
     try {
       const path = await window.qa.qawatch.pickFolder();
@@ -153,6 +164,9 @@ export function QaWatchPanel() {
             <input type="password" aria-label="두레이 토큰" placeholder="두레이 개인 API 토큰" autoComplete="off" value={tokenDraft} onChange={(e) => setTokenDraft(e.target.value)} />
             <button type="button" className="secondary" disabled={!tokenDraft.trim()} onClick={() => void saveToken(tokenDraft.trim())}>
               토큰 저장
+            </button>
+            <button type="button" className="secondary" onClick={() => void importToken()}>
+              Claude Code 에 저장된 토큰 가져오기
             </button>
           </>
         )}

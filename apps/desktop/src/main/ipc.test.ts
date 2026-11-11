@@ -230,6 +230,9 @@ const handlers: IpcHandlers = {
   "qawatch:pickFolder": () => {
     throw new Error("not used");
   },
+  "qawatch:importToken": () => {
+    throw new Error("not used");
+  },
   "qawatch:projects": () => {
     throw new Error("not used");
   },

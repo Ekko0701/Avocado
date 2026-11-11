@@ -262,6 +262,7 @@ export const ipcContract = {
   "qawatch:save": { input: QaWatchSettingsSchema, output: QaWatchStateSchema },
   "qawatch:pickFolder": { input: z.undefined(), output: z.string().nullable() },
   "qawatch:projects": { input: z.undefined(), output: z.array(QaWatchProjectSchema) },
+  "qawatch:importToken": { input: z.undefined(), output: z.boolean() },
   "qawatch:tags": { input: QaWatchProjectSchema.shape.id, output: z.array(z.string()) },
 } as const satisfies Record<string, { input: z.ZodType; output: z.ZodType }>;
 
@@ -435,6 +436,8 @@ export interface QaApi {
     pickFolder(): Promise<string | null>;
     /** 저장해 둔 두레이 토큰으로 내가 속한 프로젝트를 읽어 온다 */
     projects(): Promise<QaWatchProject[]>;
+    /** Claude Code 에 등록해 둔 두레이 토큰을 찾아 저장한다. 값은 화면으로 오지 않는다. 찾지 못하면 false */
+    importToken(): Promise<boolean>;
     /** 프로젝트의 태그 이름 */
     tags(projectId: string): Promise<string[]>;
   };

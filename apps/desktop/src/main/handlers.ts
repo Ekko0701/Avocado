@@ -56,6 +56,7 @@ export interface HandlerDeps {
   qaJobs: QaJobService;
   qaWatch: QaWatchService;
   qaDooray: QaDooray;
+  importDoorayToken: () => boolean;
   /** main 의 폴더 선택 창. 취소하면 null */
   pickFolder: () => Promise<string | null>;
 }
@@ -104,6 +105,7 @@ export function createHandlers(deps: HandlerDeps): IpcHandlers {
     "qawatch:save": (settings) => deps.qaWatch.save(settings),
     "qawatch:pickFolder": () => deps.pickFolder(),
     "qawatch:projects": () => deps.qaDooray.projects(),
+    "qawatch:importToken": () => deps.importDoorayToken(),
     "qawatch:tags": (projectId) => deps.qaDooray.tags(projectId),
   };
 }
