@@ -52,57 +52,85 @@ export function ClaudeConnectionPanel(props: { provider: AgentProvider; onSaved:
     );
   }
 
+  const desktopOk = status?.desktop.state === "configured";
   return (
     <div className="stack" data-testid="claude-connection">
-      <fieldset className="row">
-        <legend className="hint">플로우 만들기에 쓰는 Claude</legend>
+      {/* 방식 고르기: 라디오를 분할 단추 모양으로 보인다 */}
+      <fieldset className="segmented">
+        <legend className="hint">플로우 만들기·화면 판정에 쓰는 Claude</legend>
         <label>
           <input type="radio" name="agent-provider" checked={provider === "claude-app"} onChange={() => void saveProvider("claude-app")} />
-          내 Claude 앱(데스크톱·Code) · 각자의 요금제 한도
+          내 Claude 앱
         </label>
         <label>
           <input type="radio" name="agent-provider" checked={provider === "api"} onChange={() => void saveProvider("api")} />
-          Anthropic API 키 · 앱이 직접 호출, 월 비용 상한
+          Anthropic API 키
         </label>
       </fieldset>
+      <p className="hint claude-note">
+        {provider === "claude-app"
+          ? "각자 쓰는 Claude 데스크톱 앱이나 Claude Code 가 작업합니다. 사용량은 각자의 Claude 요금제 한도에서 나갑니다."
+          : "앱이 API 로 직접 호출합니다. 비용이 들고, 월 비용 상한을 넘으면 새 작업을 시작하지 않습니다."}
+      </p>
       {provider === "claude-app" ? (
         <>
+          <hr className="rule" />
+          <strong className="group-label">연결</strong>
           {status ? (
-            <p className={status.listening ? "hint" : "warning"} role={status.listening ? undefined : "alert"} data-testid="claude-listening">
-              {status.listening
-                ? `Claude 연결을 기다리는 중입니다. 연결된 Claude: ${status.clients.length ? status.clients.map((c) => `${c.name} ${c.version}`).join(", ") : "없음"}`
-                : `Claude 연결을 열지 못했습니다: ${status.error ?? "알 수 없는 이유"}`}
+            <p className={status.listening ? "claude-state" : "claude-state warning"} role={status.listening ? undefined : "alert"} data-testid="claude-listening">
+              <span className={status.listening ? (status.clients.length ? "dot on" : "dot waiting") : "dot off"} aria-hidden="true" />
+              <span>
+                {status.listening
+                  ? `Claude 연결을 기다리는 중입니다. 연결된 Claude: ${status.clients.length ? status.clients.map((c) => `${c.name} ${c.version}`).join(", ") : "없음"}`
+                  : `Claude 연결을 열지 못했습니다: ${status.error ?? "알 수 없는 이유"}`}
+              </span>
             </p>
           ) : null}
-          <div className="row">
-            <span>
-              Claude 데스크톱 앱: <span data-testid="claude-desktop-state">{status ? DESKTOP_STATE[status.desktop.state] : "확인 중"}</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => void connectDesktop()}
-              disabled={!status || status.desktop.state === "configured" || status.desktop.state === "missing_app" || status.desktop.state === "invalid"}
-            >
-              Claude 데스크톱 앱에 등록
-            </button>
-          </div>
-          {status ? (
-            <div className="stack">
-              <span>Claude Code (터미널·데스크톱 앱의 Code): 아래 명령을 터미널에서 한 번 실행합니다.</span>
+          <ul className="checks">
+            <li className="check">
+              <span className={desktopOk ? "badge ok" : "badge"}>{desktopOk ? "등록됨" : "등록 전"}</span>
+              <div className="check-body">
+                <strong>Claude 데스크톱 앱</strong>
+                <small className="hint" data-testid="claude-desktop-state">
+                  {status ? DESKTOP_STATE[status.desktop.state] : "확인 중"}
+                </small>
+              </div>
               <div className="row">
-                <code className="grow" data-testid="claude-code-command">
-                  {status.codeCommand}
-                </code>
-                <button type="button" className="secondary" onClick={() => copy(status.codeCommand)}>
-                  복사
+                <button
+                  type="button"
+                  className="small"
+                  onClick={() => void connectDesktop()}
+                  disabled={!status || status.desktop.state === "configured" || status.desktop.state === "missing_app" || status.desktop.state === "invalid"}
+                >
+                  Claude 데스크톱 앱에 등록
                 </button>
               </div>
-            </div>
-          ) : null}
-          <p className="hint">
-            Avocado 를 먼저 켠 뒤 Claude 를 엽니다(Claude 가 먼저 켜져 있었다면 데스크톱 앱은 다시 시작, Claude Code 는 /mcp 에서 다시 연결). Avocado 작업 중에는 Claude Code 의 권한
-            확인을 끄는 모드를 쓰지 않습니다. 화면 캡처와 화면 글자가 각자의 Claude 계정으로 갑니다. 화면에 민감한 정보가 있는 앱은 요금제와 "모델 개선에 참여" 설정을 먼저 확인합니다.
-          </p>
+            </li>
+            {status ? (
+              <li className="check">
+                <span className="badge">직접 실행</span>
+                <div className="check-body">
+                  <strong>Claude Code (터미널·데스크톱 앱의 Code)</strong>
+                  <small className="hint">아래 명령을 터미널에서 한 번 실행합니다.</small>
+                  <code className="claude-command" data-testid="claude-code-command">
+                    {status.codeCommand}
+                  </code>
+                </div>
+                <div className="row">
+                  <button type="button" className="secondary small" onClick={() => copy(status.codeCommand)}>
+                    복사
+                  </button>
+                </div>
+              </li>
+            ) : null}
+          </ul>
+          <hr className="rule" />
+          <strong className="group-label">알아 둘 점</strong>
+          <ul className="hint notes">
+            <li>Avocado 를 먼저 켠 뒤 Claude 를 엽니다. Claude 가 먼저 켜져 있었다면 데스크톱 앱은 다시 시작하고, Claude Code 는 /mcp 에서 다시 연결합니다.</li>
+            <li>Avocado 작업 중에는 Claude Code 의 권한 확인을 끄는 모드를 쓰지 않습니다.</li>
+            <li>화면 캡처와 화면 글자가 각자의 Claude 계정으로 갑니다. 화면에 민감한 정보가 있는 앱은 요금제와 "모델 개선에 참여" 설정을 먼저 확인합니다.</li>
+          </ul>
         </>
       ) : null}
       {provider === "api" ? props.apiKeySlot : null}

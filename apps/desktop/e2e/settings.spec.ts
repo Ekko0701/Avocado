@@ -22,6 +22,7 @@ test("비밀 저장: 상태만 보이고 값은 화면·파일 어디에도 없�
   const first = await launchApp();
   const { page, userDataDir } = first;
   await page.getByRole("button", { name: "설정", exact: true }).click();
+  await page.getByTestId("settings-nav-claude").click();
   // 기본(Claude 앱 방식)에서는 Anthropic API 키를 묻지 않는다. API 키 방식을 고르면 나온다(D17)
   await expect(page.getByTestId("secret-anthropicApiKey")).toHaveCount(0);
   await page.getByTestId("claude-connection").getByRole("radio", { name: /Anthropic API 키/ }).check();
@@ -66,6 +67,7 @@ test("비밀 저장: 상태만 보이고 값은 화면·파일 어디에도 없�
   // 재시작 후 상태 유지, 삭제 가능
   const second = await launchApp({ userDataDir });
   await second.page.getByRole("button", { name: "설정", exact: true }).click();
+  await second.page.getByTestId("settings-nav-claude").click();
   const again = second.page.getByTestId("secret-anthropicApiKey");
   await expect(again.getByTestId("secret-status")).toHaveText("저장됨");
   await again.getByRole("button", { name: "삭제" }).click();
@@ -73,10 +75,14 @@ test("비밀 저장: 상태만 보이고 값은 화면·파일 어디에도 없�
   await second.app.close();
 });
 
-test("일반 설정: 잘못된 값은 거부되고, 저장한 값은 재시작 후에도 유지된다", async () => {
+test("증적·기기 설정: 잘못된 값은 거부되고, 저장한 값은 재시작 후에도 유지된다", async () => {
   const first = await launchApp();
   await first.page.getByRole("button", { name: "설정", exact: true }).click();
-  const general = first.page.getByRole("form", { name: "일반" });
+  await first.page.getByTestId("settings-nav-evidence").click();
+  const general = first.page.getByRole("form", { name: "증적" });
+  // 양식인 구역도 머리말·본문·저장 줄이 구역 폭을 다 쓴다(왼쪽에서 시작한다)
+  const widths = await general.evaluate((form) => [form.clientWidth, ...[...form.children].map((c) => (c as HTMLElement).offsetWidth)]);
+  expect(widths.slice(1).every((w) => w === widths[0])).toBe(true);
 
   // 1단계 방어: 화면의 입력 검증이 제출을 막는다
   const retention = general.getByLabel("로컬 증적 보관 일수");
@@ -98,12 +104,24 @@ test("일반 설정: 잘못된 값은 거부되고, 저장한 값은 재시작 �
   expect((await first.page.evaluate(() => window.qa.settings.get())).settings.evidence.retentionDays).toBe(30);
 
   await general.getByLabel("로컬 증적 보관 일수").fill("14");
-  await general.getByLabel("QA 기기 언어").fill("en_US");
   await general.getByRole("button", { name: "저장" }).click();
   await expect(general.getByRole("status")).toHaveText("저장했습니다");
 
   await first.page.getByLabel(/외부 GitHub 증적 업로드/).check();
   await expect(first.page.getByLabel(/외부 GitHub 증적 업로드/)).toBeChecked();
+  // 구역 목록의 상태 줄이 저장한 값을 따라온다
+  await expect(first.page.getByTestId("settings-nav-evidence")).toContainText("14일 보관 · 업로드 켜짐");
+  // 올라가는 곳은 GitHub 구역에서 정한다
+  await expect(first.page.getByTestId("evidence-target")).toContainText("GitHub 조직을 정하면 보입니다");
+  await first.page.getByTestId("evidence-target").getByRole("button", { name: "GitHub 에서 바꾸기" }).click();
+  await expect(first.page.getByRole("region", { name: "GitHub" })).toBeVisible();
+
+  await first.page.getByTestId("settings-nav-devices").click();
+  const devices = first.page.getByRole("form", { name: "기기" });
+  await devices.getByLabel("QA 기기 언어").fill("en_US");
+  await devices.getByRole("button", { name: "저장" }).click();
+  await expect(devices.getByRole("status")).toHaveText("저장했습니다");
+  await expect(first.page.getByTestId("settings-nav-devices")).toContainText("언어 en_US");
   await first.app.close();
 
   const second = await launchApp({ userDataDir: first.userDataDir });
@@ -115,10 +133,14 @@ test("일반 설정: 잘못된 값은 거부되고, 저장한 값은 재시작 �
   await second.app.close();
 });
 
-test("LLM 사용량: 이번 달 agent_job 비용을 상한과 함께 보여 준다", async () => {
+test("LLM 사용량(API 키 방식): 이번 달 agent_job 비용을 상한과 함께 보여 준다", async () => {
   // 처음 실행으로 DB 마이그레이션을 마친 뒤, 지난달·이번 달 작업을 직접 넣는다(실제 API 호출 없음)
   const first = await launchApp();
   await first.page.getByRole("button", { name: "설정", exact: true }).click();
+  await first.page.getByTestId("settings-nav-claude").click();
+  // 사용량·상한은 API 키 방식에만 있다
+  await expect(first.page.getByTestId("agent-usage")).toHaveCount(0);
+  await first.page.getByTestId("claude-connection").getByRole("radio", { name: /Anthropic API 키/ }).check();
   await expect(first.page.getByTestId("agent-usage")).toContainText("$0.00 / 상한 $100.00 · 작업 0건");
   await first.app.close();
 
@@ -131,16 +153,21 @@ test("LLM 사용량: 이번 달 agent_job 비용을 상한과 함께 보여 준�
 
   const second = await launchApp({ userDataDir: first.userDataDir });
   await second.page.getByRole("button", { name: "설정", exact: true }).click();
+  await second.page.getByTestId("settings-nav-claude").click();
   const usage = second.page.getByTestId("agent-usage");
   await expect(usage).toContainText("$1.23 / 상한 $100.00 · 작업 1건");
   await expect(usage).toContainText("플로우 만들기 1건 $1.23");
 
   // 상한을 낮추면 바로 다시 집계하고, 넘었으면 경고한다
-  const general = second.page.getByRole("form", { name: "일반" });
-  await general.getByLabel("월 LLM 비용 상한 (USD, API 키 방식)").fill("1");
-  await general.getByRole("button", { name: "저장" }).click();
+  const claude = second.page.getByRole("region", { name: "Claude" });
+  await claude.getByLabel("월 LLM 비용 상한 (USD)").fill("1");
+  await claude.getByTestId("settings-foot").getByRole("button", { name: "저장" }).click();
   await expect(usage).toContainText("상한 $1.00");
   await expect(usage.getByRole("alert")).toContainText("상한에 닿아");
+  // 상한만 저장해도 고른 방식(API 키)은 그대로다. 구역 목록에는 상한에 닿은 비용이 보인다
+  await expect(claude.getByRole("radio", { name: /Anthropic API 키/ })).toBeChecked();
+  expect(await second.page.evaluate(() => window.qa.settings.get().then((s) => s.settings.agent.provider))).toBe("api");
+  await expect(second.page.getByTestId("settings-nav-claude")).toContainText("API 키를 넣지 않았습니다");
   await second.app.close();
 });
 
@@ -170,22 +197,34 @@ test("테스트 계정 값: 워크스페이스 accounts.yaml 의 앱·키 이름
     // 앱마다 accounts.yaml 의 키가 줄로 나온다(Demo 1개 + Sample 2개). 사이드바에 빈 값 수가 보인다
     await expect(section.getByTestId("account-values-summary")).toHaveText("아직 넣지 않은 값 3개");
     await expect(nav.getByTestId("nav-badge-accounts")).toHaveText("3");
+    // 왼쪽 목록에 앱마다 넣은 값 수가 보이고, 넣지 않은 값이 있는 첫 앱이 열려 있다
+    await expect(section.getByTestId("account-nav-demo")).toContainText("값 1개 중 0개 넣음");
+    await expect(section.getByTestId("account-nav-sample")).toContainText("값 2개 중 0개 넣음");
+    await expect(section.getByTestId("account-nav-demo")).toHaveAttribute("aria-current", "page");
     const demo = section.getByTestId("account-app-demo");
     await expect(demo).toContainText("signup 역할");
     const row = demo.getByTestId("secret-account:demo:DEMO_TEST_PASSWORD");
     await expect(row.getByTestId("secret-status")).toHaveText("저장 안 됨");
-    await expect(section.getByTestId("account-app-sample").getByTestId("secret-account:sample:SAMPLE_TEST_STUDENT_ID")).toBeVisible();
 
-    // 값만 넣으면 된다
-    await row.getByLabel("demo · DEMO_TEST_PASSWORD 입력").fill("e2e-local-pw-2026");
+    // 값만 넣으면 된다. 값을 다 넣어도 보던 앱이 그대로 열려 있다
+    await row.getByLabel("DEMO_TEST_PASSWORD 입력").fill("e2e-local-pw-2026");
     await row.getByRole("button", { name: "저장" }).click();
     await expect(row.getByTestId("secret-status")).toHaveText("저장됨");
     await expect(section.getByTestId("account-values-summary")).toHaveText("아직 넣지 않은 값 2개");
     await expect(nav.getByTestId("nav-badge-accounts")).toHaveText("2");
+    await expect(section.getByTestId("account-nav-demo")).toContainText("값 1개 모두 넣음");
+    await expect(section.getByTestId("account-nav-demo")).toHaveAttribute("aria-current", "page");
 
-    // 워크스페이스에 없는 키는 따로, 직접 추가는 접혀 있다
-    await expect(section.getByTestId("account-values-others")).toContainText("old-app · OLD_KEY");
+    // 다른 앱을 고르면 그 앱의 키가 나온다
+    await section.getByTestId("account-nav-sample").click();
+    await expect(section.getByTestId("account-app-sample").getByTestId("secret-account:sample:SAMPLE_TEST_STUDENT_ID")).toBeVisible();
     await expect(section.getByRole("form", { name: "테스트 계정 값 추가" })).toBeHidden();
+
+    // 워크스페이스에 없는 키와 직접 추가는 "그 밖의 값"에 있다
+    await expect(section.getByTestId("account-nav-others")).toContainText("워크스페이스에 없는 키 1개");
+    await section.getByTestId("account-nav-others").click();
+    await expect(section.getByTestId("account-values-others")).toContainText("old-app · OLD_KEY");
+    await expect(section.getByRole("form", { name: "테스트 계정 값 추가" })).toBeVisible();
     expect(await page.content()).not.toContain("e2e-local-pw-2026");
     await app.close();
   } finally {

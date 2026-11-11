@@ -59,7 +59,7 @@ beforeAll(async () => {
   ws = new WorkspaceService({
     root: join(dir, "workspaces"),
     remote: new GitHubProvider({ token: () => TOKEN, apiUrl: fake.url, webUrl: server.url }),
-    github: () => ({ owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-" }),
+    github: () => ({ owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-", evidenceRepo: null, evidenceOwner: null }),
     token: () => TOKEN,
     askpass: () => Promise.resolve(askpass),
     home,
@@ -492,7 +492,7 @@ describe("폴더 구조 바꾸기 (ADR 0032)", { timeout: 30_000 }, () => {
     legacy = new WorkspaceService({
       root: join(dir, "workspaces"),
       remote: new GitHubProvider({ token: () => TOKEN, apiUrl: fake.url, webUrl: server.url }),
-      github: () => ({ owner: "acme", workspaceRepo: "qa-legacy", evidenceRepoPrefix: "qa-evidence-" }),
+      github: () => ({ owner: "acme", workspaceRepo: "qa-legacy", evidenceRepoPrefix: "qa-evidence-", evidenceRepo: null, evidenceOwner: null }),
       token: () => TOKEN,
       askpass: () => Promise.resolve(askpass),
       home,

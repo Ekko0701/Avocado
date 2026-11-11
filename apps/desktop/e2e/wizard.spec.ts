@@ -106,7 +106,8 @@ test("마법사의 GitHub·워크스페이스 단계: 토큰으로 볼 수 있�
     const wsStep = page.getByRole("region", { name: "워크스페이스 단계" });
     await wsStep.getByRole("button", { name: "저장소 목록 불러오기" }).click();
     await wsStep.getByLabel("워크스페이스(테스트 케이스·플로우)").selectOption("acme/qa-workspace");
-    await wsStep.getByLabel("증적(연도별)").selectOption(`qa-evidence-${new Date().getFullYear()}`);
+    await wsStep.getByLabel("증적 저장소 고르기").selectOption(`acme/qa-evidence-${new Date().getFullYear()}`);
+    await expect(wsStep.getByTestId("github-picker-evidence-mode")).toContainText("연도별로 씁니다");
     await wsStep.getByRole("button", { name: "고른 저장소로 저장" }).click();
     await expect(wsStep.getByTestId("wizard-github-verify")).toContainText("로그인: qa-bot");
     await expect(wsStep.getByTestId("wizard-github-verify")).toContainText(`acme/qa-evidence-${new Date().getFullYear()}: 읽기·쓰기`);
@@ -123,7 +124,8 @@ test("마법사의 GitHub·워크스페이스 단계: 토큰으로 볼 수 있�
 
 test("마법사 첫 단계는 Claude 연결: 기본은 내 Claude 앱이고, API 키는 API 키 방식을 고를 때만 묻는다 (D17)", async () => {
   const { app, page } = await launchApp({ setupCompleted: false, toolsFile });
-  await expect(page.getByRole("list", { name: "마법사 단계" })).toContainText("1. Claude 연결");
+  await expect(page.getByRole("list", { name: "마법사 단계" })).toContainText("Claude 연결");
+  await expect(page.getByRole("list", { name: "마법사 단계" }).getByRole("listitem").first()).toHaveAttribute("data-state", "active");
   await expect(page.getByRole("list", { name: "마법사 단계" })).not.toContainText("Anthropic API 키");
   const step = page.getByRole("region", { name: "Claude 연결 단계" });
   await expect(step.getByRole("radio", { name: /내 Claude 앱/ })).toBeChecked();
@@ -139,5 +141,18 @@ test("마법사 첫 단계는 Claude 연결: 기본은 내 Claude 앱이고, API
   await expect(step.getByLabel("Anthropic API 키 입력")).toHaveCount(0);
   await step.getByRole("button", { name: "다음" }).click();
   await expect(page.getByRole("region", { name: "GitHub 토큰 단계" })).toBeVisible();
+  // 지나온 단계는 단계 표시줄에서 눌러 돌아갈 수 있고, 단계마다 아래 줄에 "나중에 하기"가 있다
+  const steps = page.getByRole("list", { name: "마법사 단계" });
+  await expect(steps.getByRole("listitem").first()).toHaveAttribute("data-state", "done");
+  await steps.getByRole("button", { name: /1단계 Claude 연결/ }).click();
+  await expect(page.getByRole("region", { name: "Claude 연결 단계" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Claude 연결 단계" }).getByRole("button", { name: "나중에 하기" })).toBeVisible();
+  // 머리말·본문·붙박이 줄이 폭을 다 쓰고 페이지는 창 높이에 맞는다
+  const widths = await page.getByRole("region", { name: "Claude 연결 단계" }).evaluate((pane) => [pane.clientWidth, ...[...pane.children].map((c) => (c as HTMLElement).offsetWidth)]);
+  expect(widths.slice(1).every((w) => w === widths[0])).toBe(true);
+  expect(await page.evaluate(() => {
+    const main = document.querySelector("main");
+    return main ? main.scrollHeight - main.clientHeight : -1;
+  })).toBeLessThanOrEqual(1);
   await app.close();
 });

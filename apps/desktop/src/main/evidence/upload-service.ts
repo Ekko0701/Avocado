@@ -1,6 +1,6 @@
 import { BundleError, buildSecretSet, buildSummaryBundle, checkBundle, MIN_SECRET_LENGTH, type JpegConverter, type SummaryBundle } from "@qa/evidence";
 import type { RemoteProvider } from "@qa/remote";
-import type { GitHubSettings, PrepareUploadInput, RunDetail, UploadPreview, UploadRecord } from "@qa/shared";
+import { evidenceRepoOf, type GitHubSettings, type PrepareUploadInput, type RunDetail, type UploadPreview, type UploadRecord } from "@qa/shared";
 import { randomUUID } from "node:crypto";
 import type { AppDatabase } from "../db/database";
 
@@ -57,23 +57,23 @@ export class UploadService {
     this.newId = options.newId ?? (() => randomUUID());
   }
 
-  private ensureAllowed(): { owner: string; prefix: string } {
+  /** 업로드가 허용됐는지 보고 그 해의 증적 저장소를 돌려준다(이름을 그대로 정했으면 그 저장소, 아니면 접두사 + 연도) */
+  private ensureAllowed(year: number): { owner: string; repo: string } {
     if (!this.options.uploadApproved()) throw new UploadError("증적 업로드가 조직 정책으로 승인되지 않았다(D11). 설정의 조직 정책에서 켠다");
-    const g = this.options.github();
-    if (!g.owner) throw new UploadError("GitHub 조직 이름을 먼저 설정한다");
-    return { owner: g.owner, prefix: g.evidenceRepoPrefix };
+    const repo = evidenceRepoOf(this.options.github(), year);
+    if (!repo) throw new UploadError("GitHub 조직 이름을 먼저 설정한다");
+    return repo;
   }
 
   async prepare(input: PrepareUploadInput): Promise<UploadPreview> {
-    const { owner, prefix } = this.ensureAllowed();
+    const date = this.now();
+    const repo = this.ensureAllowed(date.getFullYear());
     const run = this.options.runs.get(input.runId);
     if (run.status === "queued" || run.status === "running") throw new UploadError("끝나지 않은 실행은 올리지 않는다");
     const execution = run.executions.find((e) => e.id === input.executionId);
     if (!execution) throw new UploadError(`실행을 찾지 못했다: ${input.executionId}`);
     const previous = this.uploads(run.id, execution.id)[0];
     if (previous) throw new UploadError(`이미 올린 실행이다: ${previous.url}`);
-    const date = this.now();
-    const repo = { owner, repo: `${prefix}${date.getFullYear()}` };
     const secrets = this.options.secrets();
     // 너무 짧아 가릴 수 없는 값이 있으면 묶음에 그대로 남을 수 있다(redact.ts MIN_SECRET_LENGTH)
     if (buildSecretSet(secrets).unredactable > 0) throw new UploadError(`가릴 수 없을 만큼 짧은(${MIN_SECRET_LENGTH}자 미만) 비밀 값이 있어 올리지 않는다. 설정에서 확인한다`);
@@ -140,7 +140,8 @@ export class UploadService {
   }
 
   async upload(input: { bundleId: string; privacyConfirmed: true }): Promise<UploadRecord> {
-    this.ensureAllowed();
+    // 올릴 저장소는 미리보기 때 정한 것을 쓴다. 여기서는 정책과 설정이 그대로인지만 본다
+    this.ensureAllowed(this.now().getFullYear());
     if (input.privacyConfirmed !== true) throw new UploadError("개인정보 확인이 필요하다");
     this.sweep();
     const p = this.prepared.get(input.bundleId);

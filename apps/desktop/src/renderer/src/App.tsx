@@ -131,10 +131,19 @@ export function App() {
       </aside>
       <div className="main">
         <Toolbar page={page} onNavigate={go} inspectorOpen={inspectorOpen} onToggleInspector={() => setInspectorOpen((open) => !open)} />
-        <main className={page === "results" ? "content wide" : page === "testcases" ? "content fill" : "content"}>
+        <main className={page === "home" ? "content wide" : page === "testcases" || page === "results" || page === "author" || page === "settings" || page === "workspace" || page === "accounts" || page === "devices" || page === "builds" || page === "setup" ? "content fill" : "content"}>
           <UpdateBanner />
-          {page === "home" ? <HomePage /> : null}
-          {page === "workspace" ? <WorkspacePage /> : null}
+          {page === "home" ? (
+            <HomePage
+              onNavigate={go}
+              onOpenResults={(runId) => {
+                setResultsRunId(runId);
+                setPage("results");
+              }}
+              onOpenInspector={() => setInspectorOpen(true)}
+            />
+          ) : null}
+          {page === "workspace" ? <WorkspacePage onOpenInspector={() => setInspectorOpen(true)} onOpenSettings={() => go("settings")} /> : null}
           {page === "testcases" ? <TestcasesPage /> : null}
           {page === "author" ? (
             <AuthorPage
@@ -160,7 +169,7 @@ export function App() {
               }}
             />
           ) : null}
-          {page === "results" ? <ResultsPage key={resultsRunId ?? "none"} initialRunId={resultsRunId} /> : null}
+          {page === "results" ? <ResultsPage key={resultsRunId ?? "none"} initialRunId={resultsRunId} onOpenRuns={() => go("runs")} /> : null}
           {page === "accounts" ? <TestAccountsPage onOpenWorkspace={() => go("workspace")} onChanged={refreshMissing} /> : null}
           {page === "devices" ? <DevicesPage /> : null}
           {page === "builds" ? <BuildsPage /> : null}

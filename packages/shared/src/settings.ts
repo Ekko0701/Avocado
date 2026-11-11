@@ -12,11 +12,18 @@ export const LocaleSchema = z.string().regex(/^[a-z]{2}_[A-Z]{2}$/, "언어는 k
 export const GitHubOwnerSchema = z.string().regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/, "GitHub 조직 이름 형식이 아니다");
 export const RepoNameSchema = z.string().regex(/^[A-Za-z0-9_.-]{1,100}$/, "저장소 이름 형식이 아니다");
 export const GitHubSettingsSchema = z.strictObject({
-  /** 워크스페이스·증적 저장소의 주인(GitHub 개인 계정 또는 조직). 정하기 전(null)에는 GitHub 기능을 쓰지 않는다 */
+  /** 워크스페이스 저장소의 주인(GitHub 개인 계정 또는 조직). 정하기 전(null)에는 GitHub 기능을 쓰지 않는다 */
   owner: GitHubOwnerSchema.nullable(),
   workspaceRepo: RepoNameSchema,
-  /** 연도별 증적 저장소 접두사. 예: qa-evidence- → qa-evidence-2026 (PLAN 9.4) */
+  /** 연도별 증적 저장소 접두사. 예: qa-evidence- → qa-evidence-2026 (PLAN 9.4). evidenceRepo 를 정하면 쓰지 않는다 */
   evidenceRepoPrefix: z.string().regex(/^[A-Za-z0-9_.-]{1,90}$/, "저장소 이름 형식이 아니다"),
+  /**
+   * 이름을 그대로 쓰는 증적 저장소(ADR 0033). 정하면 해가 바뀌어도 이 저장소 하나에 올린다. null 이면 접두사 + 연도.
+   * 기본값을 둬서 이전 settings.json 도 그대로 읽힌다
+   */
+  evidenceRepo: RepoNameSchema.nullable().default(null),
+  /** 증적 저장소의 주인이 워크스페이스와 다를 때(ADR 0033). null 이면 owner 와 같다 */
+  evidenceOwner: GitHubOwnerSchema.nullable().default(null),
 });
 export type GitHubSettings = z.infer<typeof GitHubSettingsSchema>;
 /**
@@ -30,7 +37,22 @@ export function evidencePrefixOf(repo: string): { prefix: string; year: number }
   return prefix.success ? { prefix: prefix.data, year: Number(m[2]) } : null;
 }
 
-export const DEFAULT_GITHUB_SETTINGS: GitHubSettings = { owner: null, workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-" };
+export const DEFAULT_GITHUB_SETTINGS: GitHubSettings = { owner: null, workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-", evidenceRepo: null, evidenceOwner: null };
+
+/** 그 해에 증적을 올릴 저장소. 이름을 그대로 정했으면 그 저장소, 아니면 접두사 + 연도. 주인을 정하기 전이면 null */
+export function evidenceRepoOf(g: GitHubSettings, year: number): { owner: string; repo: string } | null {
+  const owner = g.evidenceOwner ?? g.owner;
+  return owner ? { owner, repo: g.evidenceRepo ?? `${g.evidenceRepoPrefix}${year}` } : null;
+}
+
+/**
+ * 고른(또는 직접 쓴) 증적 저장소 이름을 설정 값으로 바꾼다. 연도로 끝나면 연도별(접두사만 저장, 해마다 다음 저장소로 넘어간다),
+ * 아니면 그 이름 그대로(해가 바뀌어도 같은 저장소). 접두사는 연도별이 아닐 때 지금 값을 그대로 둔다
+ */
+export function evidenceChoice(repo: string, currentPrefix: string): Pick<GitHubSettings, "evidenceRepo" | "evidenceRepoPrefix"> {
+  const yearly = evidencePrefixOf(repo);
+  return yearly ? { evidenceRepo: null, evidenceRepoPrefix: yearly.prefix } : { evidenceRepo: repo, evidenceRepoPrefix: currentPrefix };
+}
 
 /**
  * 예전 settings.json 의 github.appRepo(새 버전을 확인하던 저장소)는 읽을 때 버린다.
@@ -105,12 +127,19 @@ export const DEFAULT_SETTINGS: Settings = {
   projects: {},
 };
 
+/**
+ * 부분 변경에는 기본값을 두지 않는다. 기본값이 있는 칸은 보내지 않아도 기본값으로 채워져서, 저장할 때 지금 값을 덮어쓴다
+ * (예: 월 상한만 저장했는데 방식이 Claude 앱으로 돌아감, 조직만 저장했는데 증적 저장소 이름이 지워짐)
+ */
+const AgentPatchSchema = SettingsSchema.shape.agent.extend({ provider: AgentProviderSchema }).partial();
+const GitHubPatchSchema = GitHubSettingsSchema.extend({ evidenceRepo: RepoNameSchema.nullable(), evidenceOwner: GitHubOwnerSchema.nullable() }).partial();
+
 export const SettingsPatchSchema = z.strictObject({
   evidence: SettingsSchema.shape.evidence.partial().optional(),
-  agent: SettingsSchema.shape.agent.partial().optional(),
+  agent: AgentPatchSchema.optional(),
   devices: SettingsSchema.shape.devices.partial().optional(),
   policy: SettingsSchema.shape.policy.partial().optional(),
-  github: GitHubSettingsSchema.partial().optional(),
+  github: GitHubPatchSchema.optional(),
 });
 export type SettingsPatch = z.infer<typeof SettingsPatchSchema>;
 

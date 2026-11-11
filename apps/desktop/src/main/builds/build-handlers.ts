@@ -7,6 +7,7 @@ type BuildChannel =
   | "builds:pickAndRegister"
   | "builds:runScript"
   | "builds:install"
+  | "builds:remove"
   | "builds:projectStatus"
   | "builds:linkProject"
   | "builds:unlinkProject"
@@ -35,6 +36,7 @@ export function createBuildHandlers(builds: BuildService, pickers: BuildPickers,
       return path ? builds.runScript(app, path) : null;
     },
     "builds:install": ({ buildId, deviceId }) => builds.install(buildId, deviceId),
+    "builds:remove": ({ buildId }) => builds.remove(buildId),
     // 프로젝트 경로도 렌더러가 넘기지 않는다. main 의 선택 창으로 고르고 각자 설정에 둔다(ADR 0025)
     "builds:projectStatus": ({ app, prepare }) => projects.status(app, { prepare }),
     "builds:linkProject": async ({ app }) => {

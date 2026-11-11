@@ -1,5 +1,5 @@
 import type { RequestReviewResult, SubflowList } from "@qa/shared";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { errorMessage } from "../lib/errors";
 import { notifyWorkspaceChanged } from "../lib/workspace-events";
 
@@ -52,10 +52,11 @@ const COMMON_COMMANDS: { names: string[]; use: string; example: string }[] = [
 
 /**
  * 공통 서브플로우(그 앱 플로우 폴더의 <타깃>/common/*.yaml) 편집. 있는 파일만 고친다.
- * 저장하면 main 이 서브플로우 규약을 검사하고 그 앱의 앱 설정 작업 브랜치에 커밋한다. PR 작성은 앱 설정과 같다
+ * 저장하면 main 이 서브플로우 규약을 검사하고 그 앱의 앱 설정 작업 브랜치에 커밋한다. PR 작성은 앱 설정과 같다.
+ * 어느 앱인지는 워크스페이스 화면의 왼쪽 목록이 정한다. 파일 목록 · 편집기 · 자주 쓰는 Maestro 명령을 나란히 둔다
  */
-export function SubflowEditor(props: { apps: { app: string; name: string }[] }) {
-  const [app, setApp] = useState(props.apps[0]?.app ?? "");
+export function SubflowEditor(props: { app: string; title: string; tabs?: ReactNode; hidden?: boolean; onCount?: (count: number | null) => void }) {
+  const { app, onCount } = props;
   const [list, setList] = useState<SubflowList | null>(null);
   const [path, setPath] = useState<string | null>(null);
   const [text, setText] = useState("");
@@ -71,14 +72,29 @@ export function SubflowEditor(props: { apps: { app: string; name: string }[] }) 
     setList(next);
     setPath(pick?.path ?? null);
     setText(pick?.text ?? "");
+    return next.subflows.length;
   }, []);
 
   useEffect(() => {
     setList(null);
     setPr(null);
     setSaved(null);
+    setMessage(null);
+    // 앱이 바뀌면 탭의 파일 수를 비웠다가 읽은 뒤 다시 알린다
+    onCount?.(null);
     if (!app) return;
-    load(app, null).catch((e: unknown) => setMessage(`서브플로우를 읽지 못했습니다: ${errorMessage(e)}`));
+    let stale = false;
+    load(app, null).then(
+      (count) => {
+        if (!stale) onCount?.(count);
+      },
+      (e: unknown) => setMessage(`서브플로우를 읽지 못했습니다: ${errorMessage(e)}`),
+    );
+    return () => {
+      stale = true;
+    };
+    // onCount 는 부모가 매번 새로 만드는 함수라 의존하지 않는다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [app, load]);
 
   const current = list?.subflows.find((s) => s.path === path) ?? null;
@@ -131,77 +147,92 @@ export function SubflowEditor(props: { apps: { app: string; name: string }[] }) 
   }
 
   return (
-    <form className="card stack" aria-label="공통 서브플로우" data-testid="subflows" onSubmit={(e) => void save(e)}>
-      <h2>공통 서브플로우</h2>
-      <p className="hint">
-        플로우가 runFlow 로 부르는 공통 단계입니다(앱의 플로우 폴더 아래 &lt;타깃&gt;/common/). 고치면 이 서브플로우를 부르는 모든 플로우에 적용됩니다. 저장하면 규약과 Maestro 문법(check-syntax)을 검사하고
-        그 앱의 앱 설정 작업 브랜치에 커밋하며, PR 작성을 누르면 PR 을 만듭니다. 실행이나 플로우 만들기가 진행 중일 때는 저장하지 않습니다.
-      </p>
-      <details data-testid="maestro-help">
-        <summary>자주 쓰는 Maestro 명령</summary>
-        <dl className="maestro-ref">
-          {COMMON_COMMANDS.map((c) => (
-            <div key={c.names[0]} className="maestro-ref-row">
-              <dt>
-                {c.names.map((n) => (
-                  <code key={n}>{n}</code>
-                ))}
-              </dt>
-              <dd>
-                <span>{c.use}</span>
-                <code>{c.example}</code>
-              </dd>
-            </div>
-          ))}
-        </dl>
-        <p className="hint">
-          모든 명령에 <code>optional: true</code>(실패해도 다음으로 간다)와 <code>label</code>(결과에 보일 이름)을 붙일 수 있습니다. Avocado 는 <code>runScript</code>·
-          <code>evalScript</code>(코드 실행), 좌표 탭(<code>point</code>), 웹 주소 <code>openLink</code>(딥링크만 됨), 계정 역할에 없는 <code>{"${KEY}"}</code> 를 막습니다. AI 명령(
-          <code>assertWithAI</code> 등)은 Maestro 클라우드가 필요하고 화면이 밖으로 나가므로 쓰지 않습니다.
-        </p>
-        <p className="hint">앱은 Maestro 2.11.0 을 씁니다. 문서에 있어도 이 버전에 없는 명령과 옵션은 동작하지 않습니다.</p>
-        <div className="row">
-          <button type="button" className="link" onClick={() => void window.qa.app.openExternal({ url: MAESTRO_COMMANDS_DOC }).catch((e: unknown) => setMessage(errorMessage(e)))}>
-            모든 명령과 옵션 (Maestro 공식 문서)
-          </button>
-          <button type="button" className="link" onClick={() => void window.qa.app.openExternal({ url: MAESTRO_SELECTORS_DOC }).catch((e: unknown) => setMessage(errorMessage(e)))}>
-            요소 고르는 법 (선택자)
-          </button>
+    <form className="card ws-detail" aria-label="공통 서브플로우" data-testid="subflows" hidden={props.hidden} onSubmit={(e) => void save(e)}>
+      <div className="ws-head">
+        <div className="ws-head-title">
+          <h2>{props.title}</h2>
+          {props.tabs}
         </div>
-      </details>
-      <div className="row">
-        <label>
-          앱
-          <select aria-label="서브플로우 앱" value={app} onChange={(e) => setApp(e.target.value)}>
-            {props.apps.map((a) => (
-              <option key={a.app} value={a.app}>
-                {a.name} ({a.app})
-              </option>
-            ))}
-          </select>
-        </label>
-        {list && list.subflows.length > 0 ? (
-          <label className="grow">
-            파일
-            <select aria-label="서브플로우 파일" value={path ?? ""} onChange={(e) => pick(e.target.value)}>
-              {list.subflows.map((s) => (
-                <option key={s.path} value={s.path}>
-                  {s.target}/common/{s.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
+        <small className="hint">
+          플로우가 runFlow 로 부르는 공통 단계입니다(앱의 플로우 폴더 아래 &lt;타깃&gt;/common/). 고치면 이 서브플로우를 부르는 모든 플로우에 적용됩니다. 실행이나 플로우 만들기가 진행 중일 때는 저장하지
+          않습니다.
+        </small>
       </div>
-      {list === null ? <p>불러오는 중</p> : null}
-      {list && list.subflows.length === 0 ? <p className="hint">이 앱에는 공통 서브플로우가 없습니다.</p> : null}
-      {list?.branch ? <small className="hint">진행 중인 앱 설정 브랜치 {list.branch} 에서 읽었습니다.</small> : null}
-      {current ? (
-        <>
-          <small className="hint" data-testid="subflow-used-by">
-            {current.usedBy.length > 0 ? `이 서브플로우를 부르는 플로우: ${current.usedBy.join(", ")}` : "이 서브플로우를 부르는 플로우가 없습니다."}
-          </small>
-          <textarea className="editor" aria-label="서브플로우 내용" value={text} onChange={(e) => setText(e.target.value)} rows={16} spellCheck={false} />
+      <div className="ws-body ws-subflow">
+        <div className="ws-files" aria-label="서브플로우 파일">
+          <strong className="group-label">파일</strong>
+          {list === null ? <p className="hint">불러오는 중</p> : null}
+          {list && list.subflows.length === 0 ? <p className="hint">이 앱에는 공통 서브플로우가 없습니다.</p> : null}
+          {list?.subflows.map((s) => (
+            <button
+              key={s.path}
+              type="button"
+              className={s.path === path ? "run-item selected" : "run-item"}
+              aria-current={s.path === path ? "true" : undefined}
+              data-testid={`subflow-file-${s.target}-${s.name}`}
+              title={`${s.target}/common/${s.name}`}
+              onClick={() => pick(s.path)}
+            >
+              <span className="run-item-body">
+                <strong>{s.name}</strong>
+                <small className="hint">{s.target}/common</small>
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="ws-editor">
+          {current ? (
+            <>
+              <strong className="group-label">
+                {current.target}/common/{current.name}
+              </strong>
+              <textarea className="editor" aria-label="서브플로우 내용" value={text} onChange={(e) => setText(e.target.value)} rows={16} spellCheck={false} />
+              <small className="hint" data-testid="subflow-used-by">
+                {current.usedBy.length > 0 ? `이 서브플로우를 부르는 플로우: ${current.usedBy.join(", ")}` : "이 서브플로우를 부르는 플로우가 없습니다."}
+              </small>
+              <small className="hint">저장할 때 규약과 Maestro 문법(check-syntax)을 검사합니다.</small>
+            </>
+          ) : null}
+          {list?.branch ? <small className="hint">진행 중인 앱 설정 브랜치 {list.branch} 에서 읽었습니다.</small> : null}
+        </div>
+
+        <aside className="ws-ref" aria-label="자주 쓰는 Maestro 명령" data-testid="maestro-help">
+          <strong className="group-label">자주 쓰는 Maestro 명령</strong>
+          <dl className="maestro-ref">
+            {COMMON_COMMANDS.map((c) => (
+              <div key={c.names[0]} className="maestro-ref-row">
+                <dt>
+                  {c.names.map((n) => (
+                    <code key={n}>{n}</code>
+                  ))}
+                </dt>
+                <dd>
+                  <span>{c.use}</span>
+                  <code>{c.example}</code>
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <p className="hint">
+            모든 명령에 <code>optional: true</code>(실패해도 다음으로 간다)와 <code>label</code>(결과에 보일 이름)을 붙일 수 있습니다. Avocado 는 <code>runScript</code>·
+            <code>evalScript</code>(코드 실행), 좌표 탭(<code>point</code>), 웹 주소 <code>openLink</code>(딥링크만 됨), 계정 역할에 없는 <code>{"${KEY}"}</code> 를 막습니다. AI 명령(
+            <code>assertWithAI</code> 등)은 Maestro 클라우드가 필요하고 화면이 밖으로 나가므로 쓰지 않습니다.
+          </p>
+          <p className="hint">앱은 Maestro 2.11.0 을 씁니다. 문서에 있어도 이 버전에 없는 명령과 옵션은 동작하지 않습니다.</p>
+          <div className="ws-ref-links">
+            <button type="button" className="link" onClick={() => void window.qa.app.openExternal({ url: MAESTRO_COMMANDS_DOC }).catch((e: unknown) => setMessage(errorMessage(e)))}>
+              모든 명령과 옵션 (Maestro 공식 문서)
+            </button>
+            <button type="button" className="link" onClick={() => void window.qa.app.openExternal({ url: MAESTRO_SELECTORS_DOC }).catch((e: unknown) => setMessage(errorMessage(e)))}>
+              요소 고르는 법 (선택자)
+            </button>
+          </div>
+        </aside>
+      </div>
+
+      <div className="ws-foot">
+        {current ? (
           <div className="row">
             <label className="grow">
               변경 요약
@@ -221,19 +252,19 @@ export function SubflowEditor(props: { apps: { app: string; name: string }[] }) 
               </button>
             ) : null}
           </div>
-        </>
-      ) : null}
-      {message ? (
-        <p role="status" data-testid="subflow-message">
-          {message}
-        </p>
-      ) : null}
-      {pr ? (
-        <p role="status" className="ok-text" data-testid="subflow-pr">
-          {pr.existing ? `열린 PR #${pr.number} 에 새 커밋을 올렸습니다: ` : `PR #${pr.number} 을 만들었습니다(${pr.branch}): `}
-          <code>{pr.url}</code>
-        </p>
-      ) : null}
+        ) : null}
+        {message ? (
+          <p role="status" data-testid="subflow-message">
+            {message}
+          </p>
+        ) : null}
+        {pr ? (
+          <p role="status" className="ok-text" data-testid="subflow-pr">
+            {pr.existing ? `열린 PR #${pr.number} 에 새 커밋을 올렸습니다: ` : `PR #${pr.number} 을 만들었습니다(${pr.branch}): `}
+            <code>{pr.url}</code>
+          </p>
+        ) : null}
+      </div>
     </form>
   );
 }

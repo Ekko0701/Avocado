@@ -1,5 +1,5 @@
 import type { AgentProvider, Device, GitHubSettings, InstallProgress, MaestroVerify, RemoteVerify, SecretsList, SetupReport, ToolId, WorkspaceStatus } from "@qa/shared";
-import { useCallback, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { ClaudeConnectionPanel } from "../components/ClaudeConnectionPanel";
 import { GitHubRepoPicker } from "../components/GitHubRepoPicker";
 import { SecretRow } from "../components/SecretRow";
@@ -18,6 +18,9 @@ const PHASE_TEXT: Record<InstallProgress["phase"], string> = {
   done: "완료",
   error: "실패",
 };
+
+/** "나중에 하기"(마법사 닫기). 단계마다 아래 붙박이 줄에 둔다 */
+const WizardClose = createContext<(() => void) | null>(null);
 
 function mb(bytes: number): string {
   return `${(bytes / 1_048_576).toFixed(1)}MB`;
@@ -55,14 +58,30 @@ export function SetupWizard(props: { onFinished: () => void; onClose: () => void
   const github = secret("githubToken");
 
   return (
-    <>
+    <WizardClose.Provider value={props.onClose}>
+    <div className="split-page wizard-page">
       <h1>설정 마법사</h1>
-      <ol className="stepper" aria-label="마법사 단계">
-        {STEPS.map((title, i) => (
-          <li key={title} className={i === step ? "current" : i < step ? "done" : ""} aria-current={i === step ? "step" : undefined}>
-            {i + 1}. {title}
-          </li>
-        ))}
+      <ol className="card phase-steps" aria-label="마법사 단계" style={{ gridTemplateColumns: `repeat(${STEPS.length}, minmax(0, 1fr))` }}>
+        {STEPS.map((title, i) => {
+          const state = i < step ? "done" : i === step ? "active" : "pending";
+          return (
+            <li key={title} className={`step-node ${state}`} data-state={state} aria-current={i === step ? "step" : undefined}>
+              <div className="step-node-track">
+                {/* 지나온 단계는 눌러서 돌아갈 수 있다 */}
+                {i < step ? (
+                  <button type="button" className="step-node-mark" aria-label={`${i + 1}단계 ${title}(으)로 돌아가기`} onClick={() => setStep(i)}>
+                    <CheckMark />
+                  </button>
+                ) : (
+                  <span className="step-node-mark">{i + 1}</span>
+                )}
+                {i < STEPS.length - 1 ? <span className="step-node-line" /> : null}
+              </div>
+              <strong>{title}</strong>
+              <small>{i < step ? "끝" : i === step ? "지금" : ""}</small>
+            </li>
+          );
+        })}
       </ol>
       {error ? (
         <p role="alert" className="error">
@@ -71,10 +90,10 @@ export function SetupWizard(props: { onFinished: () => void; onClose: () => void
       ) : null}
 
       {step === 0 && anthropic && provider ? (
-        <section className="card stack" aria-label="Claude 연결 단계">
+        <StepCard label="Claude 연결 단계" step={0} nav={<WizardNav onNext={() => setStep(1)} nextLabel="다음" />}>
           <p className="hint">
             플로우 만들기와 화면 판정은 각자 쓰는 Claude(데스크톱 앱·Claude Code)가 하고, 사용량은 각자의 Claude 요금제 한도에서 나갑니다. 여기서 Claude 에 Avocado 를 등록합니다.
-            지금 못 하면 나중에 설정의 "Claude 연결"에서 할 수 있습니다.
+            지금 못 하면 나중에 설정의 Claude 구역에서 할 수 있습니다.
           </p>
           <ClaudeConnectionPanel
             key={provider}
@@ -82,18 +101,16 @@ export function SetupWizard(props: { onFinished: () => void; onClose: () => void
             onSaved={reloadProvider}
             apiKeySlot={<SecretRow status={anthropic} label="Anthropic API 키" disabled={!secrets?.encryptionAvailable} onChanged={reloadSecrets} />}
           />
-          <WizardNav onNext={() => setStep(1)} nextLabel="다음" />
-        </section>
+        </StepCard>
       ) : null}
 
       {step === 1 && github ? (
-        <section className="card stack" aria-label="GitHub 토큰 단계">
+        <StepCard label="GitHub 토큰 단계" step={1} nav={<WizardNav onBack={() => setStep(0)} onNext={() => setStep(2)} nextLabel={github.stored ? "다음" : "건너뛰기"} />}>
           <p className="hint">
             워크스페이스(qa-workspace)와 증적 저장소에 접근합니다. 권한: Contents·Pull requests 읽기·쓰기, Metadata 읽기. 조직 이름과 연결 확인은 설정 메뉴의 GitHub 에서 합니다(docs/user-guide/install.md 3절).
           </p>
           <SecretRow status={github} label="GitHub 토큰" disabled={!secrets?.encryptionAvailable} onChanged={reloadSecrets} />
-          <WizardNav onBack={() => setStep(0)} onNext={() => setStep(2)} nextLabel={github.stored ? "다음" : "건너뛰기"} />
-        </section>
+        </StepCard>
       ) : null}
 
       {step === 2 ? <EnvironmentStep onBack={() => setStep(1)} onNext={() => setStep(3)} /> : null}
@@ -106,18 +123,43 @@ export function SetupWizard(props: { onFinished: () => void; onClose: () => void
         <FinishStep onBack={() => setStep(4)} onFinished={props.onFinished} keysMissing={!github?.stored || (provider === "api" && !anthropic?.stored)} />
       ) : null}
 
-      <p>
-        <button type="button" className="secondary" onClick={props.onClose}>
-          나중에 하기
-        </button>
-      </p>
-    </>
+    </div>
+    </WizardClose.Provider>
+  );
+}
+
+function CheckMark() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  );
+}
+
+/** 단계 하나: 제목 · 본문(스크롤) · 아래 붙박이 줄(나중에 하기, 이전, 다음) */
+function StepCard(props: { label: string; step: number; nav: ReactNode; children: ReactNode }) {
+  return (
+    <section className="card pane wizard-step" aria-label={props.label}>
+      <div className="pane-head">
+        <h2>
+          {props.step + 1}. {STEPS[props.step]}
+        </h2>
+      </div>
+      <div className="pane-body">{props.children}</div>
+      <div className="pane-foot">{props.nav}</div>
+    </section>
   );
 }
 
 function WizardNav(props: { onBack?: () => void; onNext: () => void; nextLabel: string; nextDisabled?: boolean }) {
+  const close = useContext(WizardClose);
   return (
-    <div className="row">
+    <>
+      {close ? (
+        <button type="button" className="secondary wizard-later" onClick={close}>
+          나중에 하기
+        </button>
+      ) : null}
       {props.onBack ? (
         <button type="button" className="secondary" onClick={props.onBack}>
           이전
@@ -126,7 +168,7 @@ function WizardNav(props: { onBack?: () => void; onNext: () => void; nextLabel: 
       <button type="button" onClick={props.onNext} disabled={props.nextDisabled}>
         {props.nextLabel}
       </button>
-    </div>
+    </>
   );
 }
 
@@ -159,7 +201,7 @@ function WorkspaceStep(props: { tokenStored: boolean; onBack: () => void; onNext
   }
 
   return (
-    <section className="card stack" aria-label="워크스페이스 단계">
+    <StepCard label="워크스페이스 단계" step={3} nav={<WizardNav onBack={props.onBack} onNext={props.onNext} nextLabel={ws?.connected ? "다음" : "건너뛰기"} />}>
       <p className="hint">
         토큰으로 볼 수 있는 저장소 목록에서 워크스페이스(테스트 케이스·플로우)와 연도별 증적 저장소를 고르고, 연결을 확인한 뒤 워크스페이스를 받습니다. 토큰이 없으면 건너뛰고 나중에
         합니다. 목록에 없는 저장소는 설정의 GitHub 에서 직접 입력할 수 있습니다.
@@ -207,8 +249,7 @@ function WorkspaceStep(props: { tokenStored: boolean; onBack: () => void; onNext
           {message}
         </p>
       ) : null}
-      <WizardNav onBack={props.onBack} onNext={props.onNext} nextLabel={ws?.connected ? "다음" : "건너뛰기"} />
-    </section>
+    </StepCard>
   );
 }
 
@@ -231,7 +272,7 @@ function DeviceStep(props: { onBack: () => void; onNext: () => void }) {
   }
 
   return (
-    <section className="card stack" aria-label="QA 기기 단계">
+    <StepCard label="QA 기기 단계" step={4} nav={<WizardNav onBack={props.onBack} onNext={props.onNext} nextLabel={device ? "다음" : "건너뛰기"} />}>
       <p className="hint">앱 전용 iOS 시뮬레이터를 만들고 설정의 기기 언어로 맞춰 부팅합니다(1~3분). Android 는 기기 메뉴에서 준비합니다.</p>
       <div className="row">
         <button type="button" className="secondary" disabled={busy} onClick={() => void prepare()}>
@@ -248,8 +289,7 @@ function DeviceStep(props: { onBack: () => void; onNext: () => void }) {
           {message}
         </p>
       ) : null}
-      <WizardNav onBack={props.onBack} onNext={props.onNext} nextLabel={device ? "다음" : "건너뛰기"} />
-    </section>
+    </StepCard>
   );
 }
 
@@ -316,7 +356,7 @@ function EnvironmentStep(props: { onBack: () => void; onNext: () => void }) {
   const toolsReady = report !== null && missing.length === 0;
 
   return (
-    <section className="card stack" aria-label="환경 점검 단계">
+    <StepCard label="환경 점검 단계" step={2} nav={<WizardNav onBack={props.onBack} onNext={props.onNext} nextLabel="다음" />}>
       <div className="row">
         <button type="button" className="secondary" onClick={() => void runCheck()} disabled={checking || installing !== null}>
           {checking ? "점검 중" : "다시 점검"}
@@ -379,8 +419,7 @@ function EnvironmentStep(props: { onBack: () => void; onNext: () => void }) {
           {message}
         </p>
       ) : null}
-      <WizardNav onBack={props.onBack} onNext={props.onNext} nextLabel="다음" />
-    </section>
+    </StepCard>
   );
 }
 
@@ -406,7 +445,7 @@ function FinishStep(props: { onBack: () => void; onFinished: () => void; keysMis
 
   const failed = report?.checks.filter((c) => c.required && c.status !== "ok") ?? [];
   return (
-    <section className="card stack" aria-label="완료 단계">
+    <StepCard label="완료 단계" step={5} nav={<WizardNav onBack={props.onBack} onNext={() => void finish()} nextLabel="마법사 완료" nextDisabled={!report?.ready} />}>
       {report === null ? <p>확인 중</p> : null}
       {report && failed.length === 0 ? <p className="ok-text">필수 환경이 모두 준비됐습니다.</p> : null}
       {failed.length > 0 ? (
@@ -418,7 +457,6 @@ function FinishStep(props: { onBack: () => void; onFinished: () => void; keysMis
           {message}
         </p>
       ) : null}
-      <WizardNav onBack={props.onBack} onNext={() => void finish()} nextLabel="마법사 완료" nextDisabled={!report?.ready} />
-    </section>
+    </StepCard>
   );
 }

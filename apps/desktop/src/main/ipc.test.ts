@@ -89,6 +89,9 @@ const handlers: IpcHandlers = {
   "builds:install": () => {
     throw new Error("not used");
   },
+  "builds:remove": () => {
+    throw new Error("not used");
+  },
   "builds:projectStatus": () => {
     throw new Error("not used");
   },

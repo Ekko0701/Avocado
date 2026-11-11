@@ -184,10 +184,11 @@ describe("iosOptions·deleteIos", () => {
 });
 
 /** 에뮬레이터 하나를 흉내 낸다. -change-locale 로 띄우면 잠시 뒤 언어가 바뀐다. */
-function fakeAndroid(opts: { runningWithLocale?: string; applyLocale?: boolean; settingsUnavailableTimes?: number; phones?: string }) {
+function fakeAndroid(opts: { runningWithLocale?: string; applyLocale?: boolean; settingsUnavailableTimes?: number; packageUnavailableTimes?: number; phones?: string }) {
   const calls: string[] = [];
   const settings = new Map<string, string>();
   let unavailable = opts.settingsUnavailableTimes ?? 0;
+  let packageUnavailable = opts.packageUnavailableTimes ?? 0;
   const spawned: string[][] = [];
   let running = opts.runningWithLocale !== undefined;
   let locale = opts.runningWithLocale ?? "";
@@ -221,6 +222,14 @@ function fakeAndroid(opts: { runningWithLocale?: string; applyLocale?: boolean; 
     }
     if (shell.startsWith("settings get global")) return ok(`${settings.get(args[6] ?? "") ?? "1.0"}\n`);
     if (shell === "getprop ro.build.version.release") return ok("15\n");
+    if (shell === "pm path android") {
+      // 프레임워크 재시작 중에는 패키지 관리자가 잠깐 없다
+      if (packageUnavailable > 0) {
+        packageUnavailable -= 1;
+        return { code: 20, stdout: "", stderr: "cmd: Failure calling service package: Broken pipe (32)" };
+      }
+      return ok("package:/system/framework/framework-res.apk\n");
+    }
     return { code: 1, stdout: "", stderr: `not mocked: ${cmd}` };
   };
   const spawnDetached = (_file: string, args: string[]) => {
@@ -284,6 +293,15 @@ describe("prepareAndroid", () => {
       expect(a.calls).toContain(`${sdk}/platform-tools/adb -s emulator-5554 shell settings put global ${key} 0`);
     }
     expect(device).toMatchObject({ id: "qa_pixel_7_api35", serial: "emulator-5554", locale: "ko-KR", osVersion: "15" });
+  });
+
+  it("패키지 관리자가 돌아올 때까지 기다린 뒤 준비를 끝낸다(준비 직후 설치가 실패하지 않게)", async () => {
+    const a = fakeAndroid({ packageUnavailableTimes: 3 });
+    await service(a.run, { spawnDetached: a.spawnDetached }).prepareAndroid({});
+    const probes = a.calls.filter((c) => c.endsWith("shell pm path android"));
+    expect(probes).toHaveLength(4);
+    // 준비가 끝났다고 알리기 전에 확인한다
+    expect(a.calls.indexOf(probes.at(-1) ?? "")).toBeLessThan(a.calls.findIndex((c) => c.endsWith("getprop ro.build.version.release")));
   });
 
   it("프레임워크 재시작 중 설정 쓰기가 잠깐 실패해도 다시 시도해 끈다", async () => {

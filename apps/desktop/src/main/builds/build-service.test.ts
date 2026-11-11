@@ -42,6 +42,7 @@ function service(opts: { run?: CommandRunner; devices?: Device[]; scriptTimeoutM
     scriptTimeoutMs: opts.scriptTimeoutMs,
     now: () => new Date("2026-10-21T09:00:00.000Z"),
     newId: () => `build-${++n}`,
+    sleep: () => Promise.resolve(),
   });
 }
 
@@ -89,6 +90,49 @@ describe("파일 등록", () => {
     await expect(service().registerPath("sample", src)).rejects.toThrow(/시뮬레이터용 빌드가 아니다/);
     expect(readdirSync(join(dir, "builds"))).toEqual([]);
     expect(service().list()).toEqual([]);
+  });
+});
+
+describe("삭제", () => {
+  it("앱 데이터의 사본 폴더와 기록을 지우고 다른 빌드는 그대로 둔다", async () => {
+    const s = service();
+    const first = await s.registerPath("sample", makeFakeApp(join(dir, "a"), { name: "Sample", bundleId: "com.example.sample.dev" }));
+    const second = await s.registerPath("sample", makeFakeApp(join(dir, "b"), { name: "Sample", bundleId: "com.example.sample.dev" }));
+    expect(s.remove(first.id)).toEqual([second]);
+    expect(existsSync(join(dir, "builds", first.id))).toBe(false);
+    expect(existsSync(second.path)).toBe(true);
+    expect(() => s.get(first.id)).toThrow(/빌드를 찾지 못했다/);
+    expect(() => s.remove(first.id)).toThrow(/빌드를 찾지 못했다/);
+  });
+
+  it("그 빌드로 실행이 대기·진행 중이면 거부하고, 끝난 뒤에는 지운다. 실행 기록은 남고 빌드 참조만 비워진다", async () => {
+    const s = service();
+    const build = await s.registerPath("sample", makeFakeApp(join(dir, "a"), { name: "Sample" }));
+    const at = "2026-10-21T09:00:00.000Z";
+    db.db
+      .prepare("INSERT INTO run (id, workspace, trigger, status, summary, created_at, started_at) VALUES ('run-1', 'local', 'manual', 'running', ?, ?, ?)")
+      .run(JSON.stringify({ buildId: build.id, buildLabel: "net.example.fake 1.2.3 (45)" }), at, at);
+    db.db
+      .prepare("INSERT INTO execution (id, run_id, tc_id, target, flow_path, build_id, attempt, status) VALUES ('exec-1', 'run-1', 'TC-0001', 'ios', '/flows/TC-0001.yaml', ?, 1, 'running')")
+      .run(build.id);
+    expect(() => s.remove(build.id)).toThrow(/실행이 진행 중이라 지울 수 없다/);
+    expect(existsSync(build.path)).toBe(true);
+
+    db.db.prepare("UPDATE run SET status = 'passed', finished_at = ? WHERE id = 'run-1'").run(at);
+    expect(s.remove(build.id)).toEqual([]);
+    expect(existsSync(join(dir, "builds", build.id))).toBe(false);
+    expect(db.db.prepare("SELECT build_id FROM execution WHERE id = 'exec-1'").get()).toEqual({ build_id: null });
+    expect(db.db.prepare("SELECT summary FROM run WHERE id = 'run-1'").get()).toEqual({ summary: JSON.stringify({ buildId: build.id, buildLabel: "net.example.fake 1.2.3 (45)" }) });
+  });
+
+  it("기록된 경로가 빌드 폴더 밖이면 지우지 않는다", async () => {
+    const s = service();
+    const build = await s.registerPath("sample", makeFakeApp(join(dir, "a"), { name: "Sample" }));
+    const outside = makeFakeApp(join(dir, "outside"), { name: "Keep" });
+    db.db.prepare("UPDATE build SET path = ? WHERE id = ?").run(outside, build.id);
+    expect(() => s.remove(build.id)).toThrow(/빌드 폴더 밖/);
+    expect(existsSync(outside)).toBe(true);
+    expect(s.list()).toHaveLength(1);
   });
 });
 
@@ -235,6 +279,35 @@ describe("설치", () => {
     await expect(s.install(build.id, "R5CT123")).resolves.toMatchObject({ installed: true, deviceId: "R5CT123" });
     expect(calls.slice(1)).toEqual([`adb -s R5CT123 install -r ${build.path}`, "adb -s R5CT123 shell pm path com.example.app"]);
     await expect(s.install(build.id, "0123ABC")).rejects.toThrow(/USB 디버깅 허용/);
+  });
+
+  it("패키지 관리자가 잠깐 없으면 다시 시도해 설치하고, 계속 없으면 그 오류를 알린다", async () => {
+    const apk = join(dir, "app.apk");
+    writeFileSync(apk, "PK");
+    let down = 2;
+    const calls: string[] = [];
+    const run: CommandRunner = (file, args) => {
+      const cmd = [file.split("/").pop(), ...args].join(" ");
+      calls.push(cmd);
+      if (cmd.startsWith("aapt2")) return Promise.resolve({ code: 0, stdout: "package: name='com.example.app' versionCode='7' versionName='2.0.0'\n", stderr: "" });
+      if (cmd.startsWith("adb -s emulator-5554 install")) {
+        if (down > 0) {
+          down -= 1;
+          return Promise.resolve({ code: 1, stdout: "Performing Streamed Install\n", stderr: "adb: failed to install app.apk: cmd: Failure calling service package: Broken pipe (32)\n" });
+        }
+        return Promise.resolve({ code: 0, stdout: "Success\n", stderr: "" });
+      }
+      if (cmd.startsWith("adb -s emulator-5554 shell pm path")) return Promise.resolve({ code: 0, stdout: "package:/data/app/base.apk\n", stderr: "" });
+      return Promise.resolve({ code: 0, stdout: "", stderr: "" });
+    };
+    const s = service({ run });
+    const build = await s.registerPath("example", apk);
+    await expect(s.install(build.id, "qa_pixel")).resolves.toMatchObject({ installed: true });
+    expect(calls.filter((c) => c.startsWith("adb -s emulator-5554 install"))).toHaveLength(3);
+
+    down = 99;
+    await expect(s.install(build.id, "qa_pixel")).rejects.toThrow(/adb install 오류: .*Failure calling service package/s);
+    expect(calls.filter((c) => c.startsWith("adb -s emulator-5554 install"))).toHaveLength(3 + 5);
   });
 
   it("adb 가 Failure 를 출력하면 종료 코드가 0 이어도 실패로 본다", async () => {

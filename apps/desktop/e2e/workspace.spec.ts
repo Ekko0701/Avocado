@@ -166,8 +166,13 @@ test("홈: 워크스페이스 상태, 최근 실행, 내 PR 이 보인다 (PLAN 
     await page.getByRole("button", { name: "홈", exact: true }).click();
     await expect(page.getByTestId("home-workspace")).toContainText("acme/qa-workspace");
     await expect(page.getByTestId("home-workspace")).toContainText("qa/qa-bot/TC-0101-home-check");
-    await expect(page.getByTestId("home-pulls")).toContainText("#7 TC-0101 문구");
+    // 진행 중인 작업은 개수로 보이고 Git 상태 인스펙터를 연다
+    await expect(page.getByTestId("home-pulls")).toContainText("열린 PR 1개");
+    await page.getByTestId("home-pulls").getByRole("button", { name: "Git 상태 열기" }).click();
+    await expect(page.getByTestId("git-inspector").getByTestId("git-pull-7")).toContainText("TC-0101 문구");
     await expect(page.getByTestId("home-runs")).toContainText("실행 기록이 없습니다.");
+    await expect(page.getByTestId("home-trend")).toContainText("실행 기록이 쌓이면");
+    await expect(page.getByTestId("home-live")).toHaveCount(0);
     await app.close();
   } finally {
     await remote.close();

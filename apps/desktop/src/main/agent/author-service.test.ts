@@ -217,6 +217,8 @@ describe("AuthorService (가짜 API·maestro mcp·재생)", () => {
     await service.wait(started.job.id);
     const status = service.status(started.job.id);
     expect(status.job.status).toBe("succeeded");
+    // 성공한 작업에는 멈춘 단계가 없다
+    expect(status).toMatchObject({ phase: "done", stoppedAt: null });
     expect(status.result).toEqual({ flowPath: "apps/demo/flows/ios/TC-0101.yaml", branch: "qa/tester/TC-0101-agent-flow", commit: "f00d123", goldenRunId: "run-2", unchanged: false });
     expect(status.replays.map((r) => r.status)).toEqual(["passed", "passed"]);
     expect(draftsSeen).toEqual([GOOD, GOOD]);
@@ -276,11 +278,16 @@ describe("AuthorService (가짜 API·maestro mcp·재생)", () => {
     const status = service.status(job.id);
     expect(status.job.status).toBe("failed");
     expect(status.job.error).toContain("2번 시도");
+    // 어느 단계에서 멈췄는지 남긴다(화면의 단계 표시줄)
+    expect(status).toMatchObject({ phase: "done", stoppedAt: "replaying" });
     expect(status.replays).toHaveLength(2);
     expect(userMessageOf(5)).toContain("Element not found");
     expect(saved).toHaveLength(0);
     // 원래 없던 플로우라 초안을 지운다
     expect(existsSync(flowFile)).toBe(false);
+    // 앱을 다시 시작해도 멈춘 단계를 저장한 결과에서 읽는다
+    const { service: restarted } = await setup([], []);
+    expect(restarted.status(job.id)).toMatchObject({ phase: "done", stoppedAt: "replaying" });
   });
 
   it("기기 환경 문제(드라이버 시작 실패)는 플로우 탓이 아니므로 다시 시도하지 않는다", async () => {
@@ -380,7 +387,7 @@ describe("AuthorService (가짜 API·maestro mcp·재생)", () => {
     service.cancel(job.id);
     release();
     await service.wait(job.id);
-    expect(service.status(job.id).job.status).toBe("canceled");
+    expect(service.status(job.id)).toMatchObject({ job: { status: "canceled" }, phase: "done", stoppedAt: "replaying" });
     expect(canceled).toEqual(["run-1"]);
     expect(saved).toEqual([]);
   });
@@ -515,6 +522,7 @@ describe("AuthorService · Claude 앱 방식(MCP, ADR 0022, 가짜 maestro mcp·
     expect(text(await service.mcpCall(OTHER, "cancel_author", {}))).toContain(job.id);
     await service.wait(job.id);
     expect(service.status(job.id).job.status).toBe("canceled");
+    expect(service.status(job.id).stoppedAt).toBe("exploring");
     expect(saved).toEqual([]);
   });
 

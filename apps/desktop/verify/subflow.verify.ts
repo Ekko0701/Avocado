@@ -30,15 +30,13 @@ test("공통 서브플로우 편집: 열기 → 규약 오류 → 저장(커밋)
     await page.getByRole("button", { name: "연결(clone)" }).click();
     await expect(page.getByTestId("workspace-status")).toContainText("main");
 
+    // 왼쪽 목록에서 앱을 고르고 공통 서브플로우 탭을 연다. 자주 쓰는 Maestro 명령은 편집기 옆에 늘 보인다
+    await page.getByTestId("ws-nav-demo").click();
+    await page.getByRole("tab", { name: /^공통 서브플로우/ }).click();
     const panel = page.getByTestId("subflows");
-    await panel.getByLabel("서브플로우 앱").selectOption("demo");
     await expect(page.getByTestId("subflow-used-by")).toHaveText("이 서브플로우를 부르는 플로우: TC-0101");
-    await panel.scrollIntoViewIfNeeded();
+    await expect(page.getByTestId("maestro-help")).toContainText("extendedWaitUntil");
     await run.shot("opened");
-    await page.getByTestId("maestro-help").getByText("자주 쓰는 Maestro 명령").click();
-    await page.getByTestId("maestro-help").scrollIntoViewIfNeeded();
-    await run.shot("maestro-help");
-    await page.getByTestId("maestro-help").getByText("자주 쓰는 Maestro 명령").click();
 
     const editor = panel.getByLabel("서브플로우 내용");
     const original = await editor.inputValue();

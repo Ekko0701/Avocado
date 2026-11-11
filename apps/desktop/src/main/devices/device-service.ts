@@ -310,6 +310,8 @@ export class DeviceService {
         return value === "0" || value === "0.0" ? true : null;
       });
     }
+    // 패키지 관리자도 프레임워크 재시작 뒤에 늦게 돌아온다. 준비 직후 설치하면 "Failure calling service package" 로 실패한다
+    await this.waitFor("패키지 관리자 준비", async () => ((await this.adbShell(s, ["pm", "path", "android"])).stdout.includes("package:") ? true : null));
     const release = (await this.adbShell(s, ["getprop", "ro.build.version.release"])).stdout.trim();
     return {
       id: avd,

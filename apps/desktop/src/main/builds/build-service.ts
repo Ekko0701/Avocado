@@ -2,7 +2,7 @@ import { BuildSchema, type Build, type BuildActivity, type BuildJobKind, type In
 import { notReady } from "../devices/ready";
 import { randomUUID } from "node:crypto";
 import { accessSync, closeSync, constants, copyFileSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, isAbsolute, join } from "node:path";
+import { basename, dirname, isAbsolute, join, sep } from "node:path";
 import type { AppDatabase } from "../db/database";
 import type { DeviceService } from "../devices/device-service";
 import type { CommandRunner } from "../setup/command";
@@ -49,12 +49,18 @@ export class BuildError extends Error {
   }
 }
 
+/** 패키지 관리자가 잠깐 없을 때 adb 가 내는 오류(설치 자체의 실패가 아니다) */
+const PACKAGE_SERVICE_DOWN = /Can't find service: package|Failure calling service package/;
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 export interface BuildServiceOptions {
   db: AppDatabase;
   run: CommandRunner;
   devices: Pick<DeviceService, "list">;
   /** 등록한 빌드를 복사해 두는 폴더 (userData/builds) */
   buildsDir: string;
+  /** 다시 시도하기 전에 기다린다(테스트는 바로 돌아오게 바꾼다) */
+  sleep?: (ms: number) => Promise<void>;
   logDir: string;
   androidHome: string;
   home: string;
@@ -135,6 +141,24 @@ export class BuildService {
     const row = this.options.db.db.prepare("SELECT * FROM build WHERE id = ?").get(id) as unknown as BuildRow | undefined;
     if (!row) throw new BuildError(`빌드를 찾지 못했다: ${id}`);
     return toBuild(row);
+  }
+
+  /**
+   * 등록한 빌드를 지운다: 앱 데이터의 사본 폴더와 기록. 실행 기록은 남고 그 빌드 참조만 비워진다.
+   * 그 빌드로 실행이 대기·진행 중이면 거부한다(재생 중에 설치할 파일이 사라지지 않게)
+   */
+  remove(id: string): Build[] {
+    const build = this.get(id);
+    const active = this.options.db.db
+      .prepare("SELECT COUNT(*) AS n FROM run WHERE status IN ('queued', 'running') AND json_extract(summary, '$.buildId') = ?")
+      .get(id) as unknown as { n: number };
+    if (active.n > 0) throw new BuildError("이 빌드로 실행이 진행 중이라 지울 수 없다. 실행이 끝난 뒤 지운다");
+    const dir = join(this.options.buildsDir, build.id);
+    // 기록된 경로가 이 빌드의 폴더 안일 때만 지운다(앱 데이터 밖을 지우지 않는다)
+    if (!build.path.startsWith(`${dir}${sep}`)) throw new BuildError(`빌드 파일이 빌드 폴더 밖에 있다: ${build.path}`);
+    rmSync(dir, { recursive: true, force: true });
+    this.options.db.db.prepare("DELETE FROM build WHERE id = ?").run(id);
+    return this.list();
   }
 
   async registerPath(
@@ -325,15 +349,20 @@ export class BuildService {
 
     if (build.target === "ios") {
       const r = await this.options.run("/usr/bin/xcrun", ["simctl", "install", device.id, build.path], { timeoutMs: 300_000 });
-      if (r.code !== 0) throw new BuildError(`설치 실패: ${r.stderr.trim().slice(0, 300)}`);
+      if (r.code !== 0) throw new BuildError(`simctl install 오류: ${r.stderr.trim().slice(0, 300)}`);
       const check = await this.options.run("/usr/bin/xcrun", ["simctl", "get_app_container", device.id, build.appId, "app"]);
       return { buildId, deviceId, appId: build.appId, installed: check.code === 0 };
     }
     const adb = join(this.options.androidHome, "platform-tools", "adb");
     const serial = device.serial;
     if (!serial) throw new BuildError(`Android serial 을 알 수 없다: ${device.name}`);
-    const r = await this.options.run(adb, ["-s", serial, "install", "-r", build.path], { timeoutMs: 300_000 });
-    if (r.code !== 0 || /Failure/.test(r.stdout)) throw new BuildError(`설치 실패: ${(r.stdout + r.stderr).trim().slice(0, 300)}`);
+    // 에뮬레이터가 막 뜬 뒤(언어 적용으로 프레임워크가 다시 시작될 때)에는 패키지 관리자가 잠깐 없다. 그 오류만 몇 번 다시 시도한다
+    let r = await this.options.run(adb, ["-s", serial, "install", "-r", build.path], { timeoutMs: 300_000 });
+    for (let retry = 1; retry <= 4 && PACKAGE_SERVICE_DOWN.test(r.stdout + r.stderr); retry += 1) {
+      await (this.options.sleep ?? delay)(5_000);
+      r = await this.options.run(adb, ["-s", serial, "install", "-r", build.path], { timeoutMs: 300_000 });
+    }
+    if (r.code !== 0 || /Failure/.test(r.stdout)) throw new BuildError(`adb install 오류: ${(r.stdout + r.stderr).trim().slice(0, 300)}`);
     const check = await this.options.run(adb, ["-s", serial, "shell", "pm", "path", build.appId]);
     return { buildId, deviceId, appId: build.appId, installed: check.stdout.includes("package:") };
   }

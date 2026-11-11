@@ -4,7 +4,7 @@ import { errorMessage } from "../lib/errors";
 
 /**
  * 한 시도(execution)의 캡처를 스텝 순서대로 한 줄에 모아 보인다. 누르면 그 스텝을 고른다.
- * 가린 사본에서 읽는다(evidence.file). 실패 캡처가 있으면 그것을, 없으면 플로우가 찍은 캡처를 보인다
+ * 결과 화면의 증적 탭 안에 들어가 제목·판이 없다. 가린 사본에서 읽는다(evidence.file). 실패 캡처가 있으면 그것을, 없으면 플로우가 찍은 캡처를 보인다
  */
 export function CaptureStrip(props: { runId: string; executionId: string; steps: RunStep[]; selected: number | null; onSelect: (index: number) => void }) {
   const shots = props.steps.flatMap((s) => {
@@ -35,8 +35,7 @@ export function CaptureStrip(props: { runId: string; executionId: string; steps:
 
   if (shots.length === 0) return null;
   return (
-    <section className="card stack" aria-label="캡처 모아 보기" data-testid="capture-strip">
-      <h2>캡처 {shots.length}장</h2>
+    <div className="stack" aria-label="캡처 모아 보기" data-testid="capture-strip">
       <ol className="capture-strip">
         {shots.map((s) => (
           <li key={s.path}>
@@ -60,7 +59,7 @@ export function CaptureStrip(props: { runId: string; executionId: string; steps:
           캡처를 읽지 못했습니다: {error}
         </p>
       ) : null}
-    </section>
+    </div>
   );
 }
 

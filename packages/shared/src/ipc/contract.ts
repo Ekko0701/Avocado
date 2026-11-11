@@ -48,6 +48,7 @@ import {
   BuildSchema,
   InstallBuildInputSchema,
   InstallResultSchema,
+  RemoveBuildInputSchema,
   PickBuildInputSchema,
   ProjectRefSchema,
   ProjectStatusInputSchema,
@@ -198,6 +199,7 @@ export const ipcContract = {
   "builds:pickAndRegister": { input: PickBuildInputSchema, output: BuildSchema.nullable() },
   "builds:runScript": { input: RunBuildScriptInputSchema, output: BuildSchema.nullable() },
   "builds:install": { input: InstallBuildInputSchema, output: InstallResultSchema },
+  "builds:remove": { input: RemoveBuildInputSchema, output: z.array(BuildSchema) },
   "builds:projectStatus": { input: ProjectStatusInputSchema, output: ProjectStatusSchema },
   "builds:linkProject": { input: ProjectRefSchema, output: ProjectStatusSchema.nullable() },
   "builds:unlinkProject": { input: ProjectRefSchema, output: ProjectStatusSchema },
@@ -315,6 +317,8 @@ export interface QaApi {
     /** main 이 선택 창으로 빌드 스크립트를 골라 실행하고 결과물을 등록한다. 취소하면 null. */
     runScript(input: { app: string }): Promise<Build | null>;
     install(input: { buildId: string; deviceId: string }): Promise<InstallResult>;
+    /** 등록한 빌드를 지운다(앱 데이터의 사본과 기록). 그 빌드로 실행이 진행 중이면 거부한다. 남은 목록을 돌려준다 */
+    remove(input: { buildId: string }): Promise<Build[]>;
     /** 이 Mac 에 연결한 프로젝트와 스킴·구성. prepare 면 생성 전 프로젝트를 만들고 다시 읽는다(ADR 0025) */
     projectStatus(input: { app: string; prepare?: boolean }): Promise<ProjectStatus>;
     /** main 이 선택 창으로 프로젝트 폴더를 골라 연결한다. 취소하면 null */

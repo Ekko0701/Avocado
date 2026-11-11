@@ -43,6 +43,7 @@ test("빌드 등록: 화면에서 파일·스크립트로 등록하면 앱 데�
   const out = makeFakeApp(join(work, "out"), { name: "Built", bundleId: "net.example.built", version: "2.0.0", build: "9" });
   const script = makeScript(work, `printf 'ARTIFACT=%s\\nCOMMIT=0123456789abcdef\\n' "${out}" > "$QA_BUILD_INFO"`);
   await stubOpenDialog(app, script);
+  await page.getByRole("tab", { name: "스크립트" }).click();
   await page.getByRole("button", { name: "빌드 스크립트 실행" }).click();
   await expect(page.getByTestId("build-message")).toHaveText("등록했습니다: net.example.built 2.0.0 (9)");
 
@@ -79,5 +80,23 @@ test("빌드 등록: 화면에서 파일·스크립트로 등록하면 앱 데�
   const second = await launchApp({ userDataDir });
   await second.page.getByRole("button", { name: "빌드", exact: true }).click();
   for (const b of builds) await expect(second.page.getByTestId(`build-${b.id}`)).toBeVisible();
+
+  // 삭제: 한 번 더 확인한 뒤 지운다. 앱 데이터의 사본도 사라지고 다른 빌드는 남는다
+  const [gone, kept] = builds;
+  if (!gone || !kept) throw new Error("빌드가 둘이어야 한다");
+  const row = second.page.getByTestId(`build-${gone.id}`);
+  await row.getByRole("button", { name: /^빌드 삭제/ }).click();
+  await row.getByRole("button", { name: "취소" }).click();
+  await expect(row).toBeVisible();
+  await row.getByRole("button", { name: /^빌드 삭제/ }).click();
+  await row.getByRole("button", { name: "정말 삭제" }).click();
+  await expect(second.page.getByTestId("build-message")).toContainText(`지웠습니다: ${gone.appId} ${gone.version} (${gone.buildNumber})`);
+  await expect(second.page.getByTestId(`build-${gone.id}`)).toHaveCount(0);
+  await expect(second.page.getByTestId(`build-${kept.id}`)).toBeVisible();
+  expect(existsSync(gone.path)).toBe(false);
+  expect(existsSync(kept.path)).toBe(true);
+  expect((await second.page.evaluate(() => window.qa.builds.list())).map((b) => b.id)).toEqual([kept.id]);
+  // 없는 빌드는 main 이 거부한다
+  expect(await second.page.evaluate((id) => window.qa.builds.remove({ buildId: id }).then(() => "accepted", (err: unknown) => String(err)), gone.id)).toContain("빌드를 찾지 못했다");
   await second.app.close();
 });

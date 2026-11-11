@@ -1,6 +1,7 @@
 import type { Build, Device, PickedFlow, RunQueueStatus, TestcaseList } from "@qa/shared";
 import { AppIdSchema } from "@qa/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { buildLabel } from "../lib/build-label";
 import { deviceLabel } from "../lib/device-label";
 import { errorMessage } from "../lib/errors";
 
@@ -277,7 +278,7 @@ export function RunSetup(props: { onStarted: (runId: string | null) => void }) {
             <option value="">기기에 설치된 앱</option>
             {buildOptions.map((b) => (
               <option key={b.id} value={b.id}>
-                {fromWorkspace ? `${b.appId} ${b.version} (${b.buildNumber})` : `${b.app} · ${b.appId} ${b.version} (${b.buildNumber}) · ${b.target === "ios" ? "iOS" : "Android"}`}
+                {fromWorkspace ? buildLabel(b) : `${b.app} · ${b.target === "ios" ? "iOS" : "Android"} · ${b.appId} · ${buildLabel(b)}`}
               </option>
             ))}
           </select>
