@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Avocado 앱 아이콘의 원본 그림(1024×1024, 여백 없이 꽉 채움). 둥근 모서리는 시스템이 깎는다.
+     바꾼 뒤에는 scripts/render-app-icon.cjs 로 build/icon.icon/Assets/avocado.png 를 다시 만든다(docs/release.md). -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <!-- 바탕: 오른쪽 위(민트) → 왼쪽 아래(연두)로 흐르는 메시 그라데이션 -->
+    <linearGradient id="base" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8FE3C6"/>
+      <stop offset="1" stop-color="#C3EC96"/>
+    </linearGradient>
+    <filter id="mesh-blur" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="155"/>
+    </filter>
+    <radialGradient id="sheen" cx="0.22" cy="0.1" r="0.8">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.42"/>
+      <stop offset="0.3" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="0.6" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="0.85" stop-color="#ffffff" stop-opacity="0.02"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <!-- 아보카도 한 겹: 둥근 정사각형을 45도 돌려 위아래로 눌렀다 -->
+    <rect id="slab" x="-282.5" y="-282.5" width="565" height="565" rx="120" transform="scale(1 0.575) rotate(45)"/>
+    <radialGradient id="flesh" cx="0.5" cy="0.5" r="0.62">
+      <stop offset="0" stop-color="#F4F3B4"/>
+      <stop offset="0.5" stop-color="#E6EE9E"/>
+      <stop offset="0.82" stop-color="#C6E180"/>
+      <stop offset="1" stop-color="#AED46C"/>
+    </radialGradient>
+    <radialGradient id="pit" gradientUnits="userSpaceOnUse" cx="572" cy="322" r="270">
+      <stop offset="0" stop-color="#E29C6E"/>
+      <stop offset="0.42" stop-color="#B76C40"/>
+      <stop offset="1" stop-color="#683620"/>
+    </radialGradient>
+    <filter id="stack-shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#0A3A22" flood-opacity="0.30"/>
+    </filter>
+    <filter id="slab-shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#0A3A22" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#base)"/>
+  <g filter="url(#mesh-blur)">
+    <circle cx="37" cy="37" r="373" fill="#F4FFF6" fill-opacity="0.9"/>
+    <circle cx="1007" cy="1007" r="323" fill="#FFF3D0" fill-opacity="0.95"/>
+    <circle cx="25" cy="994" r="311" fill="#B4E77C" fill-opacity="0.6"/>
+  </g>
+  <rect width="1024" height="1024" fill="url(#sheen)"/>
+  <g filter="url(#stack-shadow)">
+    <use xlink:href="#slab" href="#slab" transform="translate(512 654)" fill="#3E6E3E"/>
+    <use xlink:href="#slab" href="#slab" transform="translate(512 522)" fill="#548D55" filter="url(#slab-shadow)"/>
+    <use xlink:href="#slab" href="#slab" transform="translate(512 392)" fill="url(#flesh)" filter="url(#slab-shadow)" stroke="#ffffff" stroke-opacity="0.6" stroke-width="3" vector-effect="non-scaling-stroke"/>
+    <path d="M347 402 C347 330 428 277 512 277 C596 277 677 330 677 402 C677 452 602 492 512 492 C422 492 347 452 347 402 Z" fill="url(#pit)"/>
+  </g>
+</svg>

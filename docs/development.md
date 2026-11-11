@@ -18,6 +18,14 @@ pnpm dev            # 개발 실행
 pnpm package        # .app·dmg 만들기 (apps/desktop/dist)
 ```
 
+## 앱 아이콘
+
+아이콘 원본은 `apps/desktop/build/icon-source.svg` 입니다(1024×1024, 여백 없이 꽉 채운 그림. 둥근 모서리는 시스템이 깎습니다). 고친 뒤 아래 명령으로 Icon Composer 묶음(`apps/desktop/build/icon.icon`)의 그림을 다시 만듭니다. 패키징할 때 electron-builder 가 `actool`(Xcode 26 이상)로 아이콘을 컴파일합니다.
+
+```bash
+pnpm --filter @qa/desktop exec electron ../../scripts/render-app-icon.cjs
+```
+
 ## 검사
 
 ```bash
