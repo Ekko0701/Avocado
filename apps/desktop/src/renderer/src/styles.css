@@ -2949,7 +2949,7 @@ hr.rule {
   border-top: 0.5px solid var(--separator);
 }
 
-/* ---- 홈 대시보드: 진행 중 → 지표 4칸 → 추이 | 환경 → 살펴볼 테스트 케이스 | 최근 실행 ---- */
+/* ---- 홈 대시보드: 진행 중 → 추이 | 최근 실행 → 살펴볼 테스트 케이스 | 환경 ---- */
 .home-small {
   font-size: 12px;
 }
@@ -2961,43 +2961,35 @@ hr.rule {
   background: color-mix(in srgb, var(--warning) 14%, transparent);
   color: var(--warning);
 }
-.home-tiles {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-}
-.home-tile {
-  display: grid;
-  gap: 4px;
-  padding: 14px 16px;
-}
-.home-tile-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-}
-.home-tile-value {
-  font-size: 28px;
-  line-height: 1.1;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-.home-tile.ok .home-tile-value {
-  color: var(--success);
-}
-.home-tile.bad .home-tile-value {
-  color: var(--danger);
-}
+/* 한 줄의 두 카드는 높이가 같다. 늘어난 카드는 내용을 위에 붙인다 */
 .home-two {
   display: grid;
   grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
+}
+.home-two > .card {
+  align-content: start;
+}
+/* 추이 카드: 제목 아래 남는 높이를 차트가 채운다 */
+.card.home-trend {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 @container main (max-width: 899px) {
   .home-two {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* 윗줄(추이 | 최근 실행)의 높이는 최근 실행이 5건일 때의 높이다. 건수가 적으면 빈 줄이 자리를 채우고,
+   추이 카드는 그 높이에 맞춰 차트를 늘린다(차트는 줄 높이를 정하지 않는다) */
+@container main (min-width: 900px) {
+  .home-top .home-chart,
+  .home-top .home-trend-empty {
+    flex: 1 1 0;
+    min-height: 0;
+    aspect-ratio: auto;
   }
 }
 .home-live,
@@ -3089,13 +3081,17 @@ hr.rule {
 .home-swatch.fail {
   background: repeating-linear-gradient(45deg, var(--danger) 0 3px, var(--chart-gap) 3px 5px);
 }
+/* 차트 칸: 기본은 600:210. 그림은 칸을 꽉 채우고, 칸의 비율에 맞춰 다시 그린다(HomePage 의 TrendChart) */
 .home-chart {
   position: relative;
+  aspect-ratio: 600 / 210;
 }
 .home-chart svg {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
 }
 .home-grid {
   stroke: var(--separator);
@@ -3162,9 +3158,53 @@ hr.rule {
   text-align: left;
   font-weight: 600;
 }
+/* 최근 실행의 줄은 높이가 같다: 이름과 기기 줄은 한 줄로 두고 넘치면 줄인다(전체는 title 로 보인다) */
+.home-recent .check-body {
+  min-width: 0;
+}
+.home-recent .home-recent-name,
+.home-recent .check-body > small {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 줄 높이는 글자(한글·영문·기호)에 따라 1px 씩 달라지지 않게 못박는다. 빈 줄과 실제 줄의 높이가 같아야 한다 */
+.home-recent .home-recent-name {
+  height: 18px;
+  line-height: 18px;
+}
+.home-recent .check-body > small {
+  height: 16px;
+  line-height: 16px;
+}
+/* 기록이 없을 때의 안내는 빈 줄 위에 겹쳐 놓는다 */
+.home-recent-box {
+  display: grid;
+}
+.home-recent-box > * {
+  grid-area: 1 / 1;
+}
+.home-recent-box > .hint {
+  align-self: start;
+}
+.home-recent.blank {
+  visibility: hidden;
+}
+/* 빈 줄 앞의 구분선은 두께를 두고 색만 지운다(두께를 없애면 건수에 따라 카드 높이가 1px 씩 달라진다) */
+.checks > .check:has(+ .home-recent.blank) {
+  border-bottom-color: transparent;
+}
+@container main (max-width: 899px) {
+  .home-recent.blank {
+    display: none;
+  }
+}
 .home-foot {
   font-size: 12px;
 }
-.home-attention-table th {
+.home-attention-table th,
+.home-attention-table td.num {
   white-space: nowrap;
 }

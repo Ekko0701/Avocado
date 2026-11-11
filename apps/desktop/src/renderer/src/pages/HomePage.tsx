@@ -1,13 +1,11 @@
-import type { AppInfo, AuthorJob, Build, Device, MyPullRequest, RunDetail, RunQueueStatus, RunSummary, SetupReport, TestcaseList, WorkBranchList, WorkspaceStatus } from "@qa/shared";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import type { AppInfo, AuthorJob, Build, Device, MyPullRequest, RunDetail, RunQueueStatus, RunSummary, SetupReport, WorkBranchList, WorkspaceStatus } from "@qa/shared";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { missingAccountValues } from "../lib/account-values";
 import {
   attention,
   AUTHOR_PHASE_TEXT,
   dailyCounts,
   elapsed,
-  flakyCount,
-  flowCoverage,
   isActiveAuthor,
   isActiveRun,
   runProgress,
@@ -37,14 +35,13 @@ function cachedSetupCheck(): Promise<SetupReport> {
 export type HomeTarget = "workspace" | "devices" | "builds" | "accounts" | "runs" | "results" | "author" | "setup";
 
 /**
- * 홈 대시보드(PLAN 12장): 지금 진행 중인 것(재생·차례 실행·플로우 만들기), 지표(실패 중·불안정·플로우 있는 테스트 케이스),
- * 최근 14일 추이, 환경, 살펴볼 테스트 케이스, 최근 실행. 버전·진단 정보는 설정 맨 아래에 있다.
+ * 홈 대시보드(PLAN 12장): 지금 진행 중인 것(재생·차례 실행·플로우 만들기), 최근 14일 추이 | 최근 실행, 살펴볼 테스트 케이스 | 환경.
+ * 윗줄 높이는 최근 실행이 5건일 때로 고정이다(건수가 적어도 같다). 버전·진단 정보는 설정 맨 아래에 있다.
  * 진행 중인 것이 있으면 2초마다, 없으면 8초마다 실행 상태를 다시 읽는다
  */
 export function HomePage(props: { onNavigate: (to: HomeTarget) => void; onOpenResults: (runId: string) => void; onOpenInspector: () => void }) {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [ws, setWs] = useState<WorkspaceStatus | null>(null);
-  const [testcases, setTestcases] = useState<TestcaseList | null>(null);
   const [branches, setBranches] = useState<WorkBranchList | null>(null);
   const [pulls, setPulls] = useState<MyPullRequest[] | null>(null);
   const [missing, setMissing] = useState<number | null>(null);
@@ -84,12 +81,10 @@ export function HomePage(props: { onNavigate: (to: HomeTarget) => void; onOpenRe
       (s) => {
         setWs(s);
         if (!s.connected) {
-          setTestcases(null);
           setBranches(null);
           setPulls(null);
           return;
         }
-        window.qa.workspace.testcases().then(setTestcases, () => setTestcases(null));
         window.qa.workspace.branches().then(setBranches, () => setBranches(null));
         window.qa.workspace.myPulls().then(setPulls, () => setPulls(null));
       },
@@ -161,9 +156,12 @@ export function HomePage(props: { onNavigate: (to: HomeTarget) => void; onOpenRe
           onNavigate={props.onNavigate}
         />
       ) : null}
-      <Tiles runs={runs} testcases={ws?.connected ? testcases : null} connected={ws?.connected ?? false} now={now} />
-      <div className="home-two">
+      <div className="home-two home-top">
         <TrendCard runs={runs} now={now} />
+        <RecentCard runs={runs} onOpenResults={props.onOpenResults} onNavigate={props.onNavigate} />
+      </div>
+      <div className="home-two">
+        <AttentionCard runs={runs} onOpenResults={props.onOpenResults} onNavigate={props.onNavigate} />
         <EnvCard
           devices={devices}
           builds={builds}
@@ -175,10 +173,6 @@ export function HomePage(props: { onNavigate: (to: HomeTarget) => void; onOpenRe
           onNavigate={props.onNavigate}
           onOpenInspector={props.onOpenInspector}
         />
-      </div>
-      <div className="home-two">
-        <AttentionCard runs={runs} onOpenResults={props.onOpenResults} onNavigate={props.onNavigate} />
-        <RecentCard runs={runs} onOpenResults={props.onOpenResults} onNavigate={props.onNavigate} />
       </div>
       <p className="hint home-foot">
         Avocado <span data-testid="app-version">{info?.version ?? ""}</span> · 버전과 진단 정보는 설정 맨 아래 &quot;앱 정보&quot;에 있습니다.
@@ -279,44 +273,6 @@ function LiveCard(props: {
   );
 }
 
-function Tile(props: { label: string; value: string; sub: string; tone?: "ok" | "bad"; testId: string }) {
-  return (
-    <section className={props.tone ? `card home-tile ${props.tone}` : "card home-tile"} aria-label={props.label} data-testid={props.testId}>
-      <span className="home-tile-label">{props.label}</span>
-      <span className="home-tile-value">{props.value}</span>
-      <span className="hint home-small">{props.sub}</span>
-    </section>
-  );
-}
-
-function Tiles(props: { runs: RunSummary[] | null; testcases: TestcaseList | null; connected: boolean; now: Date }) {
-  const runs = props.runs ?? [];
-  const failing = attention(runs).filter((a) => a.streak > 0).length;
-  const flaky = flakyCount(runs, props.now);
-  const coverage = props.testcases ? flowCoverage(props.testcases) : null;
-  const none = runs.every((r) => isActiveRun(r) || r.status === "canceled");
-  return (
-    <div className="home-tiles">
-      <Tile testId="home-tile-failing" label="지금 실패 중" value={none ? "-" : String(failing)} sub="테스트 케이스·타깃 · 마지막 결과 기준" tone={failing > 0 ? "bad" : undefined} />
-      <Tile testId="home-tile-flaky" label="불안정" value={none ? "-" : String(flaky)} sub="다시 실행해야 통과한 실행 · 7일" />
-      <Tile
-        testId="home-tile-coverage"
-        label="플로우 있는 테스트 케이스"
-        value={coverage ? `${coverage.withFlow} / ${coverage.total}` : "-"}
-        sub={
-          coverage
-            ? Object.entries(coverage.byTarget)
-                .map(([t, c]) => `${t} ${c}`)
-                .join(" · ") || "아직 플로우가 없습니다"
-            : props.connected
-              ? "불러오는 중"
-              : "워크스페이스를 연결하면 보입니다"
-        }
-      />
-    </div>
-  );
-}
-
 /** 날짜 칸 이름: "11.4" */
 const shortDay = (day: string) => {
   const [, m, d] = day.split("-");
@@ -327,7 +283,7 @@ function TrendCard(props: { runs: RunSummary[] | null; now: Date }) {
   const days = useMemo(() => dailyCounts(props.runs ?? [], props.now), [props.runs, props.now]);
   const empty = days.every((d) => d.passed + d.failed === 0);
   return (
-    <section className="card stack" aria-label="최근 14일 실행" data-testid="home-trend">
+    <section className="card home-trend" aria-label="최근 14일 실행" data-testid="home-trend">
       <div className="card-head">
         <h2>최근 14일 실행</h2>
         {empty ? null : (
@@ -348,11 +304,29 @@ function TrendCard(props: { runs: RunSummary[] | null; now: Date }) {
   );
 }
 
+/** 차트 그림의 너비와 기본 높이(차트 칸의 기본 비율과 같다) */
+const CHART_W = 600;
+const CHART_H = 210;
+
 /** 날마다 통과(아래)·실패(위, 빗금)를 쌓은 막대. 빨강·초록은 색각 이상에서 구분되지 않아 무늬·위치·범례로도 구분한다. 막대에 올리면 그날 수가 보인다 */
 function TrendChart(props: { days: DayCount[] }) {
   const [hover, setHover] = useState<number | null>(null);
-  const w = 600;
-  const h = 210;
+  const box = useRef<HTMLDivElement>(null);
+  const w = CHART_W;
+  // 그림 높이는 차트 칸의 가로세로 비율을 따른다. 칸이 높아지면 그림 영역(y 축)이 늘고 글자·막대 너비는 그대로다
+  const [h, setH] = useState(CHART_H);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const measure = () => {
+      const { width, height } = el.getBoundingClientRect();
+      if (width > 0 && height > 0) setH(Math.round(((CHART_W * height) / width) * 10) / 10);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   const left = 30;
   const bottom = 26;
   const top = 10;
@@ -366,7 +340,7 @@ function TrendChart(props: { days: DayCount[] }) {
   const ticks = Array.from({ length: max / tick + 1 }, (_, i) => i * tick);
   const hovered = hover === null ? null : props.days[hover];
   return (
-    <div className="home-chart">
+    <div className="home-chart" ref={box} data-testid="home-chart">
       <svg viewBox={`0 0 ${w} ${h}`} role="img" aria-label={`최근 14일 실행: ${props.days.map((d) => `${shortDay(d.day)} 통과 ${d.passed} 실패 ${d.failed}`).join(", ")}`}>
         <defs>
           <pattern id="home-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -572,8 +546,11 @@ function AttentionCard(props: { runs: RunSummary[] | null; onOpenResults: (runId
   );
 }
 
+/** 최근 실행에 보이는 건수. 홈 윗줄의 높이는 이 건수가 다 찼을 때의 높이다 */
+const RECENT_MAX = 5;
+
 function RecentCard(props: { runs: RunSummary[] | null; onOpenResults: (runId: string) => void; onNavigate: (to: HomeTarget) => void }) {
-  const recent = (props.runs ?? []).slice(0, 5);
+  const recent = (props.runs ?? []).slice(0, RECENT_MAX);
   return (
     <section className="card stack" aria-label="최근 실행" data-testid="home-runs">
       <div className="card-head">
@@ -582,29 +559,45 @@ function RecentCard(props: { runs: RunSummary[] | null; onOpenResults: (runId: s
           실행 열기
         </button>
       </div>
-      {recent.length === 0 ? (
-        <p className="hint">실행 기록이 없습니다.</p>
-      ) : (
-        <ul className="checks">
-          {recent.map((r) => (
-            <li key={r.id} className="check home-recent">
-              <span className={badge(r.status)}>{RUN_STATUS[r.status]}</span>
+      <div className="home-recent-box">
+        {recent.length === 0 ? <p className="hint">실행 기록이 없습니다.</p> : null}
+        <ul className="checks" aria-hidden={recent.length === 0 ? true : undefined}>
+          {recent.map((r) => {
+            const where = `${r.target} · ${r.deviceName} · ${shortDateTime(r.createdAt)}`;
+            return (
+              <li key={r.id} className="check home-recent" data-testid={`home-recent-${r.id}`}>
+                <span className={badge(r.status)}>{RUN_STATUS[r.status]}</span>
+                <div className="check-body">
+                  {isActiveRun(r) ? (
+                    <strong className="home-recent-name" title={r.flowName}>
+                      {r.flowName}
+                    </strong>
+                  ) : (
+                    <button type="button" className="link home-recent-name" title={r.flowName} onClick={() => props.onOpenResults(r.id)}>
+                      {r.flowName}
+                    </button>
+                  )}
+                  <small className="hint" title={where}>
+                    {where}
+                  </small>
+                </div>
+              </li>
+            );
+          })}
+          {/* 5건보다 적을 때 자리를 채우는 빈 줄. 보이지 않고 읽히지 않으며, 카드 높이만 5건일 때와 같게 한다(좁은 창에서는 없앤다) */}
+          {Array.from({ length: RECENT_MAX - recent.length }, (_, i) => (
+            <li key={`blank-${i}`} className="check home-recent blank" aria-hidden="true">
+              <span className="badge">-</span>
               <div className="check-body">
-                {isActiveRun(r) ? (
-                  <strong>{r.flowName}</strong>
-                ) : (
-                  <button type="button" className="link home-recent-name" onClick={() => props.onOpenResults(r.id)}>
-                    {r.flowName}
-                  </button>
-                )}
-                <small className="hint">
-                  {r.target} · {r.deviceName} · {shortDateTime(r.createdAt)}
-                </small>
+                <button type="button" className="link home-recent-name" tabIndex={-1} disabled>
+                  -
+                </button>
+                <small className="hint">-</small>
               </div>
             </li>
           ))}
         </ul>
-      )}
+      </div>
     </section>
   );
 }

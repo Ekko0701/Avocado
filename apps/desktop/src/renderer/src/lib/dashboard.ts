@@ -1,8 +1,7 @@
-import type { AuthorJob, RunDetail, RunSummary, TestcaseList } from "@qa/shared";
+import type { AuthorJob, RunDetail, RunSummary } from "@qa/shared";
 
-/** 끝난 실행. 취소는 결과가 아니라서 지표에 넣지 않는다 */
+/** 끝난 실행. 취소는 결과가 아니라서 세지 않는다 */
 const FINISHED = new Set<RunSummary["status"]>(["passed", "failed", "error"]);
-const DAY = 24 * 60 * 60 * 1000;
 export const isActiveRun = (r: RunSummary) => r.status === "queued" || r.status === "running";
 const isFail = (s: RunSummary["status"]) => s === "failed" || s === "error";
 
@@ -10,12 +9,6 @@ const isFail = (s: RunSummary["status"]) => s === "failed" || s === "error";
 export function localDay(at: Date): string {
   const two = (n: number) => String(n).padStart(2, "0");
   return `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}`;
-}
-
-/** 최근 days 일 동안 재시도에서 통과한(불안정) 실행 수 */
-export function flakyCount(runs: readonly RunSummary[], now: Date, days = 7): number {
-  const since = now.getTime() - days * DAY;
-  return runs.filter((r) => r.flaky && Date.parse(r.createdAt) >= since).length;
 }
 
 export interface DayCount {
@@ -80,21 +73,6 @@ export function attention(runs: readonly RunSummary[]): AttentionItem[] {
     items.push({ tcId: latest.tcId, target: latest.target, latest, streak });
   }
   return items.sort((a, b) => Number(b.streak > 0) - Number(a.streak > 0) || Date.parse(b.latest.createdAt) - Date.parse(a.latest.createdAt));
-}
-
-export interface FlowCoverage {
-  total: number;
-  withFlow: number;
-  /** 타깃 → 그 타깃 플로우가 있는 테스트 케이스 수 */
-  byTarget: Record<string, number>;
-}
-
-/** 형식이 맞는 테스트 케이스 가운데 플로우가 하나라도 있는 것 */
-export function flowCoverage(list: TestcaseList): FlowCoverage {
-  const valid = list.testcases.filter((t) => t.valid);
-  const byTarget: Record<string, number> = {};
-  for (const t of valid) for (const target of t.flows) byTarget[target] = (byTarget[target] ?? 0) + 1;
-  return { total: valid.length, withFlow: valid.filter((t) => t.flows.length > 0).length, byTarget };
 }
 
 export interface RunProgress {

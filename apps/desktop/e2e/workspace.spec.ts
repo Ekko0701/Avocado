@@ -171,9 +171,6 @@ test("홈: 워크스페이스 상태, 최근 실행, 내 PR 이 보인다 (PLAN 
     await page.getByTestId("home-pulls").getByRole("button", { name: "Git 상태 열기" }).click();
     await expect(page.getByTestId("git-inspector").getByTestId("git-pull-7")).toContainText("TC-0101 문구");
     await expect(page.getByTestId("home-runs")).toContainText("실행 기록이 없습니다.");
-    // 지표: 플로우 있는 테스트 케이스(예시 워크스페이스는 2개 중 2개, ios), 실행 기록이 없으면 실패 중은 -
-    await expect(page.getByTestId("home-tile-coverage")).toContainText("2 / 2");
-    await expect(page.getByTestId("home-tile-failing")).toContainText("-");
     await expect(page.getByTestId("home-trend")).toContainText("실행 기록이 쌓이면");
     await expect(page.getByTestId("home-live")).toHaveCount(0);
     await app.close();

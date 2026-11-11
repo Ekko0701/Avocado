@@ -6,22 +6,27 @@ import { DatabaseSync } from "node:sqlite";
 import { parseExecution } from "../../../packages/evidence/src/index";
 import { fixtureDir, type FixtureName } from "../../../packages/evidence/src/test-fixtures";
 import { startFakeWorkspaceRemote } from "../test-support/fake-workspace";
+import { expectHomeRows, homeLayout } from "../e2e/home-layout";
 import { doctor, startRun } from "./harness";
 
 const TOKEN = "github_pat_VERIFYHOME_0123456789abcdefghijk";
 
-// 홈 대시보드: 실행 기록(실제 Maestro 산출물 픽스처)과 가짜 원격 워크스페이스로 지표·추이·환경·살펴볼 테스트 케이스·최근 실행을 보고,
-// 진행 중인 실행 한 건을 DB 에 넣어 "지금 진행 중" 카드가 뜨는지 본다(재생 자체는 하지 않는다). 라이트·다크
-test("홈 대시보드: 지표·추이·환경·살펴볼 테스트 케이스·지금 진행 중", async () => {
+// 홈 대시보드: 실행 기록(실제 Maestro 산출물 픽스처)과 가짜 원격 워크스페이스로 추이 | 최근 실행, 살펴볼 테스트 케이스 | 환경을 본다.
+// 윗줄 높이는 최근 실행이 0건·2건·5건일 때 같아야 한다. 진행 중인 실행 한 건을 DB 에 넣어 "지금 진행 중" 카드가 뜨는지도 본다(재생 자체는 하지 않는다). 라이트·다크·좁은 창
+test("홈 대시보드: 추이 | 최근 실행, 살펴볼 테스트 케이스 | 환경, 지금 진행 중", async () => {
   test.setTimeout(180_000);
   const remote = await startFakeWorkspaceRemote(TOKEN);
   const userDataDir = mkdtempSync(join(tmpdir(), "qa-verify-home-"));
   let run = await startRun("home-empty", { userDataDir, env: remote.env });
   try {
     await doctor(run);
-    await expect(run.page.getByTestId("home-tile-failing")).toContainText("-");
+    await expect(run.page.getByTestId("home-runs")).toContainText("실행 기록이 없습니다.");
     await expect(run.page.getByTestId("home-trend")).toContainText("실행 기록이 쌓이면");
+    await expect(run.page.getByText("지금 실패 중")).toHaveCount(0);
     await run.page.waitForTimeout(500);
+    const empty = await homeLayout(run.page);
+    run.note("layout-empty", empty);
+    expectHomeRows(empty);
     await run.shot("first");
     await run.page.evaluate((token) => window.qa.secrets.set({ name: "githubToken", value: token }), TOKEN);
     await run.page.evaluate(() => window.qa.settings.update({ github: { owner: "acme" } }));
@@ -34,6 +39,24 @@ test("홈 대시보드: 지표·추이·환경·살펴볼 테스트 케이스·�
       d.setHours(hour, 0, 0, 0);
       return d.toISOString();
     };
+    // 먼저 2건만: 최근 실행이 5건보다 적어도 윗줄 높이는 같다
+    seed(userDataDir, [
+      { id: "run-g", fixture: "ios-fail", tcId: "TC-0002", target: "ios", status: "failed", createdAt: day(8, 11) },
+      { id: "run-h", fixture: "ios-pass", tcId: "TC-0002", target: "ios", status: "passed", createdAt: day(10, 11) },
+    ]);
+    run = await startRun("home-few", { userDataDir, env: remote.env });
+    await doctor(run);
+    await expect(run.page.getByTestId("home-recent-run-g")).toBeVisible();
+    await expect(run.page.getByTestId("home-chart")).toBeVisible();
+    await run.page.waitForTimeout(500);
+    const few = await homeLayout(run.page);
+    run.note("layout-few", few);
+    expectHomeRows(few);
+    expect(few.recentRows).toBe(2);
+    expect(Math.abs(few.trend.height - empty.trend.height), "0건과 2건의 윗줄 높이").toBeLessThanOrEqual(1);
+    await run.shot("few");
+    await run.close();
+
     seed(userDataDir, [
       { id: "run-a", fixture: "ios-fail", tcId: "TC-0101", target: "ios", status: "failed", createdAt: day(0, 10) },
       { id: "run-b", fixture: "ios-fail", tcId: "TC-0101", target: "ios", status: "failed", createdAt: day(1, 15) },
@@ -41,19 +64,20 @@ test("홈 대시보드: 지표·추이·환경·살펴볼 테스트 케이스·�
       { id: "run-d", fixture: "android-pass", tcId: "TC-0101", target: "android", status: "passed", createdAt: day(1, 9), flaky: true },
       { id: "run-e", fixture: "ios-pass", tcId: "TC-0002", target: "ios", status: "passed", createdAt: day(3, 11) },
       { id: "run-f", fixture: "ios-pass", tcId: "TC-0002", target: "ios", status: "passed", createdAt: day(5, 11) },
-      { id: "run-g", fixture: "ios-fail", tcId: "TC-0002", target: "ios", status: "failed", createdAt: day(8, 11) },
-      { id: "run-h", fixture: "ios-pass", tcId: "TC-0002", target: "ios", status: "passed", createdAt: day(10, 11) },
     ]);
 
     run = await startRun("home", { userDataDir, env: remote.env });
     const { page } = run;
     await doctor(run);
-    await expect(page.getByTestId("home-tile-failing")).toContainText("1");
-    await expect(page.getByTestId("home-tile-flaky")).toContainText("1");
-    await expect(page.getByTestId("home-tile-coverage")).toContainText("2 / 2");
     await expect(page.getByTestId("home-attention-TC-0101-ios")).toContainText("2회");
     await expect(page.getByTestId("home-attention-TC-0101-android")).toContainText("재시도 통과");
     await page.waitForTimeout(500);
+    const full = await homeLayout(page);
+    run.note("layout-full", full);
+    expectHomeRows(full);
+    expect(full.recentRows).toBe(5);
+    expect(Math.abs(full.trend.height - few.trend.height), "2건과 5건의 윗줄 높이").toBeLessThanOrEqual(1);
+    expect(Math.abs((full.chart?.height ?? 0) - (few.chart?.height ?? -9)), "2건과 5건의 차트 높이").toBeLessThanOrEqual(1);
     await run.shot("data");
     // 막대에 올리면 그날 수가 보인다
     const today = new Date();
@@ -81,9 +105,13 @@ test("홈 대시보드: 지표·추이·환경·살펴볼 테스트 케이스·�
     await page.emulateMedia({ colorScheme: "dark" });
     await page.waitForTimeout(400);
     await run.shot("live-dark");
-    // 좁은 창: 지표 2칸, 추이·환경 1단
+    // 좁은 창: 카드가 한 줄씩 쌓이고 높이는 내용을 따른다(빈 줄 없음). 차트는 기본 비율이다
     await page.setViewportSize({ width: 900, height: 900 });
     await page.waitForTimeout(400);
+    const narrow = await homeLayout(page);
+    expect(narrow.runs.top, "좁은 창에서는 최근 실행이 추이 아래").toBeGreaterThanOrEqual(narrow.trend.bottom);
+    expect(narrow.chart ? Math.abs(narrow.chart.height / narrow.chart.width - 210 / 600) : 1, "좁은 창의 차트 비율").toBeLessThan(0.01);
+    run.note("layout-narrow", narrow);
     await run.shot("narrow-dark");
   } finally {
     await run.close();
