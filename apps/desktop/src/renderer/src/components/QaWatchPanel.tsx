@@ -1,19 +1,25 @@
-import type { QaWatchApp, QaWatchSettings, QaWatchState } from "@qa/shared";
+import { QA_WATCH_DOORAY_TOKEN_SECRET, type QaWatchApp, type QaWatchProject, type QaWatchSettings, type QaWatchState } from "@qa/shared";
 import { useEffect, useState } from "react";
 import { errorMessage, formatDateTime } from "../lib/errors";
 
 const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
-const newApp = (): QaWatchApp => ({ id: crypto.randomUUID(), app: "", project: "", tag: "", scope: "assigned_to_me", repoPath: "", enabled: true });
+const newApp = (): QaWatchApp => ({ id: crypto.randomUUID(), project: "", tag: "", scope: "assigned_to_me", repoPath: "", enabled: true });
 
 /**
  * QA 티켓 자동 처리 설정(사이드 브랜치). 어느 프로젝트의 어떤 태그를 언제 볼지, 사람 확인 없이 무엇까지 해도 되는지 정한다.
- * Avocado 는 이슈 트래커를 직접 조회하지 않는다. 주기적으로 깨어난 Claude Code 가 이 설정을 받아 간다.
+ * 두레이 토큰을 넣어 두면 프로젝트와 태그를 목록에서 고를 수 있다. 티켓 조회와 처리는 주기적으로 깨어난 Claude Code 가 이 설정을 받아 가서 한다.
  */
 export function QaWatchPanel() {
   const [state, setState] = useState<QaWatchState | null>(null);
   const [draft, setDraft] = useState<QaWatchSettings | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
+  const [tokenStored, setTokenStored] = useState(false);
+  const [tokenDraft, setTokenDraft] = useState("");
+  const [projects, setProjects] = useState<QaWatchProject[]>([]);
+  /** 프로젝트 이름 → 태그 이름. 한 번 읽어 온 것은 다시 읽지 않는다 */
+  const [tags, setTags] = useState<Record<string, string[]>>({});
+  const fail = (e: unknown) => setMessage({ text: errorMessage(e), error: true });
 
   useEffect(() => {
     window.qa.qawatch.get().then(
@@ -21,9 +27,30 @@ export function QaWatchPanel() {
         setState(s);
         setDraft(s.settings);
       },
-      (e: unknown) => setMessage({ text: errorMessage(e), error: true }),
+      fail,
     );
+    window.qa.secrets.list().then((s) => setTokenStored(s.items.some((i) => i.name === QA_WATCH_DOORAY_TOKEN_SECRET && i.stored)), fail);
   }, []);
+
+  useEffect(() => {
+    if (!tokenStored) {
+      setProjects([]);
+      setTags({});
+      return;
+    }
+    window.qa.qawatch.projects().then(setProjects, fail);
+  }, [tokenStored]);
+
+  // 고른 프로젝트의 태그를 읽어 온다
+  const chosen = draft?.apps.map((a) => a.project).join("\n") ?? "";
+  useEffect(() => {
+    for (const name of new Set(chosen.split("\n"))) {
+      const project = projects.find((p) => p.name === name);
+      if (!project || tags[name]) continue;
+      setTags((t) => ({ ...t, [name]: [] }));
+      window.qa.qawatch.tags(project.id).then((list) => setTags((t) => ({ ...t, [name]: list })), fail);
+    }
+  }, [chosen, projects, tags]);
 
   if (!draft) return message ? <p className="error">{message.text}</p> : null;
 
@@ -42,9 +69,20 @@ export function QaWatchPanel() {
       setMessage({ text: "저장했습니다", error: false });
     } catch (e) {
       const text = errorMessage(e);
-      setMessage({ text: text.includes("invalid-input") ? "입력 형식이 맞지 않습니다. 앱 이름은 소문자·숫자·하이픈이고, 프로젝트·태그·저장소 폴더는 비울 수 없습니다." : text, error: true });
+      setMessage({ text: text.includes("invalid-input") ? "입력 형식이 맞지 않습니다. 프로젝트·태그·저장소 폴더는 비울 수 없습니다." : text, error: true });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function saveToken(value: string | null) {
+    setMessage(null);
+    try {
+      const status = value === null ? await window.qa.secrets.delete({ name: QA_WATCH_DOORAY_TOKEN_SECRET }) : await window.qa.secrets.set({ name: QA_WATCH_DOORAY_TOKEN_SECRET, value });
+      setTokenDraft("");
+      setTokenStored(status.stored);
+    } catch (e) {
+      fail(e);
     }
   }
 
@@ -101,22 +139,48 @@ export function QaWatchPanel() {
       </label>
       {!draft.autoMr ? <p className="hint">MR 올리기를 꺼 두면 수정과 기기 확인까지만 하고 멈춥니다. 작업 브랜치는 남습니다.</p> : null}
 
+      <h3>두레이 연결</h3>
+      <div className="row">
+        {tokenStored ? (
+          <>
+            <span>토큰 저장됨 · 프로젝트 {projects.length}개</span>
+            <button type="button" className="secondary" onClick={() => void saveToken(null)}>
+              토큰 삭제
+            </button>
+          </>
+        ) : (
+          <>
+            <input type="password" aria-label="두레이 토큰" placeholder="두레이 개인 API 토큰" autoComplete="off" value={tokenDraft} onChange={(e) => setTokenDraft(e.target.value)} />
+            <button type="button" className="secondary" disabled={!tokenDraft.trim()} onClick={() => void saveToken(tokenDraft.trim())}>
+              토큰 저장
+            </button>
+          </>
+        )}
+      </div>
+      <p className="hint">토큰을 넣어 두면 프로젝트와 태그를 목록에서 고를 수 있습니다. 토큰은 이 Mac 의 키체인으로 암호화해 두고, 목록을 읽는 데만 씁니다.</p>
+      <datalist id="qawatch-projects">
+        {projects.map((p) => (
+          <option key={p.id} value={p.name} />
+        ))}
+      </datalist>
+
       <h3>감시 항목</h3>
       {draft.apps.length === 0 ? <p className="hint">감시 항목이 없습니다.</p> : null}
       {draft.apps.map((a) => (
         <div key={a.id} className="card stack" data-testid={`qawatch-app-${a.id}`}>
           <div className="row">
             <label>
-              앱 이름
-              <input aria-label="앱 이름" value={a.app} placeholder="demo" onChange={(e) => patchApp(a.id, { app: e.target.value })} />
-            </label>
-            <label>
               프로젝트
-              <input aria-label="프로젝트" value={a.project} placeholder="앱-QA" onChange={(e) => patchApp(a.id, { project: e.target.value })} />
+              <input aria-label="프로젝트" list="qawatch-projects" value={a.project} placeholder="앱-QA" onChange={(e) => patchApp(a.id, { project: e.target.value })} />
             </label>
             <label>
               태그
-              <input aria-label="태그" value={a.tag} onChange={(e) => patchApp(a.id, { tag: e.target.value })} />
+              <input aria-label="태그" list={`qawatch-tags-${a.id}`} value={a.tag} onChange={(e) => patchApp(a.id, { tag: e.target.value })} />
+              <datalist id={`qawatch-tags-${a.id}`}>
+                {(tags[a.project] ?? []).map((t) => (
+                  <option key={t} value={t} />
+                ))}
+              </datalist>
             </label>
             <label>
               대상

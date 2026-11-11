@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, session, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, session, shell } from "electron";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { AppDatabase } from "./db/database";
@@ -30,8 +30,10 @@ import { McpSocketHost } from "./claude/socket-host";
 import { JudgeService } from "./agent/judge-service";
 import { QaJobService } from "./qa/qa-job-service";
 import { buildSecretSet, redactText } from "@qa/evidence";
+import { QA_WATCH_DOORAY_TOKEN_SECRET } from "@qa/shared";
 import { QaJobStore } from "./qa/qa-job-store";
 import { QaWatchService } from "./qa/qa-watch-service";
+import { QaDooray } from "./qa/qa-dooray";
 import { createSquirrelInstaller } from "./update/native-updater";
 import { UpdateService } from "./update/update-service";
 import { UPDATE_RELEASE_REPO, UPDATE_SIGNER_TEAM_ID } from "./update/trust";
@@ -322,6 +324,7 @@ void app.whenReady().then(() => {
   });
   const qaJobStore = new QaJobStore(join(app.getPath("userData"), "qa-jobs", "jobs.json"));
   const qaWatch = new QaWatchService({ file: join(app.getPath("userData"), "qa-jobs", "watch.json"), jobs: qaJobStore });
+  const qaDooray = new QaDooray({ token: () => settings.getSecret(QA_WATCH_DOORAY_TOKEN_SECRET), fetch: (url, init) => net.fetch(url, init) });
   const qaJobs = new QaJobService({
     store: qaJobStore,
     devices,
@@ -404,7 +407,7 @@ void app.whenReady().then(() => {
   });
   registerIpcHandlers(
     ipcMain,
-    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, runPickers, runQueue: new RunQueue(runs), evidence, upload, remote, workspace, agentJobs, author, judge, claude, update, qaJobs, qaWatch, pickFolder: () => pick({ title: "고칠 앱의 저장소 폴더 선택", properties: ["openDirectory"] }) }),
+    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, runPickers, runQueue: new RunQueue(runs), evidence, upload, remote, workspace, agentJobs, author, judge, claude, update, qaJobs, qaWatch, qaDooray, pickFolder: () => pick({ title: "고칠 앱의 저장소 폴더 선택", properties: ["openDirectory"] }) }),
     isAllowed,
   );
   createMainWindow();

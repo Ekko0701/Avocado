@@ -31,6 +31,7 @@ import { createUpdateHandlers } from "./update/update-handlers";
 import type { UpdateService } from "./update/update-service";
 import type { QaJobService } from "./qa/qa-job-service";
 import type { QaWatchService } from "./qa/qa-watch-service";
+import type { QaDooray } from "./qa/qa-dooray";
 
 export interface HandlerDeps {
   settings: SettingsService;
@@ -54,6 +55,7 @@ export interface HandlerDeps {
   update: UpdateService;
   qaJobs: QaJobService;
   qaWatch: QaWatchService;
+  qaDooray: QaDooray;
   /** main 의 폴더 선택 창. 취소하면 null */
   pickFolder: () => Promise<string | null>;
 }
@@ -101,5 +103,7 @@ export function createHandlers(deps: HandlerDeps): IpcHandlers {
     "qawatch:get": () => deps.qaWatch.get(),
     "qawatch:save": (settings) => deps.qaWatch.save(settings),
     "qawatch:pickFolder": () => deps.pickFolder(),
+    "qawatch:projects": () => deps.qaDooray.projects(),
+    "qawatch:tags": (projectId) => deps.qaDooray.tags(projectId),
   };
 }

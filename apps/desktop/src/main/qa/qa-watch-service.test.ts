@@ -44,7 +44,7 @@ function setup(opts: { now?: Date; jobs?: QaJob[] } = {}) {
     endHour: 18,
     autoMr: false,
     autoComment: false,
-    apps: [{ id: "a1", app: "demo", project: "앱-QA", tag: "자동수정", scope: "assigned_to_me", repoPath: dir, enabled: true }],
+    apps: [{ id: "a1", project: "앱-QA", tag: "자동수정", scope: "assigned_to_me", repoPath: dir, enabled: true }],
     ...over,
   });
   const next = (args: unknown = {}) => {

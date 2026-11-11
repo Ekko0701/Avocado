@@ -213,6 +213,13 @@ function setup() {
     "qawatch:pickFolder": () => {
       throw new Error("not used");
     },
+    "qawatch:projects": () => {
+      throw new Error("not used");
+    },
+
+    "qawatch:tags": () => {
+      throw new Error("not used");
+    },
     "agent:judge": () => {
       throw new Error("not used");
     },

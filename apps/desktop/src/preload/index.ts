@@ -106,6 +106,8 @@ const api: QaApi = {
     get: () => invoke("qawatch:get", undefined),
     save: (settings) => invoke("qawatch:save", settings),
     pickFolder: () => invoke("qawatch:pickFolder", undefined),
+    projects: () => invoke("qawatch:projects", undefined),
+    tags: (projectId) => invoke("qawatch:tags", projectId),
   },
   update: {
     status: () => invoke("update:status", undefined),

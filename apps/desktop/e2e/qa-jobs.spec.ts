@@ -97,14 +97,14 @@ test("자동 처리 설정을 화면에서 바꿔 저장하고, 없는 저장소
         endHour: 18,
         autoMr: false,
         autoComment: false,
-        apps: [{ id: "a1", app: "demo", project: "앱-QA", tag: "자동수정", scope: "assigned_to_me", repoPath, enabled: true }],
+        apps: [{ id: "a1", project: "앱-QA", tag: "자동수정", scope: "assigned_to_me", repoPath, enabled: true }],
       }),
     userDataDir,
   );
   expect(saved.settings.apps).toHaveLength(1);
   const missing = await page.evaluate(() =>
     window.qa.qawatch
-      .save({ enabled: true, intervalMinutes: 30, days: [1], startHour: 9, endHour: 18, autoMr: false, autoComment: false, apps: [{ id: "a1", app: "demo", project: "앱-QA", tag: "자동수정", scope: "all", repoPath: "/없는/폴더", enabled: true }] })
+      .save({ enabled: true, intervalMinutes: 30, days: [1], startHour: 9, endHour: 18, autoMr: false, autoComment: false, apps: [{ id: "a1", project: "앱-QA", tag: "자동수정", scope: "all", repoPath: "/없는/폴더", enabled: true }] })
       .then(() => "saved", (e: unknown) => String(e)),
   );
   expect(missing).toContain("저장소 폴더가 없다");

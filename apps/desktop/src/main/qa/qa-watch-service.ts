@@ -128,7 +128,7 @@ export class QaWatchService {
       "감시 항목:",
       ...settings.apps
         .filter((a) => a.enabled)
-        .map((a) => `- 앱 ${a.app} · 프로젝트 "${a.project}" · 태그 "${a.tag}" · 대상 ${a.scope === "assigned_to_me" ? "나에게 배정된 것만" : "태그가 붙은 것 전부"} · 저장소 폴더 ${a.repoPath}`),
+        .map((a) => `- 프로젝트 "${a.project}" · 태그 "${a.tag}" · 대상 ${a.scope === "assigned_to_me" ? "나에게 배정된 것만" : "태그가 붙은 것 전부"} · 저장소 폴더 ${a.repoPath}`),
       "",
       `사람 확인 없이 MR 올리기: ${settings.autoMr ? "해도 된다" : "하지 않는다(MR 직전에 멈추고 사람 확인을 기다린다)"}`,
       `사람 확인 없이 티켓 댓글 달기: ${settings.autoComment ? "해도 된다" : "하지 않는다"}`,

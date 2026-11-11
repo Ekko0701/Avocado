@@ -1,18 +1,22 @@
 import { z } from "zod";
-import { AppIdSchema } from "./builds";
 
 /**
  * QA 티켓 자동 처리 설정(사이드 브랜치 side/qa-fix-monitor).
  * 이슈 트래커 프로젝트에 정한 태그가 붙은 티켓이 올라오면 Claude Code 가 알아서 처리하도록, 무엇을 언제 볼지 여기서 정한다.
- * Avocado 는 이슈 트래커를 직접 조회하지 않는다. 주기적으로 깨어난 Claude Code 가 qa_watch_next 로 이 설정을 받아 조회한다.
+ * 티켓은 주기적으로 깨어난 Claude Code 가 qa_watch_next 로 이 설정을 받아 조회한다. Avocado 는 설정 화면에서 고를 프로젝트·태그 목록만 읽어 온다.
  */
+
+/** 두레이 토큰을 넣어 두는 비밀 이름. main 브랜치의 앱도 읽을 수 있는 계정 비밀 형식을 쓴다 */
+export const QA_WATCH_DOORAY_TOKEN_SECRET = "account:qa-watch:DOORAY_TOKEN";
+
+export const QaWatchProjectSchema = z.strictObject({ id: z.string().regex(/^\d{1,30}$/), name: z.string() });
+export type QaWatchProject = z.infer<typeof QaWatchProjectSchema>;
+
 export const QaWatchScopeSchema = z.enum(["all", "assigned_to_me"]);
 export type QaWatchScope = z.infer<typeof QaWatchScopeSchema>;
 
 export const QaWatchAppSchema = z.strictObject({
   id: z.string().min(1).max(64),
-  /** 결과를 묶어 보는 앱 이름 */
-  app: AppIdSchema,
   /** 이슈 트래커 프로젝트 이름(코드) */
   project: z.string().min(1).max(120),
   /** 이 태그가 붙은 티켓만 처리한다 */

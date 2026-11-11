@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { UpdateStatusSchema, type UpdateStatus } from "../update";
 import { QaJobSchema, type QaJob } from "../qa-jobs";
-import { QaWatchSettingsSchema, QaWatchStateSchema, type QaWatchSettings, type QaWatchState } from "../qa-watch";
+import { QaWatchProjectSchema, QaWatchSettingsSchema, QaWatchStateSchema, type QaWatchProject, type QaWatchSettings, type QaWatchState } from "../qa-watch";
 import { AgentJobRefSchema, AgentUsageSchema, AuthorJobSchema, ClaudeConnectionSchema, ClaudeJudgeJobSchema, JudgementSchema, StartAuthorInputSchema, type AgentUsage, type AuthorJob, type ClaudeConnection, type ClaudeJudgeJob, type Judgement, type StartAuthorInput } from "../agent";
 import {
   SecretNameSchema,
@@ -259,6 +259,8 @@ export const ipcContract = {
   "qawatch:get": { input: z.undefined(), output: QaWatchStateSchema },
   "qawatch:save": { input: QaWatchSettingsSchema, output: QaWatchStateSchema },
   "qawatch:pickFolder": { input: z.undefined(), output: z.string().nullable() },
+  "qawatch:projects": { input: z.undefined(), output: z.array(QaWatchProjectSchema) },
+  "qawatch:tags": { input: QaWatchProjectSchema.shape.id, output: z.array(z.string()) },
 } as const satisfies Record<string, { input: z.ZodType; output: z.ZodType }>;
 
 export type IpcContract = typeof ipcContract;
@@ -427,6 +429,10 @@ export interface QaApi {
     save(settings: QaWatchSettings): Promise<QaWatchState>;
     /** main 이 선택 창으로 저장소 폴더를 고른다. 취소하면 null */
     pickFolder(): Promise<string | null>;
+    /** 저장해 둔 두레이 토큰으로 내가 속한 프로젝트를 읽어 온다 */
+    projects(): Promise<QaWatchProject[]>;
+    /** 프로젝트의 태그 이름 */
+    tags(projectId: string): Promise<string[]>;
   };
   /** 새 버전 확인과 받기(SHA-256·서명 확인 뒤에만 연다). 받은 .zip 은 재시작으로 적용한다(ADR 0027) */
   update: {
