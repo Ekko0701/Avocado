@@ -91,6 +91,10 @@ test("readme: README 에 넣을 화면", async () => {
   try {
     await doctor(run);
     const cdp = await page.context().newCDPSession(page);
+    // 창 바닥은 투명하고 그 뒤에 macOS 사이드바 재질이 비친다(ADR 0028). 화면만 찍으면 사이드바가 반투명 PNG 로 남아
+    // 어두운 바탕(GitHub 다크 모드)에서 회색으로 보인다. 밝은 모드의 사이드바 재질에 가까운 색을 바닥에 깔아 불투명하게 찍는다
+    // (투명 창에서는 CDP 의 기본 배경색 지정이 먹지 않아 문서 바닥에 직접 칠한다. CSSOM 으로 넣어 CSP 에 걸리지 않는다)
+    await page.evaluate(() => document.documentElement.style.setProperty("background", "rgb(232, 232, 237)", "important"));
     /** 창 크기와 상관없이 같은 크기·2배 해상도로 찍는다 */
     const size = async (height: number) => {
       await cdp.send("Emulation.setDeviceMetricsOverride", { width: WIDTH, height, deviceScaleFactor: 2, mobile: false });
