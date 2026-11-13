@@ -1,5 +1,6 @@
 export * from "./model";
 export { EXECUTION_LAYOUT, parseExecution, type ParseExecutionInput } from "./parse";
+export { AGENT_DEVICE_LAYOUT, parseAgentDeviceExecution, parseKeyValues } from "./agent-device";
 export { parseJUnit, junitPassed, type JUnitCase, type JUnitReport } from "./junit";
 export { stripAnsi, isDriverFailure, exceptionMessage } from "./console";
 export { describeCommand } from "./describe";

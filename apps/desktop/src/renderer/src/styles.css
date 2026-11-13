@@ -3208,3 +3208,27 @@ hr.rule {
 .home-attention-table td.num {
   white-space: nowrap;
 }
+
+/* 기기 › iPhone 점검: 사람이 터미널에서 실행할 명령 한 줄(ADR 0034) */
+.check-body code.command {
+  display: block;
+  margin-top: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--fill, rgba(0, 0, 0, 0.05));
+  font-size: 12px;
+  user-select: all;
+}
+
+/* 기기 준비의 탭 4개(iOS·Android·Android 폰·iPhone)는 좁은 칸 폭에 맞춰 나눠 갖는다(가로로 넘치지 않게) */
+[role="tablist"][aria-label="준비할 기기"] {
+  display: flex;
+  justify-self: stretch;
+  max-width: 100%;
+}
+[role="tablist"][aria-label="준비할 기기"] > button[role="tab"] {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 3px 6px;
+  white-space: nowrap;
+}

@@ -7,6 +7,7 @@ export function deviceLabel(d: Pick<Device, "name" | "kind">): string {
 
 /** 기기 화면의 설명 줄 */
 export function deviceKindText(d: Pick<Device, "platform" | "kind" | "osVersion" | "serial">): string {
+  if (d.platform === "ios" && d.kind === "real") return `iOS ${d.osVersion} 실기기`;
   if (d.platform === "ios") return `iOS ${d.osVersion} 시뮬레이터`;
   if (d.kind === "real") return `Android ${d.osVersion ? `${d.osVersion} ` : ""}실기기${d.serial ? ` · ${d.serial}` : ""}`;
   return `Android 에뮬레이터${d.serial ? ` · ${d.serial}` : ""}`;

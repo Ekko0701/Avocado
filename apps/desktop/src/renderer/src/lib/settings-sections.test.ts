@@ -54,7 +54,7 @@ describe("설정 구역 요약", () => {
   });
 
   it("증적·기기·앱 정보는 지금 값을 보인다", () => {
-    const s = settings({ evidence: { retentionDays: 14 }, policy: { evidenceUploadApproved: true }, devices: { locale: "en_US" } });
+    const s = settings({ evidence: { retentionDays: 14 }, policy: { evidenceUploadApproved: true }, devices: { locale: "en_US", iosSigningTeam: null } });
     const out = sectionSummaries({ settings: s, secrets: secrets(), ...none });
     expect(out.evidence).toEqual({ hint: "14일 보관 · 업로드 켜짐", dot: null });
     expect(out.devices).toEqual({ hint: "언어 en_US", dot: null });

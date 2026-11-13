@@ -63,6 +63,12 @@ function setup() {
     "devices:deleteIos": () => {
       throw new Error("not used");
     },
+    "devices:iosSigningTeams": () => {
+      throw new Error("not used");
+    },
+    "devices:checkIosDevice": () => {
+      throw new Error("not used");
+    },
     "builds:list": () => {
       throw new Error("not used");
     },

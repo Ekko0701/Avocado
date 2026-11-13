@@ -1,0 +1,8 @@
+file: /fixture/flows/ios-fail.yaml
+session: cwd:0000000000000000:ios:test:0f1e2d3c4b5a6978:2-ios-fail:attempt-1
+attempt: 1/1
+status: failed
+code: REPLAY_DIVERGENCE
+message: Replay failed at step 6 (tapOn "fixture-account-7731 없음"): Maestro target "text":"fixture-account-7731 없음" did not match any element. (/fixture/flows/ios-fail.yaml:line 15)
+hint: Retry with --debug and inspect diagnostics log for details.
+copiedArtifacts: 01_search_typed.png

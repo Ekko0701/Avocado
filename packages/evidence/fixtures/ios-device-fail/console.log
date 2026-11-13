@@ -1,0 +1,26 @@
+⨯ fixture iOS 설정 검색 실패 33.0s
+    file: ios-fail.yaml
+    failed at: Replay failed at step 6 (tapOn "fixture-account-7731 없음"): Maestro target "text":"fixture-account-7731 없음" did not match any element. (/fixture/flows/ios-fail.yaml:line 15)
+    hint: Retry with --debug and inspect diagnostics log for details.
+    session: cwd:0000000000000000:ios:test:0f1e2d3c4b5a6978:2-ios-fail:attempt-1
+    artifacts: /fixture/runs/device/0f1e2d3c4b5a6978/flows__ios-fail.yaml
+Test summary: 1 passed (2), 1 failed in 50.2s
+
+Failures:
+  fixture iOS 설정 검색 실패
+    file: ios-fail.yaml
+    Replay failed at step 6 (tapOn "fixture-account-7731 없음"): Maestro target "text":"fixture-account-7731 없음" did not match any element. (/fixture/flows/ios-fail.yaml:line 15)
+    hint: Retry with --debug and inspect diagnostics log for details.
+    artifacts: /fixture/runs/device/0f1e2d3c4b5a6978/flows__ios-fail.yaml
+    Divergence at step 6 (/fixture/flows/ios-fail.yaml:15)
+    Repair hint: manual — no safe automated repair could be proven; inspect the screen and repair by hand. if you fixed app state with --no-record actions: replay --from 6 --plan-digest 1798d534be5e19e9481c39b5aea9a96484bf1077fefce3ff910470eb6baa064b.
+    Screen: 20 actionable ref(s) captured (refsGeneration 818577).
+      @e1 [application] "설정"
+      @e4 [other] "SystemInputAssistantView"
+      @e5 [other] "예상 단어 입력하기"
+      @e6 [scroll-area]
+      @e7 [button]
+      @e8 [button]
+      @e9 [button]
+      @e48 [other] "inputView"
+      ... 12 more

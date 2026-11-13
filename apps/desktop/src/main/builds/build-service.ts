@@ -346,6 +346,8 @@ export class BuildService {
     const device = (await this.options.devices.list()).devices.find((d) => d.id === deviceId && d.platform === build.target);
     if (!device) throw new BuildError(`${build.target} 기기를 찾지 못했다: ${deviceId}`);
     if (device.state !== "booted") throw new BuildError(notReady(device));
+    // 등록한 iOS 빌드는 시뮬레이터용이다. iPhone 에는 TestFlight·App Store·Xcode 로 설치한 앱을 그대로 쓴다(ADR 0034)
+    if (device.platform === "ios" && device.kind === "real") throw new BuildError(`iPhone 에는 빌드를 설치하지 않는다: ${device.name}. TestFlight·App Store·Xcode 로 설치한 앱을 실행에서 그대로 쓴다`);
 
     if (build.target === "ios") {
       const r = await this.options.run("/usr/bin/xcrun", ["simctl", "install", device.id, build.path], { timeoutMs: 300_000 });

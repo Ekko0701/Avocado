@@ -36,6 +36,8 @@ export interface DeviceServiceOptions {
   pollMs?: number;
   /** 기기를 지우면 안 되는 이유(실행·플로우 만들기 진행 중). 없으면 null */
   busy?: () => string | null;
+  /** 연결된 iPhone·iPad(ADR 0034). 없으면 iOS 실기기를 목록에 넣지 않는다 */
+  iosPhysical?: () => Promise<Device[]>;
 }
 
 export const DEFAULT_IOS_DEVICE_TYPE = "iPhone 17";
@@ -56,6 +58,7 @@ const ANIMATION_KEYS = ["window_animation_scale", "transition_animation_scale", 
  *   언어와 동작 줄이기를 맞춘다. 사용자가 직접 만든 시뮬레이터는 목록에 넣지도, 바꾸지도, 지우지도 않는다.
  * - Android: 기존 AVD 를 화면 없이 설정 언어로 부팅하고 애니메이션을 끈다.
  * - Android 실기기: adb 로 연결된 폰을 목록에 넣는다. 사람의 폰이라 언어·애니메이션 설정을 바꾸지 않고, 끄지도 않는다(ADR 0030).
+ * - iOS 실기기: devicectl 로 연결된 iPhone·iPad 를 목록에 넣는다(IosDeviceService, ADR 0034). 설정을 바꾸지 않고 끄지 않는다.
  * 언어가 실제로 적용되지 않으면 조용히 넘어가지 않고 오류를 낸다(ADR 0001 발견 2).
  */
 export class DeviceService {
@@ -150,6 +153,7 @@ export class DeviceService {
       }
     }
     if (this.adbAvailable()) devices.push(...(await this.physicalDevices()));
+    if (this.options.iosPhysical) devices.push(...(await this.options.iosPhysical()));
     return { devices, androidAvailable };
   }
 

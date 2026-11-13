@@ -12,11 +12,14 @@ import { join } from "node:path";
  */
 export const FAKE_JRE_VERSION = "21-fake";
 export const FAKE_MAESTRO_VERSION = "9.9.9-fake";
+export const FAKE_AGENT_DEVICE_VERSION = "0.0.0-fake";
 
 export interface FakeArchives {
   dir: string;
   jre: string;
   maestro: string;
+  /** npm 묶음 모양(package/bin/agent-device.mjs) */
+  agentDevice: string;
 }
 
 function writeExecutable(path: string, body: string) {
@@ -50,7 +53,12 @@ export function buildFakeToolArchives(): FakeArchives {
     ].join("\n"),
   );
   execFileSync("/usr/bin/ditto", ["-c", "-k", "--keepParent", join(dir, "src-maestro", "maestro"), join(dir, "maestro.zip")]);
-  return { dir, jre: join(dir, "jre.tar.gz"), maestro: join(dir, "maestro.zip") };
+
+  const adBin = join(dir, "src-agent-device", "package", "bin");
+  mkdirSync(adBin, { recursive: true });
+  writeFileSync(join(adBin, "agent-device.mjs"), `console.log("${FAKE_AGENT_DEVICE_VERSION}");\n`);
+  execFileSync("/usr/bin/tar", ["-czf", join(dir, "agent-device.tgz"), "-C", join(dir, "src-agent-device"), "package"]);
+  return { dir, jre: join(dir, "jre.tar.gz"), maestro: join(dir, "maestro.zip"), agentDevice: join(dir, "agent-device.tgz") };
 }
 
 export function sha256(path: string): string {
@@ -111,6 +119,14 @@ export function fakeToolDefinitions(baseUrl: string, archives: FakeArchives) {
       sha256: sha256(archives.maestro),
       sizeBytes: statSync(archives.maestro).size,
       archive: "zip" as const,
+    },
+    "agent-device": {
+      id: "agent-device" as const,
+      version: FAKE_AGENT_DEVICE_VERSION,
+      url: `${baseUrl}/agent-device.tgz`,
+      sha256: sha256(archives.agentDevice),
+      sizeBytes: statSync(archives.agentDevice).size,
+      archive: "tar.gz" as const,
     },
   };
 }

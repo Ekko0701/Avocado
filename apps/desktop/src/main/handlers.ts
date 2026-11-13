@@ -8,6 +8,7 @@ import type { AppDatabase } from "./db/database";
 import { createSetupHandlers } from "./setup/setup-handlers";
 import type { SetupService } from "./setup/setup-service";
 import { createDeviceHandlers } from "./devices/device-handlers";
+import type { IosDeviceService } from "./devices/ios-device-service";
 import type { DeviceService } from "./devices/device-service";
 import { createBuildHandlers, type BuildPickers } from "./builds/build-handlers";
 import type { BuildService } from "./builds/build-service";
@@ -39,6 +40,7 @@ export interface HandlerDeps {
   buildPickers: BuildPickers;
   projectBuilds: ProjectBuilds;
   runs: RunService;
+  iosDevice: IosDeviceService;
   runPickers: RunPickers;
   runQueue: RunQueue;
   evidence: EvidenceService;
@@ -80,7 +82,7 @@ export function createHandlers(deps: HandlerDeps): IpcHandlers {
     ...createSettingsHandlers(deps.settings),
     "db:status": () => deps.db.status(),
     ...createSetupHandlers(deps.setup, deps.settings),
-    ...createDeviceHandlers(deps.devices),
+    ...createDeviceHandlers(deps.devices, deps.iosDevice),
     ...createBuildHandlers(deps.builds, deps.buildPickers, deps.projectBuilds),
     ...createRunHandlers(deps.runs, deps.runPickers),
     ...createWorkspaceRunHandlers({ workspace: deps.workspace, builds: deps.builds, queue: deps.runQueue }),

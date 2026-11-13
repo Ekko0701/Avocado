@@ -5,6 +5,7 @@ import {
   type AppInfo,
   type ClaudeConnection,
   type DbStatus,
+  type IosSigningTeam,
   type RemoteVerify,
   type SecretStatus,
   type SecretsList,
@@ -23,7 +24,7 @@ import { notifyUpdateStatus, onUpdateStatus } from "../lib/update-events";
 /**
  * 설정: 왼쪽은 구역 목록(구역마다 지금 상태 한 줄), 오른쪽은 고른 구역 하나.
  * 구역은 하는 일에 따라 묶는다: GitHub(토큰·저장소·연결 확인), Claude(방식·연결, API 키 방식이면 키·상한·사용량),
- * 증적(로컬 보관·업로드 정책), 기기(언어), 앱 정보(버전·진단)
+ * 증적(로컬 보관·업로드 정책), 기기(언어·iPhone 러너 서명 팀), 앱 정보(버전·진단)
  */
 export function SettingsPage() {
   const [state, setState] = useState<SettingsState | null>(null);
@@ -461,12 +462,27 @@ function EvidenceSection(props: { settings: Settings; onSaved: () => Promise<voi
 
 function DevicesSection(props: { settings: Settings; onSaved: () => Promise<void> }) {
   const [locale, setLocale] = useState(props.settings.devices.locale);
+  const [team, setTeam] = useState(props.settings.devices.iosSigningTeam ?? "");
+  const [teams, setTeams] = useState<IosSigningTeam[] | null>(null);
+  const [teamsError, setTeamsError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const findTeams = useCallback(async () => {
+    setTeamsError(null);
+    try {
+      setTeams(await window.qa.devices.iosSigningTeams());
+    } catch (e) {
+      setTeamsError(errorMessage(e));
+    }
+  }, []);
+  useEffect(() => {
+    void findTeams();
+  }, [findTeams]);
 
   async function save(event: FormEvent) {
     event.preventDefault();
     try {
-      await window.qa.settings.update({ devices: { locale } });
+      await window.qa.settings.update({ devices: { locale, iosSigningTeam: team || null } });
       setMessage("저장했습니다");
       await props.onSaved();
     } catch (e) {
@@ -474,17 +490,46 @@ function DevicesSection(props: { settings: Settings; onSaved: () => Promise<void
     }
   }
 
+  // 저장한 팀이 키체인에 없어도 고른 값은 그대로 보인다
+  const options = teams ?? [];
+  const missing = team && teams && !teams.some((t) => t.id === team);
   return (
     <form className="card settings-detail" onSubmit={save} aria-labelledby="devices-title">
       <SectionHead id="devices-title" title="기기">
-        QA 기기를 준비할 때 쓰는 값입니다.
+        QA 기기의 언어와 iPhone 실기기 러너 서명을 정합니다.
       </SectionHead>
       <div className="settings-body">
+        <strong className="group-label">언어</strong>
         <label className="narrow">
           QA 기기 언어
           <input value={locale} onChange={(e) => setLocale(e.target.value)} placeholder="ko_KR" />
         </label>
-        <p className="hint">기기 화면에서 QA 기기를 준비할 때 이 언어로 맞춥니다. 예: ko_KR, en_US.</p>
+        <p className="hint">시뮬레이터·에뮬레이터를 준비할 때 이 언어로 맞춥니다. 예: ko_KR, en_US. 사람의 폰(Android 폰·iPhone)은 바꾸지 않습니다.</p>
+        <hr className="rule" />
+        <strong className="group-label">iPhone 실기기</strong>
+        <label className="narrow">
+          러너 서명 팀
+          <select aria-label="러너 서명 팀" value={team} onChange={(e) => setTeam(e.target.value)} data-testid="ios-signing-team">
+            <option value="">고르지 않음</option>
+            {options.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.id})
+              </option>
+            ))}
+            {missing ? <option value={team}>{team} (이 Mac 에 인증서 없음)</option> : null}
+          </select>
+        </label>
+        <p className="hint">
+          이 Mac 키체인의 Apple Development 인증서에서 찾은 팀입니다. 처음 준비할 때 이 팀으로 러너({team ? `dev.avocado.agentdevice.${team.toLowerCase()}.runner` : "dev.avocado.agentdevice.<팀>.runner"})를 서명해 iPhone 에 올립니다. 무료 개인 팀도 됩니다.
+        </p>
+        {teams && teams.length === 0 ? <p className="hint">Apple Development 인증서가 없습니다. Xcode → 설정 → 계정에서 Apple 계정을 넣고 인증서를 만듭니다.</p> : null}
+        {teamsError ? <p className="hint">팀을 찾지 못했습니다: {teamsError}</p> : null}
+        <p className="hint">조직 팀을 고르면 그 팀 계정에 러너 App ID 와 개발용 프로파일이 생길 수 있습니다. 개인 팀을 권합니다.</p>
+        <div className="row">
+          <button type="button" className="secondary" onClick={() => void findTeams()}>
+            팀 다시 찾기
+          </button>
+        </div>
       </div>
       <div className="settings-foot" data-testid="settings-foot">
         <button type="submit">저장</button>

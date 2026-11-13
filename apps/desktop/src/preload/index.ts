@@ -27,6 +27,8 @@ const api: QaApi = {
     shutdown: (input) => invoke("devices:shutdown", input),
     iosOptions: () => invoke("devices:iosOptions", undefined),
     deleteIos: (input) => invoke("devices:deleteIos", input),
+    iosSigningTeams: () => invoke("devices:iosSigningTeams", undefined),
+    checkIosDevice: (input) => invoke("devices:checkIosDevice", { buildRunner: false, ...input }),
   },
   builds: {
     list: () => invoke("builds:list", undefined),

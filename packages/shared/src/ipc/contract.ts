@@ -33,12 +33,17 @@ import {
   DeviceListSchema,
   DeviceRefSchema,
   DeviceSchema,
+  IosDeviceInputSchema,
   IosDeviceOptionsSchema,
+  IosDeviceReadinessSchema,
+  IosSigningTeamsSchema,
   PrepareAndroidInputSchema,
   PrepareIosInputSchema,
   type Device,
   type DeviceList,
   type IosDeviceOptions,
+  type IosDeviceReadiness,
+  type IosSigningTeam,
 } from "../devices";
 import {
   BuildActivitySchema,
@@ -193,6 +198,8 @@ export const ipcContract = {
   "devices:shutdown": { input: DeviceRefSchema, output: DeviceSchema },
   "devices:iosOptions": { input: z.undefined(), output: IosDeviceOptionsSchema },
   "devices:deleteIos": { input: DeleteIosInputSchema, output: DeviceListSchema },
+  "devices:iosSigningTeams": { input: z.undefined(), output: IosSigningTeamsSchema },
+  "devices:checkIosDevice": { input: IosDeviceInputSchema, output: IosDeviceReadinessSchema },
   "builds:list": { input: z.undefined(), output: z.array(BuildSchema) },
   "builds:pickAndRegister": { input: PickBuildInputSchema, output: BuildSchema.nullable() },
   "builds:runScript": { input: RunBuildScriptInputSchema, output: BuildSchema.nullable() },
@@ -301,6 +308,10 @@ export interface QaApi {
     iosOptions(): Promise<IosDeviceOptions>;
     /** 앱이 만든 iOS 시뮬레이터를 지운다(실행·플로우 만들기 중에는 거부) */
     deleteIos(input: { id: string }): Promise<DeviceList>;
+    /** iOS 실기기 러너를 서명할 수 있는 팀(이 Mac 키체인의 Apple Development 인증서, ADR 0034) */
+    iosSigningTeams(): Promise<IosSigningTeam[]>;
+    /** iPhone 준비 점검. buildRunner 면 점검 뒤 러너를 서명·빌드해 올린다(처음 한 번) */
+    checkIosDevice(input: { id: string; buildRunner?: boolean }): Promise<IosDeviceReadiness>;
   };
   builds: {
     list(): Promise<Build[]>;

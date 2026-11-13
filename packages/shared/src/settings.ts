@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AppleTeamIdSchema } from "./devices";
 
 /**
  * 앱 설정(비밀 아님)과 비밀의 스키마 (PLAN 10.3, 12장 "설정").
@@ -97,6 +98,8 @@ export const SettingsSchema = z.strictObject({
   devices: z.strictObject({
     /** QA 기기 언어 (ADR 0001 발견 2) */
     locale: LocaleSchema,
+    /** iOS 실기기 러너를 서명할 Apple 팀 ID(ADR 0034). 정하기 전(null)에는 iOS 실기기를 쓰지 않는다 */
+    iosSigningTeam: AppleTeamIdSchema.nullable().default(null),
   }),
   policy: z.strictObject({
     /** 외부 GitHub 증적 업로드에 대한 조직 보안 승인 (D11). 꺼져 있으면 업로드 기능을 숨긴다. */
@@ -120,7 +123,7 @@ export const DEFAULT_SETTINGS: Settings = {
   evidence: { retentionDays: 30 },
   // 자동 화면 판정은 기본 끔(D15, ADR 0021). 결과 화면의 버튼으로 돈다
   agent: { monthlyBudgetUsd: 100, judgeSampleRate: 0, provider: "claude-app" },
-  devices: { locale: "ko_KR" },
+  devices: { locale: "ko_KR", iosSigningTeam: null },
   policy: { evidenceUploadApproved: false },
   setup: { completedAt: null },
   github: DEFAULT_GITHUB_SETTINGS,
@@ -132,12 +135,13 @@ export const DEFAULT_SETTINGS: Settings = {
  * (예: 월 상한만 저장했는데 방식이 Claude 앱으로 돌아감, 조직만 저장했는데 증적 저장소 이름이 지워짐)
  */
 const AgentPatchSchema = SettingsSchema.shape.agent.extend({ provider: AgentProviderSchema }).partial();
+const DevicesPatchSchema = SettingsSchema.shape.devices.extend({ iosSigningTeam: AppleTeamIdSchema.nullable() }).partial();
 const GitHubPatchSchema = GitHubSettingsSchema.extend({ evidenceRepo: RepoNameSchema.nullable(), evidenceOwner: GitHubOwnerSchema.nullable() }).partial();
 
 export const SettingsPatchSchema = z.strictObject({
   evidence: SettingsSchema.shape.evidence.partial().optional(),
   agent: AgentPatchSchema.optional(),
-  devices: SettingsSchema.shape.devices.partial().optional(),
+  devices: DevicesPatchSchema.optional(),
   policy: SettingsSchema.shape.policy.partial().optional(),
   github: GitHubPatchSchema.optional(),
 });

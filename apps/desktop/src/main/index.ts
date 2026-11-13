@@ -12,7 +12,9 @@ import { runCommand } from "./setup/command";
 import { ToolInstaller } from "./setup/installer";
 import { SetupService } from "./setup/setup-service";
 import { loadToolOverrides } from "./setup/tools";
+import { AgentDevice } from "./devices/agent-device";
 import { DeviceService } from "./devices/device-service";
+import { IosDeviceService } from "./devices/ios-device-service";
 import { spawnDetached } from "./devices/spawn";
 import { BuildService } from "./builds/build-service";
 import { ProjectBuilds } from "./builds/project-builds";
@@ -128,7 +130,26 @@ void app.whenReady().then(() => {
     run: runCommand,
     env: { HOME: app.getPath("home"), ANDROID_HOME: process.env["ANDROID_HOME"] },
   });
+  // iOS 실기기(agent-device, ADR 0034): 상태·러너 빌드는 앱 데이터 안에 둔다
+  const agentDevice = new AgentDevice({
+    entry: () => installer.agentDeviceEntry(),
+    nodeBin: process.execPath,
+    root: join(app.getPath("userData"), "agent-device"),
+    home: app.getPath("home"),
+    run: runCommand,
+    runToLog,
+  });
+  const iosDevice = new IosDeviceService({
+    run: runCommand,
+    agentDevice,
+    signingTeam: () => settings.getSettings().settings.devices.iosSigningTeam,
+    toolInstalled: () => installer.status("agent-device").installed,
+    installTool: async () => {
+      await installer.install("agent-device");
+    },
+  });
   const devices = new DeviceService({
+    iosPhysical: () => iosDevice.list(),
     run: runCommand,
     spawnDetached,
     androidHome: process.env["ANDROID_HOME"] || join(app.getPath("home"), "Library", "Android", "sdk"),
@@ -177,6 +198,13 @@ void app.whenReady().then(() => {
   let onRunFinished: (runId: string) => void = () => undefined;
   const runs = new RunService({
     onFinished: (runId) => onRunFinished(runId),
+    iosDevice: {
+      agentDevice,
+      signingTeam: () => settings.getSettings().settings.devices.iosSigningTeam,
+      check: (id) => iosDevice.check(id, false),
+      isAppInstalled: (id, bundleId) => iosDevice.isAppInstalled(id, bundleId),
+      screenshot: (id, dest) => iosDevice.screenshot(id, dest),
+    },
     db,
     devices,
     builds,
@@ -384,7 +412,7 @@ void app.whenReady().then(() => {
   });
   registerIpcHandlers(
     ipcMain,
-    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, runPickers, runQueue: new RunQueue(runs), evidence, upload, remote, workspace, agentJobs, author, judge, claude, update }),
+    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, iosDevice, runPickers, runQueue: new RunQueue(runs), evidence, upload, remote, workspace, agentJobs, author, judge, claude, update }),
     isAllowed,
   );
   createMainWindow();

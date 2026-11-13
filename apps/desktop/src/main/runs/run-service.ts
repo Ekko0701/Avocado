@@ -3,14 +3,16 @@ import { notReady } from "../devices/ready";
 import type { Build, Device, Execution, RunDetail, RunStep, RunSummary, StartRunInput } from "@qa/shared";
 import { ExecutionSchema, RunDetailSchema, RunSummarySchema } from "@qa/shared";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
-import { cpus, loadavg } from "node:os";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpus, loadavg, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { z } from "zod";
 import type { AppDatabase } from "../db/database";
 import { runToLog, type LoggedProcessRunner } from "../process/run-to-log";
 import type { CommandRunner } from "../setup/command";
 import { maestroEnv } from "../setup/setup-service";
+import type { AgentDevice } from "../devices/agent-device";
+import { describeProblems, prepareDeviceFlow } from "./device-flow";
 import { cleanupDrivers } from "./drivers";
 import { referencedEnvNames } from "./flow-env";
 import { isLiteralAppId, readFlowInfo, type FlowInfo } from "./flow-file";
@@ -53,7 +55,23 @@ export interface RunServiceOptions {
   newId?: () => string;
   /** 실행이 끝나 결과를 기록한 뒤 부른다(판정 등 후처리는 main 이 붙인다. 재생 경로 자체에는 LLM 이 없다) */
   onFinished?: (runId: string) => void;
+  /** iOS 실기기 재생(agent-device, ADR 0034). 없으면 iOS 실기기 실행을 거부한다 */
+  iosDevice?: IosDeviceRunSupport;
 }
+
+/** RunService 가 iOS 실기기에 쓰는 것 */
+export interface IosDeviceRunSupport {
+  agentDevice: AgentDevice;
+  /** 설정의 서명 팀 ID */
+  signingTeam(): string | null;
+  /** 실행 전 점검(연결·개발자 모드·Mac 보안·잠금·서명 팀·도구). 하나라도 실패하면 실행하지 않는다 */
+  check(id: string): Promise<{ ready: boolean; checks: { label: string; ok: boolean; detail: string }[] }>;
+  isAppInstalled(id: string, bundleId: string): Promise<boolean>;
+  screenshot(id: string, dest: string): Promise<void>;
+}
+
+/** iOS 실기기(케이블·네트워크로 연결한 iPhone)는 Maestro 대신 agent-device 로 재생한다 */
+const isIosDevice = (d: Device) => d.platform === "ios" && d.kind === "real";
 
 /** run.summary 에 JSON 으로 두는 값 */
 const StoredSummarySchema = RunSummarySchema.pick({
@@ -171,11 +189,12 @@ export class RunService {
   async start(input: StartRunInput, options: { appId?: string; envKeys?: readonly string[]; trigger?: "manual" | "author"; skipInstall?: boolean } = {}): Promise<RunSummary> {
     const flowPath = this.assertFlowAllowed(input.flowPath);
     const flow = readFlowInfo(flowPath);
-    const maestro = this.options.tools.maestroBin();
-    const javaHome = this.options.tools.javaHome();
-    if (!maestro || !javaHome) throw new RunError("Maestro·Java 런타임이 설치되지 않았다. 설정 마법사에서 설치한다");
-
     const device = (await this.options.devices.list()).devices.find((d) => d.id === input.deviceId);
+    // iPhone 은 Maestro 없이 돈다. 그 밖에는 기기보다 도구를 먼저 본다
+    const onIosDevice = device ? isIosDevice(device) : false;
+    const maestro = onIosDevice ? "" : this.options.tools.maestroBin();
+    const javaHome = onIosDevice ? "" : this.options.tools.javaHome();
+    if (!onIosDevice && (!maestro || !javaHome)) throw new RunError("Maestro·Java 런타임이 설치되지 않았다. 설정 마법사에서 설치한다");
     if (!device) throw new RunError(`기기를 찾지 못했다: ${input.deviceId}`);
     if (device.state !== "booted") throw new RunError(notReady(device));
     if (device.platform === "android" && !device.serial) throw new RunError(`Android serial 을 알 수 없다: ${device.name}`);
@@ -198,6 +217,7 @@ export class RunService {
     const deviceKey = `${device.platform}:${device.id}`;
     const busy = this.busyDevices.get(deviceKey);
     if (busy) throw new RunError(`이 기기에서 이미 실행 중이다: ${busy}`);
+    if (onIosDevice) await this.assertIosDeviceReady(device, flowPath, build?.appId ?? options.appId ?? (isLiteralAppId(flow.appId) ? flow.appId : null));
 
     const runId = this.newId();
     const summary: StoredSummary = {
@@ -223,13 +243,33 @@ export class RunService {
     const abort = new AbortController();
     this.busyDevices.set(deviceKey, runId);
     const appId = build?.appId ?? options.appId ?? null;
-    const done = this.execute(runId, { flow, device, build, skipInstall: options.skipInstall ?? false, appId, envKeys: options.envKeys ?? null, summary, maestro, javaHome, signal: abort.signal }).finally(() => {
+    // iOS 실기기에는 빌드를 설치하지 않는다. 이미 설치된 앱(TestFlight·App Store·Xcode)을 번들 ID 로 띄운다(ADR 0034)
+    const skipInstall = onIosDevice || (options.skipInstall ?? false);
+    const done = this.execute(runId, { flow, device, build, skipInstall, appId, envKeys: options.envKeys ?? null, summary, maestro: maestro ?? "", javaHome: javaHome ?? "", signal: abort.signal }).finally(() => {
       this.busyDevices.delete(deviceKey);
       this.active.delete(runId);
       this.options.onFinished?.(runId);
     });
     this.active.set(runId, { abort, deviceKey, done });
     return this.summary(runId);
+  }
+
+  /** iOS 실기기 실행 전 점검: 준비 상태, 앱 설치, 플로우의 명령. 기기에 손대기 전에 거부한다 */
+  private async assertIosDeviceReady(device: Device, flowPath: string, appId: string | null): Promise<void> {
+    const ios = this.options.iosDevice;
+    if (!ios) throw new RunError("이 앱에서는 iOS 실기기 실행을 쓸 수 없다");
+    const readiness = await ios.check(device.id);
+    const failed = readiness.checks.filter((c) => !c.ok);
+    if (failed.length > 0) throw new RunError(`iPhone 이 준비되지 않았다: ${failed.map((c) => `${c.label} — ${c.detail}`).join(" / ")}`);
+    if (!appId) throw new RunError("플로우의 appId 가 변수라 빌드를 골라야 한다(iPhone 에는 설치하지 않고 번들 ID 만 쓴다)");
+    if (!(await ios.isAppInstalled(device.id, appId))) throw new RunError(`iPhone 에 ${appId} 앱이 설치돼 있지 않다. TestFlight·App Store·Xcode 로 먼저 설치한다`);
+    const scratch = mkdtempSync(join(tmpdir(), "avocado-device-flow-"));
+    try {
+      const { problems } = prepareDeviceFlow(flowPath, scratch);
+      if (problems.length > 0) throw new RunError(describeProblems(problems));
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
   }
 
   /** 테스트·종료 처리용: 실행이 끝날 때까지 기다린다 */
@@ -421,6 +461,82 @@ export class RunService {
     ];
   }
 
+  private async runMaestro(
+    rawDir: string,
+    ctx: { flow: FlowInfo; device: Device; appId: string | null; maestro: string; javaHome: string; signal: AbortSignal },
+    secrets: Record<string, string>,
+    timeoutMs: number,
+    warnings: string[],
+  ) {
+    const killed = await cleanupDrivers({
+      run: this.options.run,
+      device: ctx.device,
+      androidHome: this.options.androidHome,
+      kill: this.options.kill ?? ((pid, signal) => process.kill(pid, signal)),
+    });
+    if (killed > 0) warnings.push(`이 기기에 남아 있던 Maestro 프로세스 ${killed}개를 끝냈다`);
+    const env: NodeJS.ProcessEnv = {
+      ...maestroEnv(ctx.javaHome, this.options.home),
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "90000",
+      ANDROID_HOME: this.options.androidHome,
+    };
+    env["PATH"] = `${env["PATH"] ?? ""}:${join(this.options.androidHome, "platform-tools")}`;
+    return this.runner(ctx.maestro, {
+      args: this.maestroArgs(ctx.device, rawDir, ctx.flow, ctx.appId, secrets),
+      env,
+      cwd: dirname(ctx.flow.path),
+      logFile: join(rawDir, "console.log"),
+      timeoutMs,
+      signal: ctx.signal,
+    });
+  }
+
+  /**
+   * iOS 실기기: 실행용 플로우 사본(<실행 폴더>/flow, 증적 밖)을 만들어 agent-device 로 재생한다.
+   * 산출물은 raw/agent-device, 콘솔은 raw/console.log. 실패하면 그 화면을 raw/failure.png 로 찍는다(앱을 다시 띄우지 않는다)
+   */
+  private async runOnIosDevice(
+    dir: string,
+    rawDir: string,
+    ctx: { flow: FlowInfo; device: Device; appId: string | null; signal: AbortSignal },
+    secrets: Record<string, string>,
+    timeoutMs: number,
+    warnings: string[],
+  ) {
+    // 캡처 이름에 .png 를 붙이는 것은 늘 하는 일이라 경고로 남기지 않는다(사람이 할 일이 없다)
+    const ios = this.options.iosDevice;
+    const team = ios?.signingTeam();
+    if (!ios || !team) throw new RunError("iOS 실기기 러너를 서명할 팀이 정해지지 않았다. 설정에서 고른다");
+    // 재시도 전 사이에 잠기거나 연결이 끊길 수 있다. 시도마다 다시 보고, 기기 오류(CoreDevice 10002 등) 대신 할 일을 알린다
+    const readiness = await ios.check(ctx.device.id);
+    const failed = readiness.checks.filter((c) => !c.ok);
+    if (failed.length > 0) throw new RunError(`iPhone 이 준비되지 않았다: ${failed.map((c) => `${c.label} — ${c.detail}`).join(" / ")}`);
+    const prepared = prepareDeviceFlow(ctx.flow.path, join(dir, "flow"));
+    if (prepared.problems.length > 0) throw new RunError(describeProblems(prepared.problems));
+    const env: Record<string, string> = {};
+    if (ctx.appId) env["APP_ID"] = ctx.appId;
+    for (const [key, value] of Object.entries(secrets)) if (key !== "APP_ID") env[key] = value;
+    const res = await ios.agentDevice.test({
+      udid: ctx.device.id,
+      teamId: team,
+      flowPath: prepared.flowPath,
+      env,
+      artifactsDir: join(rawDir, "agent-device"),
+      logFile: join(rawDir, "console.log"),
+      cwd: dirname(prepared.flowPath),
+      timeoutMs,
+      signal: ctx.signal,
+    });
+    if (res.code !== 0 && !res.canceled) {
+      try {
+        await ios.screenshot(ctx.device.id, join(rawDir, "failure.png"));
+      } catch (error) {
+        warnings.push(`실패 화면을 찍지 못했다: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    return res;
+  }
+
   private async runAttempt(
     runId: string,
     executionId: string,
@@ -461,29 +577,10 @@ export class RunService {
     let canceled = false;
     let internal = false;
     try {
-      const killed = await cleanupDrivers({
-        run: this.options.run,
-        device: ctx.device,
-        androidHome: this.options.androidHome,
-        kill: this.options.kill ?? ((pid, signal) => process.kill(pid, signal)),
-      });
-      if (killed > 0) warnings.push(`이 기기에 남아 있던 Maestro 프로세스 ${killed}개를 끝냈다`);
-
-      const env: NodeJS.ProcessEnv = {
-        ...maestroEnv(ctx.javaHome, this.options.home),
-        MAESTRO_DRIVER_STARTUP_TIMEOUT: "90000",
-        ANDROID_HOME: this.options.androidHome,
-      };
-      env["PATH"] = `${env["PATH"] ?? ""}:${join(this.options.androidHome, "platform-tools")}`;
       const timeoutMs = this.options.flowTimeoutMs ?? 20 * 60_000;
-      const res = await this.runner(ctx.maestro, {
-        args: this.maestroArgs(ctx.device, rawDir, ctx.flow, ctx.appId, secrets),
-        env,
-        cwd: dirname(ctx.flow.path),
-        logFile: join(rawDir, "console.log"),
-        timeoutMs,
-        signal: ctx.signal,
-      });
+      const res = isIosDevice(ctx.device)
+        ? await this.runOnIosDevice(dir, rawDir, ctx, secrets, timeoutMs, warnings)
+        : await this.runMaestro(rawDir, ctx, secrets, timeoutMs, warnings);
       writeFileSync(join(rawDir, "exit-code"), `${res.code}\n`, { mode: 0o600 });
       canceled = res.canceled;
 

@@ -125,7 +125,7 @@ export async function runEnvironmentChecks(deps: CheckDeps): Promise<SetupCheck[
         status: tool.installed ? "ok" : "fail",
         required: true,
         detail: tool.installed ? "앱이 관리하는 도구로 설치됨" : `설치 필요 (약 ${Math.round(tool.downloadBytes / 1_048_576)}MB)`,
-        tool: tool.installed ? null : tool.id,
+        tool: tool.installed || tool.id === "agent-device" ? null : tool.id,
       }),
     );
   }

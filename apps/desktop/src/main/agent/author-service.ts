@@ -253,6 +253,8 @@ export class AuthorService {
     const device = (await this.options.devices.list()).devices.find((d) => d.id === input.deviceId);
     if (!device || device.platform !== input.target) throw new AuthorError(`${input.target} 기기를 찾지 못했다: ${input.deviceId}`);
     if (device.state !== "booted") throw new AuthorError(notReady(device));
+    // 플로우 만들기는 maestro mcp 로 기기를 본다. iPhone 은 Maestro 가 지원하지 않아 시뮬레이터에서 만들고 iPhone 에서는 재생만 한다(ADR 0034)
+    if (device.platform === "ios" && device.kind === "real") throw new AuthorError("플로우 만들기는 iOS 시뮬레이터에서 한다. iPhone 실기기에서는 만든 플로우를 재생만 한다");
     if (input.buildId) {
       const build = this.options.builds.get(input.buildId);
       if (build.app !== input.app || build.target !== input.target) throw new AuthorError(`빌드가 ${input.app} ${input.target} 용이 아니다`);

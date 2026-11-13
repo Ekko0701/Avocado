@@ -151,7 +151,7 @@ Claude 는 계정 비밀번호 같은 값을 보지 못합니다. Avocado 가 �
 | iOS 시뮬레이터 | ✅ | Xcode 프로젝트 폴더 또는 시뮬레이터용 `.app` |
 | Android 에뮬레이터 | ✅ | `.apk` |
 | Android 폰 | ⚠️ | USB 디버깅으로 연결합니다. 구현돼 있지만 실제 폰에서 충분히 확인하지 못했습니다. |
-| iPhone 실기기 | ❌ | 아직 지원하지 않습니다. TestFlight 빌드도 실기기용이라 쓸 수 없습니다. |
+| iPhone 실기기 | ✅ | 재생만 합니다(플로우 만들기는 시뮬레이터). 케이블로 연결하고, 설정에서 러너를 서명할 Apple 팀을 고른 뒤 기기 → iPhone 에서 준비합니다. 빌드는 설치하지 않고 TestFlight·App Store·Xcode 로 설치한 앱을 그대로 씁니다. 앱 데이터를 지우는 `clearState` 같은 명령은 쓸 수 없습니다. |
 | Android `.aab`, Gradle 프로젝트 빌드 | ❌ | `.apk` 로 만들어 등록합니다. |
 
 ## 문서

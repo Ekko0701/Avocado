@@ -55,7 +55,7 @@ export function sectionSummaries(input: {
     github,
     claude: claudeSummary,
     evidence: { hint: `${settings.evidence.retentionDays}일 보관 · 업로드 ${settings.policy.evidenceUploadApproved ? "켜짐" : "꺼짐"}`, dot: null },
-    devices: { hint: `언어 ${settings.devices.locale}`, dot: null },
+    devices: { hint: `언어 ${settings.devices.locale}${settings.devices.iosSigningTeam ? ` · iPhone 서명 ${settings.devices.iosSigningTeam}` : ""}`, dot: null },
     app: {
       hint: !update ? "버전 확인 중" : update.available ? `${update.current} · 새 버전 ${update.latest ?? ""}`.trim() : update.latest ? `${update.current} · 최신 버전` : update.current,
       dot: update?.available ? "waiting" : null,

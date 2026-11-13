@@ -7,6 +7,7 @@ import { ApplyConfigurationSchema, MaestroCommandsSchema, MaestroManifestSchema,
 import { EvidenceParseError, ParsedExecutionSchema, type Artifact, type ArtifactKind, type Failure, type ParsedExecution, type Step } from "./model";
 import { pngSize } from "./png";
 import { listFiles } from "./walk";
+import { AGENT_DEVICE_LAYOUT, parseAgentDeviceExecution } from "./agent-device";
 
 /** 실행 하나의 증적 폴더 구조. 실행 엔진(T-107)이 이 이름으로 남긴다. */
 export const EXECUTION_LAYOUT = {
@@ -89,13 +90,17 @@ function platformOf(manifest: MaestroManifest | null, junit: JUnitReport | null,
 }
 
 /**
- * Maestro 실행 하나의 산출물을 스텝·산출물·결과로 바꾼다(PLAN 7.6).
+ * Maestro 실행 하나의 산출물을 스텝·산출물·결과로 바꾼다(PLAN 7.6). agent-device 폴더(<dir>/agent-device)만 있으면 parseAgentDeviceExecution 으로 넘긴다.
  * - 플로우 폴더가 없으면(드라이버 시작 실패 등) 콘솔 출력으로 원인을 정한다.
  * - commands.json 이 없거나 형식이 다르면 EvidenceParseError. 빈 스텝으로 통과시키지 않는다.
  */
 export function parseExecution(input: ParseExecutionInput): ParsedExecution {
   const dir = resolve(input.dir);
   if (!existsSync(dir) || !statSync(dir).isDirectory()) throw new EvidenceParseError(`실행 폴더가 없다: ${dir}`);
+  // iOS 실기기 실행(agent-device, ADR 0034)은 산출물 구조가 다르다
+  if (existsSync(join(dir, AGENT_DEVICE_LAYOUT.artifacts)) && !existsSync(join(dir, EXECUTION_LAYOUT.maestro))) {
+    return parseAgentDeviceExecution({ dir, ...(input.exitCode === undefined ? {} : { exitCode: input.exitCode }) });
+  }
   const outputDir = resolve(input.outputDir ?? join(dir, EXECUTION_LAYOUT.maestro));
   const consolePath = resolve(input.consoleLog ?? join(dir, EXECUTION_LAYOUT.console));
   const junitPath = resolve(input.junit ?? join(dir, EXECUTION_LAYOUT.junit));

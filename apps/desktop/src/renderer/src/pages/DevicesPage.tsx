@@ -1,5 +1,5 @@
-import type { Device, DeviceList, IosDeviceOptions } from "@qa/shared";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import type { Device, DeviceList, IosDeviceOptions, IosDeviceReadiness } from "@qa/shared";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { errorMessage } from "../lib/errors";
 import { deviceKindText } from "../lib/device-label";
 
@@ -9,12 +9,14 @@ const PREPARE_TABS = [
   { id: "ios", label: "iOS", name: "iOS 시뮬레이터" },
   { id: "android", label: "Android", name: "Android 에뮬레이터" },
   { id: "phone", label: "Android 폰", name: "Android 폰" },
+  { id: "iphone", label: "iPhone", name: "iPhone 실기기" },
 ] as const;
 type PrepareTab = (typeof PREPARE_TABS)[number]["id"];
 
 /**
- * 기기: 왼쪽은 기기 목록(실행 중인 것이 먼저), 오른쪽은 기기 준비(iOS 시뮬레이터 | Android 에뮬레이터 | Android 폰).
- * 준비는 설정의 기기 언어로 맞추고 애니메이션을 줄인다. 직접 만든 시뮬레이터와 사람의 폰은 건드리지 않는다
+ * 기기: 왼쪽은 기기 목록(실행 중인 것이 먼저), 오른쪽은 기기 준비(iOS 시뮬레이터 | Android 에뮬레이터 | Android 폰 | iPhone).
+ * 준비는 설정의 기기 언어로 맞추고 애니메이션을 줄인다. 직접 만든 시뮬레이터와 사람의 폰은 건드리지 않는다.
+ * iPhone 은 설정을 바꾸지 않고 쓸 수 있는지만 점검하고, 처음 한 번 러너를 서명해 올린다(ADR 0034)
  */
 export function DevicesPage() {
   const [tab, setTab] = useState<PrepareTab>("ios");
@@ -27,6 +29,8 @@ export function DevicesPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [iphoneId, setIphoneId] = useState("");
+  const [readiness, setReadiness] = useState<IosDeviceReadiness | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -59,7 +63,40 @@ export function DevicesPage() {
   }, [types, options]);
 
   const avds = useMemo(() => list?.devices.filter((d) => d.kind === "emulator") ?? [], [list]);
-  const phones = list?.devices.filter((d) => d.kind === "real") ?? [];
+  const phones = list?.devices.filter((d) => d.kind === "real" && d.platform === "android") ?? [];
+  const iphones = useMemo(() => list?.devices.filter((d) => d.kind === "real" && d.platform === "ios") ?? [], [list]);
+  useEffect(() => {
+    if (iphones.some((d) => d.id === iphoneId)) return;
+    setIphoneId(iphones[0]?.id ?? "");
+  }, [iphones, iphoneId]);
+
+  const checkIphone = useCallback(async (id: string, buildRunner: boolean) => {
+    if (!id) return;
+    const label = buildRunner ? "iPhone 준비" : "iPhone 확인";
+    setBusy(label);
+    setMessage(null);
+    try {
+      const r = await window.qa.devices.checkIosDevice({ id, buildRunner });
+      setReadiness(r);
+      const name = iphonesRef.current.find((d) => d.id === id)?.name ?? "iPhone";
+      const todo = r.checks.filter((c) => !c.ok).length;
+      setMessage(r.ready ? `${name}: 준비됨 · 실행 화면에서 고를 수 있습니다` : `할 일 ${todo}개를 마치고 다시 확인합니다`);
+    } catch (e) {
+      setReadiness(null);
+      setMessage(`${label} 실패: ${errorMessage(e)}`);
+    } finally {
+      setBusy(null);
+      if (buildRunner) await reload();
+    }
+  }, [reload]);
+  const iphonesRef = useRef(iphones);
+  iphonesRef.current = iphones;
+  // iPhone 탭을 열거나 다른 iPhone 을 고르면 점검한다(러너는 빌드하지 않는다)
+  useEffect(() => {
+    if (tab !== "iphone" || !iphoneId) return;
+    if (readiness?.deviceId === iphoneId) return;
+    void checkIphone(iphoneId, false);
+  }, [tab, iphoneId, readiness, checkIphone]);
   useEffect(() => {
     if (avds.length === 0 || avds.some((d) => d.id === avd)) return;
     setAvd((avds.find((d) => d.managed) ?? avds[0])?.id ?? "");
@@ -99,7 +136,7 @@ export function DevicesPage() {
 
   const row = (d: Device) => (
     <li key={`${d.platform}:${d.id}`} className="check" data-testid={`device-${d.platform}-${d.id}`}>
-      <span className={`badge ${d.state === "booted" ? "ok" : ""}`}>{d.kind === "real" ? (d.state === "booted" ? "연결됨" : "허용 필요") : STATE_TEXT[d.state]}</span>
+      <span className={`badge ${d.state === "booted" ? "ok" : ""}`}>{d.kind === "real" ? (d.state === "booted" ? "연결됨" : d.platform === "ios" ? "준비 필요" : "허용 필요") : STATE_TEXT[d.state]}</span>
       <div className="check-body">
         <strong>{d.name}</strong>
         <small className="hint">{deviceKindText(d)}</small>
@@ -155,7 +192,9 @@ export function DevicesPage() {
             ) : null}
             {idle.length > 0 ? (
               <>
-                <strong className="group-label">꺼짐 {idle.length}대</strong>
+                <strong className="group-label">
+                  {idle.some((d) => d.kind === "real") ? "꺼짐·준비 필요" : "꺼짐"} {idle.length}대
+                </strong>
                 <ul className="checks">{idle.map(row)}</ul>
               </>
             ) : null}
@@ -175,7 +214,7 @@ export function DevicesPage() {
         <section className="card pane" aria-label="QA 기기 준비">
           <div className="pane-head">
             <h2>기기 준비</h2>
-            <small className="hint">설정의 기기 언어로 맞추고 애니메이션을 줄여 준비합니다(1~3분).</small>
+            <small className="hint">{tab === "iphone" ? "iPhone 은 설정을 바꾸지 않고, 쓸 수 있는지만 점검합니다." : "설정의 기기 언어로 맞추고 애니메이션을 줄여 준비합니다(1~3분)."}</small>
           </div>
           <div className="pane-body">
             <div role="tablist" aria-label="준비할 기기">
@@ -242,6 +281,36 @@ export function DevicesPage() {
                 Android 폰은 개발자 옵션에서 USB 디버깅을 켜고 케이블로 연결한 뒤 새로고침하면 목록에 나옵니다. 폰의 언어·애니메이션 설정은 바꾸지 않습니다.
               </p>
             ) : null}
+            {tab === "iphone" ? (
+              <>
+                <label>
+                  iPhone
+                  <select aria-label="iPhone" value={iphoneId} onChange={(e) => setIphoneId(e.target.value)} disabled={iphones.length === 0 || busy !== null}>
+                    {iphones.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} (iOS {d.osVersion})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {iphones.length === 0 ? <p className="hint">연결된 iPhone 이 없습니다. 케이블로 연결하고 iPhone 에서 &quot;이 컴퓨터 신뢰&quot;를 누른 뒤 새로고침합니다.</p> : null}
+                {readiness && readiness.deviceId === iphoneId ? (
+                  <ul className="checks" data-testid="iphone-checks">
+                    {readiness.checks.map((c) => (
+                      <li key={c.id} className="check" data-testid={`iphone-check-${c.id}`}>
+                        <span className={`badge ${c.ok ? "ok" : "warn"}`}>{c.ok ? "확인" : "할 일"}</span>
+                        <div className="check-body">
+                          <strong>{c.label}</strong>
+                          <small className="hint">{c.detail}</small>
+                          {!c.ok && c.id === "devToolsSecurity" ? <code className="command">sudo DevToolsSecurity -enable</code> : null}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <p className="hint">iPhone 에는 빌드를 설치하지 않고, TestFlight·App Store·Xcode 로 설치한 앱을 그대로 재생합니다. 처음 한 번 러너를 서명해 올립니다(몇 분). 플로우 만들기는 시뮬레이터에서 합니다.</p>
+              </>
+            ) : null}
             {message ? (
               <p role="status" data-testid="device-message">
                 {message}
@@ -263,6 +332,20 @@ export function DevicesPage() {
               <button type="button" className="secondary" disabled={busy !== null} onClick={() => void reload()}>
                 연결한 폰 찾기
               </button>
+            ) : null}
+            {tab === "iphone" ? (
+              <>
+                <button type="button" className="secondary" disabled={busy !== null || !iphoneId} onClick={() => void checkIphone(iphoneId, false)}>
+                  {busy === "iPhone 확인" ? "확인 중" : "다시 확인"}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy !== null || !iphoneId || !readiness || readiness.deviceId !== iphoneId || readiness.checks.some((c) => !c.ok && c.id !== "tool" && c.id !== "runner")}
+                  onClick={() => void checkIphone(iphoneId, true)}
+                >
+                  {busy === "iPhone 준비" ? "러너 준비 중(몇 분)" : readiness?.checks.some((c) => c.id === "runner" && c.ok) ? "러너 다시 준비" : "iPhone 준비"}
+                </button>
+              </>
             ) : null}
           </div>
         </section>

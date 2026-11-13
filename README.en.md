@@ -153,7 +153,7 @@ In **결과** (Results), choose a run on the left. The steps and the screenshot 
 | iOS simulator | ✅ | An Xcode project folder, or a simulator `.app` |
 | Android emulator | ✅ | `.apk` |
 | Android phone | ⚠️ | Connects over USB debugging. Implemented, but not yet tested enough on real phones. |
-| iPhone (real device) | ❌ | Not supported yet. TestFlight builds are device builds, so they cannot be used either. |
+| iPhone (real device) | ✅ | Replay only (create flows on a simulator). Connect it by cable, choose the Apple team that signs the runner in Settings, then prepare it in Devices → iPhone. No build is installed: the app you installed from TestFlight, the App Store or Xcode is used as it is. Commands that wipe app data, such as `clearState`, cannot be used. |
 | Android `.aab`, Gradle project builds | ❌ | Build an `.apk` and register that. |
 
 ## Documentation
