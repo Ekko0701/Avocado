@@ -15,17 +15,23 @@ const LIST = {
       { hardwareProperties: { udid: "00008101-00191D961A11A01E", platform: "iOS", reality: "physical", deviceType: "iPad", marketingName: "iPad (10th generation)" }, deviceProperties: { name: "테스트 iPad", osVersionNumber: "26.2", developerModeStatus: "enabled" }, connectionProperties: { pairingState: "paired", tunnelState: "disconnected" } },
       { hardwareProperties: { udid: "00008160-001C79811EA80036", platform: "iOS", reality: "physical", deviceType: "iPhone", marketingName: "iPhone 18 Pro" }, deviceProperties: { name: "테스트 iPhone", osVersionNumber: "27.0.1", developerModeStatus: "enabled" }, connectionProperties: { pairingState: "paired", tunnelState: "connected" } },
       { hardwareProperties: { udid: "00008110-000A1B2C3D4E5F60", platform: "iOS", reality: "physical", deviceType: "iPhone" }, deviceProperties: { name: "개발자 모드 끈 폰", osVersionNumber: "26.0", developerModeStatus: "disabled" }, connectionProperties: { pairingState: "paired", tunnelState: "connected" } },
+      // 케이블로 막 꽂아 터널이 쉬는 중(누가 물으면 열린다)
+      { hardwareProperties: { udid: "00008120-0011223344556677", platform: "iOS", reality: "physical", deviceType: "iPhone" }, deviceProperties: { name: "케이블 폰", osVersionNumber: "26.1", developerModeStatus: "enabled" }, connectionProperties: { pairingState: "paired", tunnelState: "disconnected", transportType: "wired" } },
+      // 무선으로만 보임
+      { hardwareProperties: { udid: "00008130-0011223344556677", platform: "iOS", reality: "physical", deviceType: "iPhone" }, deviceProperties: { name: "무선 폰", osVersionNumber: "26.1", developerModeStatus: "enabled" }, connectionProperties: { pairingState: "paired", tunnelState: "disconnected", transportType: "localNetwork" } },
     ],
   },
 };
 
 describe("parseDevicectlDevices", () => {
-  it("실제 iPhone·iPad 만 뽑고, 연결·개발자 모드가 갖춰진 것만 booted", () => {
+  it("실제 iPhone·iPad 만 뽑고, 닿을 수 있고 개발자 모드가 켜진 것만 booted(케이블로 꽂아 터널이 쉬는 기기 포함)", () => {
     const out = parseDevicectlDevices(LIST);
     expect(out.map((p) => [p.device.name, p.device.state, p.developerMode])).toEqual([
       ["테스트 iPad", "unknown", true],
       ["테스트 iPhone", "booted", true],
       ["개발자 모드 끈 폰", "unknown", false],
+      ["케이블 폰", "booted", true],
+      ["무선 폰", "unknown", true],
     ]);
     expect(out[1]?.device).toMatchObject({ id: "00008160-001C79811EA80036", platform: "ios", kind: "real", osVersion: "27.0.1", managed: false, serial: null });
   });

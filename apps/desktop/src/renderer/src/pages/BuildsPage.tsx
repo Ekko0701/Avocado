@@ -6,6 +6,7 @@ import { ProjectBuildPanel } from "../components/ProjectBuildPanel";
 import { buildOrigin } from "../lib/build-label";
 import { errorMessage, formatDateTime } from "../lib/errors";
 import { deviceLabel } from "../lib/device-label";
+import { useDevicePolling } from "../lib/use-device-polling";
 
 const TARGET_TEXT: Record<Build["target"], string> = { ios: "iOS", android: "Android" };
 const SOURCE_TEXT: Record<Build["source"], string> = { file: "파일", script: "스크립트", project: "프로젝트" };
@@ -35,6 +36,8 @@ export function BuildsPage() {
   const [buildRunning, setBuildRunning] = useState(false);
 
   // 빌드 목록과 기기 목록은 따로 불러온다. 기기 조회가 실패해도 빌드 목록은 보여야 한다.
+  // 기기를 꽂거나 빼면 새로고침 없이 기기 고르기에 반영한다(실행 중인·연결된 기기만)
+  useDevicePolling((l) => setDevices(l.devices.filter((x) => x.state === "booted")));
   const reload = useCallback(async () => {
     const [list, deviceList] = await Promise.allSettled([window.qa.builds.list(), window.qa.devices.list()]);
     if (list.status === "fulfilled") setBuilds(list.value);

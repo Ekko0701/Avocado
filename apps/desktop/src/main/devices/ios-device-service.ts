@@ -125,7 +125,7 @@ export class IosDeviceService {
       id: "signingTeam",
       label: "러너 서명 팀",
       ok: Boolean(team && teamName),
-      detail: !team ? "설정 → iOS 실기기에서 서명할 Apple 팀을 고른다" : teamName ? `${teamName} (${team})` : `이 Mac 키체인에 팀 ${team} 의 Apple Development 인증서가 없다`,
+      detail: !team ? "설정 → 기기 → 러너 서명 팀에서 서명할 Apple 팀을 고르고 저장한다" : teamName ? `${teamName} (${team})` : `이 Mac 키체인에 팀 ${team} 의 Apple Development 인증서가 없다`,
     });
     add({
       id: "tool",

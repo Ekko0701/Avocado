@@ -6,6 +6,7 @@ import { AUTHOR_PHASE_TEXT, elapsed } from "../lib/dashboard";
 import { errorMessage } from "../lib/errors";
 import { deviceLabel } from "../lib/device-label";
 import { TARGET_LABEL } from "../lib/results";
+import { useDevicePolling } from "../lib/use-device-polling";
 
 const JOB_STATUS: Record<string, string> = {
   queued: "대기",
@@ -47,6 +48,8 @@ export function AuthorPage(props: { onOpenResults?: (runId: string) => void }) {
   const [prMessage, setPrMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // 기기를 꽂거나 빼면 새로고침 없이 기기 고르기에 반영한다(실행 중인·연결된 기기만)
+  useDevicePolling((l) => setDevices(l.devices.filter((x) => x.state === "booted")));
   const reload = useCallback(async () => {
     const [tc, d, b, s, u, st, c] = await Promise.allSettled([
       window.qa.workspace.testcases(),

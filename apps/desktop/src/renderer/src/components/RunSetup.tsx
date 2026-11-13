@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildLabel } from "../lib/build-label";
 import { deviceLabel } from "../lib/device-label";
 import { errorMessage } from "../lib/errors";
+import { useDevicePolling } from "../lib/use-device-polling";
 
 const TARGETS = ["ios", "android"] as const;
 type Target = (typeof TARGETS)[number];
@@ -39,6 +40,8 @@ export function RunSetup(props: { onStarted: (runId: string | null) => void }) {
   const [starting, setStarting] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
 
+  // 기기를 꽂거나 빼면 새로고침 없이 기기 고르기에 반영한다(실행 중인·연결된 기기만)
+  useDevicePolling((l) => setDevices(l.devices.filter((x) => x.state === "booted")));
   const reloadTargets = useCallback(async () => {
     const [b, d] = await Promise.allSettled([window.qa.builds.list(), window.qa.devices.list()]);
     if (b.status === "fulfilled") setBuilds(b.value);

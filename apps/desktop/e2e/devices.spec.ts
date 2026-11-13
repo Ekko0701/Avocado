@@ -133,3 +133,54 @@ test("iPhone 탭: 점검 목록과 할 일, 러너 준비, 설정의 서명 팀"
     await app.close();
   }
 });
+
+// 새로고침 없이: 케이블을 꽂고 빼면 기기 목록과 iPhone 점검이 저절로 바뀐다(main 의 기기 핸들러를 바꿔 끼운다)
+test("기기를 꽂고 빼면 새로고침 없이 목록과 iPhone 점검이 바뀐다", async () => {
+  const { app, page } = await launchApp();
+  try {
+    await app.evaluate(({ ipcMain }) => {
+      const g = globalThis as unknown as { plugged: boolean; checks: number };
+      g.plugged = false;
+      g.checks = 0;
+      const phone = { id: "00008160-001C79811EA80036", platform: "ios", kind: "real", name: "테스트 iPhone", osVersion: "27.0.1", managed: false, serial: null, locale: null };
+      ipcMain.removeHandler("devices:list");
+      ipcMain.handle("devices:list", () => ({ devices: [{ ...phone, state: g.plugged ? "booted" : "unknown" }], androidAvailable: false }));
+      ipcMain.removeHandler("devices:checkIosDevice");
+      ipcMain.handle("devices:checkIosDevice", (_e, input: { id: string }) => {
+        g.checks += 1;
+        return {
+          deviceId: input.id,
+          checks: [
+            { id: "connected", label: "연결", ok: g.plugged, detail: g.plugged ? "테스트 iPhone (iOS 27.0.1)" : "연결이 끊겨 있다. 케이블로 연결하고 잠금을 푼다" },
+            { id: "tool", label: "agent-device", ok: true, detail: "설치됨" },
+          ],
+          ready: g.plugged,
+        };
+      });
+    });
+    await page.getByRole("navigation", { name: "주 메뉴" }).getByRole("button", { name: "기기", exact: true }).click();
+    const row = page.getByTestId("device-ios-00008160-001C79811EA80036");
+    await expect(row).toContainText("준비 필요");
+    await page.getByRole("region", { name: "QA 기기 준비" }).getByRole("tab", { name: "iPhone 실기기" }).click();
+    await expect(page.getByTestId("iphone-check-connected")).toContainText("할 일");
+
+    // 꽂는다 → 버튼을 누르지 않아도 목록과 점검이 바뀐다
+    await app.evaluate(() => {
+      (globalThis as unknown as { plugged: boolean }).plugged = true;
+    });
+    await expect(row).toContainText("연결됨", { timeout: 10_000 });
+    await expect(page.getByTestId("iphone-check-connected")).toContainText("확인", { timeout: 10_000 });
+
+    // 뺀다 → 다시 저절로
+    await app.evaluate(() => {
+      (globalThis as unknown as { plugged: boolean }).plugged = false;
+    });
+    await expect(row).toContainText("준비 필요", { timeout: 10_000 });
+    await expect(page.getByTestId("iphone-check-connected")).toContainText("할 일", { timeout: 10_000 });
+    // 상태가 바뀔 때만 다시 점검한다(처음 1번 + 꽂음 1번 + 뺌 1번)
+    await page.waitForTimeout(4000);
+    expect(await app.evaluate(() => (globalThis as unknown as { checks: number }).checks)).toBe(3);
+  } finally {
+    await app.close();
+  }
+});

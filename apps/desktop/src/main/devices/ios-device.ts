@@ -25,6 +25,7 @@ const DevicectlDeviceSchema = z.object({
     .object({
       pairingState: z.string().optional(),
       tunnelState: z.string().optional(),
+      transportType: z.string().nullable().optional(),
     })
     .optional(),
 });
@@ -43,7 +44,10 @@ export interface PhysicalIosDevice {
 
 /**
  * devicectl 기기 목록에서 연결된 실제 iPhone·iPad 를 뽑는다. 시뮬레이터·Apple Watch 는 뺀다.
- * 짝지어 있고(paired) 터널이 연결돼 있으며 개발자 모드가 켜져 있어야 booted(쓸 수 있음)다. 아니면 unknown 으로 두어 실행이 거부되게 한다.
+ * 짝지어 있고(paired) 닿을 수 있으며 개발자 모드가 켜져 있어야 booted(쓸 수 있음)다. 아니면 unknown 으로 두어 실행이 거부되게 한다.
+ * 닿을 수 있음: 터널이 열려 있거나(connected), 케이블로 꽂혀 있는데 터널만 쉬는 중(disconnected + wired)이다.
+ * macOS 는 누가 기기에 물을 때 터널을 연다(devicectl device info 등). 케이블을 막 꽂은 기기는 disconnected 로 보인다.
+ * 무선으로만 보이는 기기(localNetwork)는 케이블로 연결하라고 안내한다
  * 형식이 다르면 예외를 낸다(빈 목록으로 바꾸지 않는다)
  */
 export function parseDevicectlDevices(json: unknown): PhysicalIosDevice[] {
@@ -55,7 +59,8 @@ export function parseDevicectlDevices(json: unknown): PhysicalIosDevice[] {
     if (hw.reality !== "physical" || hw.platform !== "iOS" || !hw.udid) continue;
     if (hw.deviceType !== "iPhone" && hw.deviceType !== "iPad") continue;
     const paired = d.connectionProperties?.pairingState === "paired";
-    const connected = d.connectionProperties?.tunnelState === "connected";
+    const tunnel = d.connectionProperties?.tunnelState;
+    const connected = tunnel === "connected" || (tunnel === "disconnected" && d.connectionProperties?.transportType === "wired");
     const mode = d.deviceProperties?.developerModeStatus;
     const developerMode = mode === "enabled" ? true : mode === "disabled" ? false : null;
     out.push({

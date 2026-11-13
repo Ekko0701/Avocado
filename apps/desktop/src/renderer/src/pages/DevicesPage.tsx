@@ -2,6 +2,7 @@ import type { Device, DeviceList, IosDeviceOptions, IosDeviceReadiness } from "@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { errorMessage } from "../lib/errors";
 import { deviceKindText } from "../lib/device-label";
+import { useDevicePolling } from "../lib/use-device-polling";
 
 const STATE_TEXT: Record<Device["state"], string> = { booted: "실행 중", shutdown: "꺼짐", booting: "부팅 중", unknown: "알 수 없음" };
 /** 좁은 칸이라 탭 글자는 짧게 쓰고, 읽어 주는 이름(name)은 풀어서 쓴다 */
@@ -67,7 +68,8 @@ export function DevicesPage() {
   const iphones = useMemo(() => list?.devices.filter((d) => d.kind === "real" && d.platform === "ios") ?? [], [list]);
   useEffect(() => {
     if (iphones.some((d) => d.id === iphoneId)) return;
-    setIphoneId(iphones[0]?.id ?? "");
+    // 연결된 것을 먼저 고른다(케이블로 꽂은 기기)
+    setIphoneId((iphones.find((d) => d.state === "booted") ?? iphones[0])?.id ?? "");
   }, [iphones, iphoneId]);
 
   const checkIphone = useCallback(async (id: string, buildRunner: boolean) => {
@@ -91,6 +93,21 @@ export function DevicesPage() {
   }, [reload]);
   const iphonesRef = useRef(iphones);
   iphonesRef.current = iphones;
+  // 새로고침을 누르지 않아도 꽂고 뺀 기기가 목록에 반영된다(준비·삭제 중에는 쉰다)
+  useDevicePolling(setList, { paused: busy !== null, onError: (e) => setMessage(errorMessage(e)) });
+  // 고른 iPhone 의 연결 상태가 바뀌면(케이블을 꽂음·뺌, 개발자 모드) 저절로 다시 점검한다
+  const selectedKey = `${iphoneId}:${iphones.find((d) => d.id === iphoneId)?.state ?? "none"}`;
+  const lastKey = useRef(selectedKey);
+  useEffect(() => {
+    const previous = lastKey.current;
+    lastKey.current = selectedKey;
+    if (previous === selectedKey || previous.split(":")[0] !== iphoneId) return;
+    if (tab !== "iphone" || !iphoneId || busy !== null) return;
+    // 지금 점검 결과의 "연결"이 새 상태와 같으면 다시 하지 않는다(준비 직후 목록이 바뀌어도 러너 결과를 지우지 않게)
+    const connectedOk = readiness?.deviceId === iphoneId ? readiness.checks.find((c) => c.id === "connected")?.ok : undefined;
+    if (connectedOk !== undefined && connectedOk === selectedKey.endsWith(":booted")) return;
+    void checkIphone(iphoneId, false);
+  }, [selectedKey, iphoneId, tab, busy, checkIphone, readiness]);
   // iPhone 탭을 열거나 다른 iPhone 을 고르면 점검한다(러너는 빌드하지 않는다)
   useEffect(() => {
     if (tab !== "iphone" || !iphoneId) return;
@@ -200,7 +217,7 @@ export function DevicesPage() {
             ) : null}
             {phones.some((d) => d.state !== "booted") ? (
               <p className="hint" role="status" data-testid="phone-unauthorized">
-                연결된 폰이 아직 허용되지 않았습니다. 폰 화면의 &quot;USB 디버깅을 허용하시겠습니까?&quot; 창에서 허용한 뒤 새로고침합니다.
+                연결된 폰이 아직 허용되지 않았습니다. 폰 화면의 &quot;USB 디버깅을 허용하시겠습니까?&quot; 창에서 허용하면 잠시 뒤 저절로 바뀝니다.
               </p>
             ) : null}
             {confirmDelete ? (
@@ -278,7 +295,7 @@ export function DevicesPage() {
             ) : null}
             {tab === "phone" ? (
               <p className="hint" data-testid="phone-hint">
-                Android 폰은 개발자 옵션에서 USB 디버깅을 켜고 케이블로 연결한 뒤 새로고침하면 목록에 나옵니다. 폰의 언어·애니메이션 설정은 바꾸지 않습니다.
+                Android 폰은 개발자 옵션에서 USB 디버깅을 켜고 케이블로 연결하면 잠시 뒤 목록에 저절로 나옵니다. 폰의 언어·애니메이션 설정은 바꾸지 않습니다.
               </p>
             ) : null}
             {tab === "iphone" ? (
@@ -293,7 +310,7 @@ export function DevicesPage() {
                     ))}
                   </select>
                 </label>
-                {iphones.length === 0 ? <p className="hint">연결된 iPhone 이 없습니다. 케이블로 연결하고 iPhone 에서 &quot;이 컴퓨터 신뢰&quot;를 누른 뒤 새로고침합니다.</p> : null}
+                {iphones.length === 0 ? <p className="hint">연결된 iPhone 이 없습니다. 케이블로 연결하고 iPhone 에서 &quot;이 컴퓨터 신뢰&quot;를 누르면 잠시 뒤 저절로 나옵니다.</p> : null}
                 {readiness && readiness.deviceId === iphoneId ? (
                   <ul className="checks" data-testid="iphone-checks">
                     {readiness.checks.map((c) => (
