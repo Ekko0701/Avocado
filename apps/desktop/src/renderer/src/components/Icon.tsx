@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type IconName = "home" | "folder" | "doc" | "sparkle" | "play" | "chart" | "phone" | "box" | "wand" | "gear" | "sync" | "branch" | "key" | "close" | "commit" | "pull" | "check";
+export type IconName = "home" | "folder" | "doc" | "sparkle" | "play" | "chart" | "phone" | "box" | "wand" | "gear" | "sync" | "branch" | "key" | "close" | "commit" | "pull" | "check" | "laptop";
 
 /** 24×24 선 아이콘(직접 그림). 글자색을 따른다 */
 const PATHS: Record<IconName, ReactNode> = {
@@ -22,6 +22,12 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  laptop: (
+    <>
+      <rect x="4" y="5" width="16" height="11" rx="1.5" />
+      <path d="M2.5 19h19" />
+    </>
+  ),
   key: (
     <>
       <circle cx="8" cy="15" r="4" />

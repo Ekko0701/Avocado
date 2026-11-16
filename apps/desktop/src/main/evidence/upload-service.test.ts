@@ -57,7 +57,7 @@ function run(status: RunDetail["status"]): RunDetail {
   };
 }
 
-function service(opts: { approved?: boolean; status?: RunDetail["status"]; secrets?: string[]; jpeg?: JpegConverter; maxImages?: number; github?: Partial<GitHubSettings> } = {}) {
+function service(opts: { approved?: boolean; status?: RunDetail["status"]; secrets?: string[]; jpeg?: JpegConverter; maxImages?: number; github?: Partial<GitHubSettings>; source?: "local" | "github" } = {}) {
   const redacted = join(dir, "redacted");
   return new UploadService({
     db,
@@ -65,6 +65,7 @@ function service(opts: { approved?: boolean; status?: RunDetail["status"]; secre
     evidence: { redactedDir: () => redacted },
     remote: new GitHubProvider({ token: () => TOKEN, apiUrl: fake.url, webUrl: "https://github.com" }),
     uploadApproved: () => opts.approved ?? true,
+    source: () => opts.source ?? "github",
     github: () => ({ owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-", evidenceRepo: null, evidenceOwner: null, ...opts.github }),
     secrets: () => opts.secrets ?? [...FAKE_SECRETS, TOKEN],
     toJpeg: opts.jpeg ?? toJpeg,
@@ -76,6 +77,15 @@ function service(opts: { approved?: boolean; status?: RunDetail["status"]; secre
 }
 
 describe("증적 업로드 (PLAN 9.3·9.4)", () => {
+  it("로컬 워크스페이스에서는 정책이 켜져 있어도 미리보기와 올리기를 거절하고 GitHub 에 닿지 않는다 (ADR 0036)", async () => {
+    const s = service({ source: "local", approved: true });
+    const refusal = /증적 올리기: .*로컬 워크스페이스에서는 쓸 수 없다\. 설정에서 GitHub 사용을 켠다/;
+    await expect(s.prepare({ runId: "run-1", executionId: "exec-1", includePassScreens: false })).rejects.toThrow(UploadError);
+    await expect(s.prepare({ runId: "run-1", executionId: "exec-1", includePassScreens: false })).rejects.toThrow(refusal);
+    await expect(s.upload({ bundleId: "bundle-1", privacyConfirmed: true })).rejects.toThrow(refusal);
+    expect(fake.requests).toEqual([]);
+  });
+
   it("미리보기 → 개인정보 확인 → 한 커밋으로 올리고 색인에 한 줄, report.md 주소를 돌려준다", async () => {
     const s = service();
     const preview = await s.prepare({ runId: "run-1", executionId: "exec-1", includePassScreens: false });

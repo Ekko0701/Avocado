@@ -1,6 +1,6 @@
 import type { RunDetail, RunSummary } from "@qa/shared";
 import { useCallback, useEffect, useState } from "react";
-import { RunSetup } from "../components/RunSetup";
+import { RunSetup, type RunPreset } from "../components/RunSetup";
 import { errorMessage, formatDateTime } from "../lib/errors";
 
 const RUN_STATUS: Record<RunSummary["status"], string> = {
@@ -17,7 +17,7 @@ const isActive = (r: RunSummary) => r.status === "queued" || r.status === "runni
 const badgeClass = (s: RunSummary["status"]) => (s === "passed" ? "badge ok" : s === "failed" || s === "error" ? "badge bad" : "badge");
 const seconds = (ms: number | null) => (ms === null ? "" : `${(ms / 1000).toFixed(1)}초`);
 
-export function RunsPage(props: { onOpenResults?: (runId: string) => void }) {
+export function RunsPage(props: { preset?: RunPreset | null; onOpenResults?: (runId: string) => void }) {
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
   const [openRun, setOpenRun] = useState<RunDetail | null>(null);
   /** 실행 기록을 읽거나 열거나 취소하다 난 오류 */
@@ -81,7 +81,7 @@ export function RunsPage(props: { onOpenResults?: (runId: string) => void }) {
   return (
     <>
       <h1>실행</h1>
-      <RunSetup onStarted={(runId) => void started(runId)} />
+      <RunSetup preset={props.preset ?? null} onStarted={(runId) => void started(runId)} />
       {message ? (
         <p role="alert" className="error">
           {message}

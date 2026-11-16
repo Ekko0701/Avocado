@@ -149,6 +149,12 @@ const handlers: IpcHandlers = {
   "workspace:status": () => {
     throw new Error("not used");
   },
+  "workspace:setSource": () => {
+    throw new Error("not used");
+  },
+  "workspace:reveal": () => {
+    throw new Error("not used");
+  },
   "workspace:connect": () => {
     throw new Error("not used");
   },
@@ -200,6 +206,21 @@ const handlers: IpcHandlers = {
   "workspace:myPulls": () => {
     throw new Error("not used");
   },
+  "workspace:exportInfo": () => {
+    throw new Error("not used");
+  },
+  "workspace:export": () => {
+    throw new Error("not used");
+  },
+  "workspace:importPick": () => {
+    throw new Error("not used");
+  },
+  "workspace:importApply": () => {
+    throw new Error("not used");
+  },
+  "workspace:importCancel": () => {
+    throw new Error("not used");
+  },
   "runs:startFromWorkspace": () => {
     throw new Error("not used");
   },
@@ -240,6 +261,15 @@ const handlers: IpcHandlers = {
     throw new Error("not used");
   },
   "evidence:uploads": () => {
+    throw new Error("not used");
+  },
+  "evidence:prepareExport": () => {
+    throw new Error("not used");
+  },
+  "evidence:export": () => {
+    throw new Error("not used");
+  },
+  "evidence:revealExport": () => {
     throw new Error("not used");
   },
   "agent:startAuthor": () => {

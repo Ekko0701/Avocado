@@ -39,6 +39,7 @@ import {
   type RunDetail,
   type RunSummary,
   type StartAuthorInput,
+  type WorkspaceSourceKind,
 } from "@qa/shared";
 import { buildSecretSet, MIN_SECRET_LENGTH, redactText, type SecretSet } from "@qa/evidence";
 import { FlowMetaSchema, lintFlow, type FlowMeta } from "@qa/workspace";
@@ -65,6 +66,8 @@ export interface AuthorServiceOptions {
     restoreFlowDraft(flowPath: string, previous: string | null): void;
     /** 같은 내용이 이미 있으면 새로 커밋하지 않고 기존 커밋을 돌려준다(unchanged) */
     saveFlow(input: { id: string; flowPath: string; metaPath: string; yaml: string; meta: string; summary: string }): Promise<{ branch: string; commit: string; unchanged: boolean }>;
+    /** 저장 뒤 안내 문구를 고른다(로컬에는 작업 브랜치와 PR 이 없다) */
+    sourceKind(): WorkspaceSourceKind;
   };
   runs: {
     start(
@@ -192,6 +195,40 @@ const CONTROL_TOOLS: McpToolDefinition[] = [
   },
   { name: "cancel_author", description: "맡은 작업을 취소한다.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
 ];
+
+interface SavedFlow {
+  branch: string;
+  commit: string;
+  unchanged: boolean;
+}
+
+/**
+ * 저장할 때의 기록과 끝난 뒤 Claude 에게 주는 다음 할 일. GitHub 는 작업 브랜치에 커밋하고 PR 로 승인받는다.
+ * 로컬은 승인 단계가 없어 저장한 플로우를 바로 실행한다(ADR 0036 결정 4)
+ */
+const SAVE_TEXT: Record<WorkspaceSourceKind, { saving: string; alreadySaved(saved: SavedFlow): string; done(saved: SavedFlow): string }> = {
+  github: {
+    saving: "두 번 모두 통과했다. 작업 브랜치에 커밋한다",
+    alreadySaved: (saved) => (saved.branch === "main" ? `같은 플로우가 이미 main 에 있다(${saved.commit}). 새로 커밋하지 않았다` : `같은 플로우가 이미 ${saved.branch} 에 있다(${saved.commit}). 새로 커밋하지 않았다`),
+    done: (saved) => {
+      if (saved.unchanged && saved.branch === "main") {
+        return `2회 재생을 통과했다. 같은 플로우가 이미 main 에 승인돼 있어 새로 커밋하지 않았다(${saved.commit}). PR 은 필요 없다. 더 할 일은 없다.`;
+      }
+      if (saved.unchanged) {
+        return `2회 재생을 통과했다. 같은 플로우가 이미 작업 브랜치 ${saved.branch} 에 커밋돼 있어 새로 커밋하지 않았다(${saved.commit}). 사용자에게 Avocado 에서 PR 작성을 누르라고 알린다. 더 할 일은 없다.`;
+      }
+      return `2회 재생을 통과해 작업 브랜치 ${saved.branch} 에 커밋했다(${saved.commit}). 사용자에게 Avocado 에서 PR 작성을 누르라고 알린다. 더 할 일은 없다.`;
+    },
+  },
+  local: {
+    saving: "두 번 모두 통과했다. 플로우를 저장한다",
+    alreadySaved: (saved) => `같은 플로우가 이미 저장돼 있다(${saved.commit}). 새로 저장하지 않았다`,
+    done: (saved) =>
+      saved.unchanged
+        ? `2회 재생을 통과했다. 같은 플로우가 이미 저장돼 있어 새로 저장하지 않았다(${saved.commit}). 사용자에게 Avocado 의 실행 화면에서 바로 실행할 수 있다고 알린다. 더 할 일은 없다.`
+        : `2회 재생을 통과해 플로우를 저장했다(${saved.commit}). 사용자에게 Avocado 의 실행 화면에서 바로 실행할 수 있다고 알린다. 더 할 일은 없다.`,
+  },
+};
 
 /**
  * 플로우 만들기(author, PLAN 6.5). 입력 조립 → 기기 준비 → 에이전트 탐색·제출 → 규약 검사 → 같은 기기에서 2회 재생 →
@@ -508,15 +545,7 @@ export class AuthorService {
 
   private nextAction(s: AuthorJob, live: Live | undefined): string {
     if (s.phase === "done") {
-      if (s.job.status === "succeeded" && s.result) {
-        if (s.result.unchanged && s.result.branch === "main") {
-          return `2회 재생을 통과했다. 같은 플로우가 이미 main 에 승인돼 있어 새로 커밋하지 않았다(${s.result.commit}). PR 은 필요 없다. 더 할 일은 없다.`;
-        }
-        if (s.result.unchanged) {
-          return `2회 재생을 통과했다. 같은 플로우가 이미 작업 브랜치 ${s.result.branch} 에 커밋돼 있어 새로 커밋하지 않았다(${s.result.commit}). 사용자에게 Avocado 에서 PR 작성을 누르라고 알린다. 더 할 일은 없다.`;
-        }
-        return `2회 재생을 통과해 작업 브랜치 ${s.result.branch} 에 커밋했다(${s.result.commit}). 사용자에게 Avocado 에서 PR 작성을 누르라고 알린다. 더 할 일은 없다.`;
-      }
+      if (s.job.status === "succeeded" && s.result) return SAVE_TEXT[this.options.workspace.sourceKind()].done(s.result);
       return `작업이 끝났다(${s.job.status})${s.job.error ? `: ${s.job.error}` : ""}. 더 할 일은 없다. 사용자에게 결과를 알린다.`;
     }
     if (live?.claude?.handlers) {
@@ -667,7 +696,8 @@ export class AuthorService {
         if (replay.passed) {
           stop.throwIfAborted();
           this.setPhase(live, "saving");
-          this.log(live, "두 번 모두 통과했다. 작업 브랜치에 커밋한다");
+          const text = SAVE_TEXT[this.options.workspace.sourceKind()];
+          this.log(live, text.saving);
           const agentModel = live.claude ? `${CLAUDE_APP_MODEL} (${live.claude.client ?? "unknown"})` : run.model;
           const meta = this.flowMeta(input, ctx, agentModel, submission, replay.golden);
           // 초안을 먼저 되돌린다. 깨끗한 상태에서 이 TC 의 작업 브랜치로 옮겨 커밋한다
@@ -684,10 +714,7 @@ export class AuthorService {
           live.result = { flowPath: ctx.flowPath, ...saved, goldenRunId: replay.golden.id };
           if (saved.unchanged) {
             // 같은 플로우를 다시 만들었다: 실패가 아니다. 기존 커밋을 결과로 둔다
-            this.log(
-              live,
-              saved.branch === "main" ? `같은 플로우가 이미 main 에 있다(${saved.commit}). 새로 커밋하지 않았다` : `같은 플로우가 이미 ${saved.branch} 에 있다(${saved.commit}). 새로 커밋하지 않았다`,
-            );
+            this.log(live, text.alreadySaved(saved));
           }
           finish("succeeded");
           return;

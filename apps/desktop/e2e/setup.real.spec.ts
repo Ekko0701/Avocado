@@ -12,7 +12,7 @@ test("새 데이터 폴더에서 마법사만으로 실제 JRE·Maestro 를 설�
   test.setTimeout(20 * 60_000);
   const { app, page, userDataDir } = await launchApp({ setupCompleted: false });
   await page.getByRole("region", { name: "Claude 연결 단계" }).getByRole("button", { name: "다음" }).click();
-  await page.getByRole("region", { name: "GitHub 토큰 단계" }).getByRole("button", { name: "건너뛰기" }).click();
+  await page.getByRole("region", { name: "저장 위치 단계" }).getByRole("button", { name: "건너뛰기" }).click();
 
   const env = page.getByRole("region", { name: "환경 점검 단계" });
   await expect(env.getByTestId("check-tool-maestro").getByTestId("check-status")).toHaveText("필요", { timeout: 60_000 });

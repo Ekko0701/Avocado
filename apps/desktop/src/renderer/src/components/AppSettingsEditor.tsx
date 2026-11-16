@@ -1,50 +1,46 @@
-import type { AccountRoleEdit, AppSettingsDoc, AppTargetEdit, RequestReviewResult } from "@qa/shared";
+import type { AccountRoleEdit, AppSettingsDoc, RequestReviewResult } from "@qa/shared";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { appFormProblems, splitKeys, TARGETS, type RoleRow, type TargetChoice, type TargetChoices, type TargetId } from "../lib/app-form";
 import { errorMessage } from "../lib/errors";
 import { notifyWorkspaceChanged } from "../lib/workspace-events";
+import { useWorkspaceSource } from "../lib/workspace-status";
 
-type TargetId = AppTargetEdit["target"];
-const TARGETS: { id: TargetId; label: string; hint: string }[] = [
-  { id: "ios", label: "iOS", hint: "번들 ID (예: com.example.app)" },
-  { id: "android", label: "Android", hint: "패키지 이름 (예: com.example.app)" },
-  { id: "flutter-ios", label: "Flutter iOS", hint: "번들 ID" },
-  { id: "flutter-android", label: "Flutter Android", hint: "패키지 이름" },
-];
 /** 왼쪽 목록에서 "새 앱"을 골랐을 때의 값 */
 export const NEW_APP = "__new__";
-const APP_ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
-const LOCALE = /^[a-z]{2}_[A-Z]{2}$/;
-const ROLE = /^[a-z][a-z0-9-]{0,39}$/;
-const KEY = /^[A-Z][A-Z0-9_]{0,63}$/;
 
-interface RoleRow {
-  role: string;
-  description: string;
-  /** 쉼표로 구분한 키 이름 */
-  keys: string;
-}
 interface Form {
   name: string;
   locale: string;
   /** scheme·configuration: 프로젝트로 빌드할 때 팀 기본값(iOS 만 쓴다, ADR 0025) */
-  targets: Record<TargetId, TargetForm>;
+  targets: TargetChoices<TargetForm>;
   roles: RoleRow[];
 }
-interface TargetForm {
-  on: boolean;
-  appId: string;
+interface TargetForm extends TargetChoice {
   scheme: string;
   configuration: string;
 }
 
-const splitKeys = (keys: string) =>
-  keys
-    .split(",")
-    .map((k) => k.trim())
-    .filter(Boolean);
+/** 타깃과 앱 ID 칸. 앱 설정 편집기와 첫 앱 등록이 같이 쓴다. children 은 칸 아래에 붙는 줄(예: iOS 빌드 기본값) */
+export function TargetFieldset<T extends TargetChoice>(props: { targets: TargetChoices<T>; onChange: (id: TargetId, next: Partial<TargetChoice>) => void; children?: ReactNode }) {
+  return (
+    <fieldset className="targets">
+      <legend>타깃과 앱 ID</legend>
+      {TARGETS.map((t) => (
+        <div key={t.id} className="target-row" data-testid={`app-target-${t.id}`}>
+          <label>
+            <input type="checkbox" aria-label={`${t.label} 사용`} checked={props.targets[t.id].on} onChange={(e) => props.onChange(t.id, { on: e.target.checked })} />
+            {t.label}
+          </label>
+          <input aria-label={`${t.label} 앱 ID`} value={props.targets[t.id].appId} disabled={!props.targets[t.id].on} onChange={(e) => props.onChange(t.id, { appId: e.target.value })} placeholder={t.hint} />
+        </div>
+      ))}
+      {props.children}
+    </fieldset>
+  );
+}
 
 function toForm(doc: AppSettingsDoc | null): Form {
-  const targets = Object.fromEntries(TARGETS.map((t) => [t.id, { on: false, appId: "", scheme: "", configuration: "" }])) as Record<TargetId, TargetForm>;
+  const targets = Object.fromEntries(TARGETS.map((t) => [t.id, { on: false, appId: "", scheme: "", configuration: "" }])) as TargetChoices<TargetForm>;
   for (const t of doc?.targets ?? []) targets[t.target] = { on: true, appId: t.appId, scheme: t.scheme ?? "", configuration: t.configuration ?? "" };
   return {
     name: doc?.name ?? "",
@@ -54,40 +50,16 @@ function toForm(doc: AppSettingsDoc | null): Form {
   };
 }
 
-/** 입력하는 동안 보이는 형식 문제(저장할 때 main 이 다시 검사한다) */
-function formProblems(form: Form, newApp: { id: string; taken: boolean } | null): string[] {
-  const out: string[] = [];
-  if (newApp && !APP_ID.test(newApp.id)) out.push("앱 ID 는 영문 소문자·숫자·하이픈만 씁니다");
-  if (newApp?.taken) out.push(`이미 있는 앱입니다: ${newApp.id}`);
-  if (!form.name.trim()) out.push("앱 이름을 씁니다");
-  if (form.locale.trim() && !LOCALE.test(form.locale.trim())) out.push("언어는 ko_KR 형식으로 쓰거나 비웁니다");
-  const on = TARGETS.filter((t) => form.targets[t.id].on);
-  if (on.length === 0) out.push("타깃을 하나 이상 고릅니다");
-  for (const t of on) {
-    const appId = form.targets[t.id].appId.trim();
-    if (!appId || /\s/.test(appId)) out.push(`${t.label} 앱 ID 를 공백 없이 씁니다`);
-  }
-  form.roles.forEach((row, i) => {
-    const role = row.role.trim();
-    const keys = splitKeys(row.keys);
-    const bad = keys.filter((k) => !KEY.test(k));
-    if (!ROLE.test(role)) out.push(`계정 역할 ${i + 1}: 역할 이름은 영문 소문자로 시작하고 소문자·숫자·하이픈만 씁니다`);
-    else if (form.roles.filter((r) => r.role.trim() === role).length > 1) out.push(`계정 역할 ${i + 1}: 같은 역할 이름이 두 번 있습니다(${role})`);
-    if (keys.length === 0) out.push(`계정 역할 ${i + 1}: 키 이름을 하나 이상 씁니다`);
-    else if (bad.length > 0) out.push(`계정 역할 ${i + 1}: 키 이름은 영문 대문자·숫자·밑줄만 씁니다(${bad.join(", ")})`);
-  });
-  return out;
-}
-
 /**
  * 앱 설정(apps/<앱>/app.yaml·accounts.yaml): 이름·언어·타깃별 앱 ID 와 계정 역할. 새 앱도 여기서 만든다.
- * 저장하면 그 앱의 앱 설정 작업 브랜치에 커밋하고, PR 작성으로 PR 을 만든다. 계정 값은 검증 → 테스트 계정에서 넣는다.
+ * 저장하면 그 앱의 앱 설정 작업 브랜치에 커밋하고, PR 작성으로 PR 을 만든다. 로컬 워크스페이스는 main 에 바로 저장하고 PR 이 없다. 계정 값은 검증 → 테스트 계정에서 넣는다.
  * TC·플로우가 쓰는 타깃·역할·키는 main 이 지우지 못하게 막는다.
  * 어느 앱인지는 워크스페이스 화면의 왼쪽 목록이 정한다(selected). 새 앱을 저장하면 onSelect 로 그 앱을 고른다.
  */
 export function AppSettingsEditor(props: { apps: { app: string; name: string }[]; selected: string; onSelect: (app: string) => void; tabs?: ReactNode; hidden?: boolean }) {
   const { selected } = props;
   const setSelected = props.onSelect;
+  const local = useWorkspaceSource() === "local";
   const [newId, setNewId] = useState("");
   const [form, setForm] = useState<Form | null>(null);
   const [source, setSource] = useState<string | null>(null);
@@ -117,7 +89,7 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
     load(selected).catch((e: unknown) => setMessage(`앱 설정을 읽지 못했습니다: ${errorMessage(e)}`));
   }, [selected, load]);
 
-  const problems = form ? formProblems(form, creating ? { id: app, taken: props.apps.some((a) => a.app === app) } : null) : [];
+  const problems = form ? appFormProblems(form, creating ? { id: app, taken: props.apps.some((a) => a.app === app) } : null) : [];
   const canSave = form !== null && !busy && summary.trim() !== "" && problems.length === 0;
 
   function patch(next: Partial<Form>) {
@@ -152,7 +124,7 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
       });
       setSaved({ app, branch: r.branch });
       setMessage(
-        `${r.branch} 에 커밋했습니다(${r.commit}).${creating ? " 새 앱을 워크스페이스에 더했습니다." : ""} 계정 값은 검증 → 테스트 계정에서 넣습니다.`,
+        `${local ? `저장했습니다(${r.commit})` : `${r.branch} 에 커밋했습니다(${r.commit})`}.${creating ? " 새 앱을 워크스페이스에 더했습니다." : ""} 계정 값은 검증 → 테스트 계정에서 넣습니다.`,
       );
       notifyWorkspaceChanged();
       if (creating) {
@@ -229,17 +201,7 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
             </label>
           </div>
 
-          <fieldset className="targets">
-            <legend>타깃과 앱 ID</legend>
-            {TARGETS.map((t) => (
-              <div key={t.id} className="target-row" data-testid={`app-target-${t.id}`}>
-                <label>
-                  <input type="checkbox" aria-label={`${t.label} 사용`} checked={form.targets[t.id].on} onChange={(e) => patchTarget(t.id, { on: e.target.checked })} />
-                  {t.label}
-                </label>
-                <input aria-label={`${t.label} 앱 ID`} value={form.targets[t.id].appId} disabled={!form.targets[t.id].on} onChange={(e) => patchTarget(t.id, { appId: e.target.value })} placeholder={t.hint} />
-              </div>
-            ))}
+          <TargetFieldset targets={form.targets} onChange={patchTarget}>
             <div className="target-row" data-testid="app-target-ios-build">
               <span className="hint">iOS 빌드 기본값</span>
               <div className="row">
@@ -247,7 +209,7 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
                 <input aria-label="iOS 구성" value={form.targets.ios.configuration} disabled={!form.targets.ios.on} onChange={(e) => patchTarget("ios", { configuration: e.target.value })} placeholder="구성(예: Debug)" />
               </div>
             </div>
-          </fieldset>
+          </TargetFieldset>
 
           <h3>계정 역할</h3>
           {form.roles.length === 0 ? <p className="hint">계정이 필요 없는 앱이면 비워 둡니다.</p> : null}
@@ -307,9 +269,9 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
             <input value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={80} placeholder="예: add android target" />
           </label>
           <button type="submit" disabled={!canSave}>
-            {busy ? "저장 중" : "저장(커밋)"}
+            {busy ? "저장 중" : local ? "저장" : "저장(커밋)"}
           </button>
-          {saved ? (
+          {saved && !local ? (
             <button type="button" className="secondary" disabled={busy} onClick={() => void review()}>
               PR 작성
             </button>

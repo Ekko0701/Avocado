@@ -64,12 +64,10 @@ export type HierarchyView = z.infer<typeof HierarchyViewSchema>;
 export const PrepareUploadInputSchema = ExecutionRefSchema.extend({ includePassScreens: z.boolean() });
 export type PrepareUploadInput = z.infer<typeof PrepareUploadInputSchema>;
 
-export const UploadPreviewSchema = z.strictObject({
-  /** 업로드에 넘길 값. 비밀 값이 남아 막혔으면 null */
+/** 앱 밖으로 내보내는 요약 묶음의 미리보기(올리기·폴더로 내보내기 공통, ADR 0036 결정 9) */
+export const BundlePreviewSchema = z.strictObject({
+  /** 올리기·내보내기에 넘길 값. 비밀 값이 남아 막혔으면 null */
   bundleId: z.string().nullable(),
-  /** 올라갈 저장소(owner/repo)와 묶음 폴더 */
-  repo: z.string(),
-  root: z.string(),
   files: z.array(z.strictObject({ path: z.string(), kind: z.enum(["run_json", "report", "screen", "failure_screen", "hierarchy", "log"]), bytes: z.number().int().min(0) })),
   /** 캡처 미리보기(data URL) */
   thumbnails: z.array(z.strictObject({ path: z.string(), dataUrl: z.string() })).max(50),
@@ -78,6 +76,13 @@ export const UploadPreviewSchema = z.strictObject({
   blocked: z.boolean(),
   /** 비밀 값이 남은 파일(경로와 개수만) */
   residue: z.array(z.strictObject({ path: z.string(), occurrences: z.number().int(), inPath: z.boolean(), patternMatches: z.number().int() })),
+});
+export type BundlePreview = z.infer<typeof BundlePreviewSchema>;
+
+export const UploadPreviewSchema = BundlePreviewSchema.extend({
+  /** 올라갈 저장소(owner/repo)와 묶음 폴더 */
+  repo: z.string(),
+  root: z.string(),
 });
 export type UploadPreview = z.infer<typeof UploadPreviewSchema>;
 
@@ -97,3 +102,26 @@ export const UploadRecordSchema = z.strictObject({
   uploadedAt: z.string(),
 });
 export type UploadRecord = z.infer<typeof UploadRecordSchema>;
+
+/** 증적 폴더로 내보내기(ADR 0036 결정 9, T-126). 정책 스위치(D11)·워크스페이스 출처와 상관없다 */
+export const ExportPreviewSchema = BundlePreviewSchema.extend({
+  /** 고른 폴더 안에 만들 폴더 이름. 이미 있으면 뒤에 -2, -3 을 붙인다 */
+  folderName: z.string(),
+});
+export type ExportPreview = z.infer<typeof ExportPreviewSchema>;
+
+export const ExportEvidenceInputSchema = z.strictObject({
+  bundleId: z.string().min(1).max(100),
+  /** "개인정보 확인함" 체크(9.3 의 3) */
+  privacyConfirmed: z.literal(true),
+});
+
+export const EvidenceExportRecordSchema = z.strictObject({
+  /** Finder 에서 보기에 넘길 값 */
+  exportId: z.string(),
+  /** 만든 폴더(홈은 ~ 로 줄인다) */
+  folder: z.string(),
+  files: z.number().int().min(0),
+  bytes: z.number().int().min(0),
+});
+export type EvidenceExportRecord = z.infer<typeof EvidenceExportRecordSchema>;

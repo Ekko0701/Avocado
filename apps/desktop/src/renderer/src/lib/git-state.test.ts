@@ -42,6 +42,7 @@ describe("Git 상태 묶기", () => {
     expect(branchTarget(tc)).toBe("TC-0102");
     expect(branchTarget(app)).toBe("앱 설정 · demo");
     expect(branchTarget(branch({ name: "qa/me/workspace/layout-v2" }))).toBe("폴더 구조");
+    expect(branchTarget(branch({ name: "qa/me/import/notes-2" }))).toBe("가져오기");
     expect(defaultReview(flow)).toEqual({ title: "TC-0101 agent flow", body: `## 변경\n\n- 작업 브랜치: ${flow.name}\n` });
   });
 });

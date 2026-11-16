@@ -1,4 +1,4 @@
-import type { AuthorJob } from "@qa/shared";
+import type { AuthorJob, WorkspaceSourceKind } from "@qa/shared";
 
 /** mine: 사용자가 할 일(Claude 에 요청 붙여 넣기)이 있는 단계 */
 export type StepState = "done" | "active" | "mine" | "failed" | "pending";
@@ -20,6 +20,8 @@ const ORDER: { phase: Phase; label: string; idle: string }[] = [
   { phase: "replaying", label: "두 번 재생", idle: "같은 기기에서" },
   { phase: "saving", label: "저장", idle: "작업 브랜치 커밋" },
 ];
+/** 로컬 워크스페이스는 main 에 바로 저장한다(ADR 0036). 작업 브랜치라는 말을 쓰지 않는다 */
+const LOCAL_SAVING_IDLE = "로컬 워크스페이스";
 
 const isRunning = (job: AuthorJob) => job.job.status === "queued" || job.job.status === "running";
 const failedReplayIndex = (job: AuthorJob) => job.replays.findIndex((r) => r.status !== "passed");
@@ -37,8 +39,8 @@ export function stoppedPhase(job: AuthorJob): Phase | null {
 }
 
 /** 단계 표시줄. API 키 방식에는 "Claude 에 요청" 단계가 없다. job 이 없으면(시작 전) 모두 대기 */
-export function authorSteps(job: AuthorJob | null, driver: AuthorJob["driver"]): AuthorStep[] {
-  const order = ORDER.filter((s) => driver === "claude-app" || s.phase !== "waiting_claude");
+export function authorSteps(job: AuthorJob | null, driver: AuthorJob["driver"], source: WorkspaceSourceKind): AuthorStep[] {
+  const order = ORDER.filter((s) => driver === "claude-app" || s.phase !== "waiting_claude").map((s) => (source === "local" && s.phase === "saving" ? { ...s, idle: LOCAL_SAVING_IDLE } : s));
   if (!job) return order.map((s) => ({ phase: s.phase, label: s.label, state: "pending", sub: s.idle }));
 
   const running = isRunning(job);
@@ -96,11 +98,12 @@ const STOPPED_TITLE: Record<Phase, string> = {
 };
 
 /** 통과하지 못하고 끝난 작업의 한 줄 제목 */
-export function stoppedTitle(job: AuthorJob): string {
+export function stoppedTitle(job: AuthorJob, source: WorkspaceSourceKind): string {
   const stopped = stoppedPhase(job);
   const where = stopped ? ORDER.find((s) => s.phase === stopped)?.label : null;
   if (job.job.status === "canceled") return where ? `${where} 단계에서 취소했습니다` : "취소했습니다";
   if (job.job.status === "budget_exceeded") return "작업 상한에 닿아 멈췄습니다";
+  if (stopped === "saving" && source === "local") return "로컬 워크스페이스에 저장하지 못했습니다";
   return stopped ? STOPPED_TITLE[stopped] : "플로우를 만들지 못했습니다";
 }
 

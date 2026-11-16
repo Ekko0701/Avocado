@@ -2,7 +2,7 @@ import type { Build, IpcHandlers } from "@qa/shared";
 import type { RunQueue } from "./run-queue";
 
 export function createWorkspaceRunHandlers(deps: {
-  workspace: { flowsToRun(input: { app: string; target: "ios" | "android"; tcId?: string; tag?: string }): { appId: string | null; flows: { tcId: string; path: string }[] } };
+  workspace: { flowsToRun(input: { app: string; target: "ios" | "android"; tcId?: string; tag?: string }): { appId: string | null; flows: { tcId: string; path: string; envKeys: string[] }[] } };
   builds: { get(id: string): Build };
   queue: RunQueue;
 }): Pick<IpcHandlers, "runs:startFromWorkspace" | "runs:queue" | "runs:clearQueue"> {
@@ -12,12 +12,13 @@ export function createWorkspaceRunHandlers(deps: {
       const build = input.buildId ? deps.builds.get(input.buildId) : null;
       if (build && (build.app !== input.app || build.target !== input.target)) throw new Error(`빌드가 ${input.app} ${input.target} 용이 아니다`);
       // 빌드는 모든 실행에 기록하고(증적에 어떤 빌드인지 남는다) 설치는 첫 실행에서만 한다.
-      // 빌드가 없으면 app.yaml 의 앱 id 로 기기에 설치된 앱을 돌린다
+      // 빌드가 없으면 app.yaml 의 앱 id 로 기기에 설치된 앱을 돌린다.
+      // 계정 값은 그 TC 역할의 키만 넘긴다. 역할이 없는 TC 는 아무 값도 받지 않는다
       deps.queue.enqueue(
         flows.map((f, i) => ({
           label: f.tcId,
           input: { app: input.app, flowPath: f.path, deviceId: input.deviceId, buildId: input.buildId },
-          options: build ? { skipInstall: i > 0 } : appId ? { appId } : {},
+          options: { ...(build ? { skipInstall: i > 0 } : appId ? { appId } : {}), envKeys: f.envKeys },
         })),
       );
       return deps.queue.status();

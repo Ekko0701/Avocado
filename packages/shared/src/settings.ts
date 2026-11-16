@@ -78,6 +78,10 @@ export type ProjectLink = z.infer<typeof ProjectLinkSchema>;
 export const AgentProviderSchema = z.enum(["claude-app", "api"]);
 export type AgentProvider = z.infer<typeof AgentProviderSchema>;
 
+/** 워크스페이스의 출처(ADR 0036). local: 이 Mac 에서 혼자 쓰는 로컬 저장소, github: 연결한 GitHub 저장소 */
+export const WorkspaceSourceSchema = z.enum(["local", "github"]);
+export type WorkspaceSourceKind = z.infer<typeof WorkspaceSourceSchema>;
+
 export const SettingsSchema = z.strictObject({
   version: z.literal(1),
   evidence: z.strictObject({
@@ -115,8 +119,25 @@ export const SettingsSchema = z.strictObject({
   github: z.preprocess(withoutLegacyAppRepo, GitHubSettingsSchema).default(DEFAULT_GITHUB_SETTINGS),
   /** 앱 → 플랫폼별 프로젝트 연결. 렌더러의 settings:update 로는 바꾸지 못하고 빌드 화면의 연결로만 바꾼다 */
   projects: z.record(z.string(), z.strictObject({ ios: ProjectLinkSchema.optional() })).default({}),
+  /**
+   * 워크스페이스의 출처(ADR 0036). 기본값을 두지 않는다: 두면 GitHub 를 쓰던 예전 파일이 말없이 로컬로 읽힌다.
+   * 이 칸이 없는 예전 파일은 migrateSettings 가 채운다. 렌더러의 settings:update 로는 바꾸지 못하고 workspace:setSource 로만 바꾼다
+   */
+  workspace: z.strictObject({ source: WorkspaceSourceSchema }),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
+
+const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
+
+/**
+ * 예전 settings.json 을 지금 모양으로 채운다. 스키마 검사 앞에서 부른다(ADR 0036 결정 1).
+ * workspace 가 없으면 GitHub 조직을 정해 둔 파일은 github, 아니면 local 로 본다
+ */
+export function migrateSettings(raw: unknown): unknown {
+  if (!isRecord(raw) || "workspace" in raw) return raw;
+  const owner = isRecord(raw["github"]) ? raw["github"]["owner"] : undefined;
+  return { ...raw, workspace: { source: typeof owner === "string" && owner !== "" ? "github" : "local" } };
+}
 
 export const DEFAULT_SETTINGS: Settings = {
   version: 1,
@@ -128,6 +149,7 @@ export const DEFAULT_SETTINGS: Settings = {
   setup: { completedAt: null },
   github: DEFAULT_GITHUB_SETTINGS,
   projects: {},
+  workspace: { source: "local" },
 };
 
 /**

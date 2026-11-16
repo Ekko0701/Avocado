@@ -224,6 +224,6 @@ function report(
     lines.push("", "## 첨부", "");
     for (const f of text) lines.push(`- [${f.path}](${encodeURI(f.path)})`);
   }
-  lines.push("", `_${meta.generator} 가 가림 사본으로 만든 요약입니다. 원본 증적과 영상은 올리지 않습니다._`, "");
+  lines.push("", `_${meta.generator} 가 가림 사본으로 만든 요약입니다. 원본 증적과 영상은 넣지 않았습니다._`, "");
   return lines.join("\n");
 }

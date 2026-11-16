@@ -1,9 +1,10 @@
-import type { AuthorJob, RequestReviewResult, TestcaseHistory, TestcaseList, WorkBranchList, WorkspaceApp, WorkspaceStatus } from "@qa/shared";
+import type { AuthorJob, MyPullRequest, RequestReviewResult, TestcaseHistory, TestcaseList, WorkBranchList, WorkspaceApp, WorkspaceStatus } from "@qa/shared";
 import { lintTestcase, nextTestcaseId, parseTestcase, serializeTestcase, testcaseTemplate, type LintIssue, type Target, type TestcaseDoc } from "@qa/workspace/model";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Icon } from "../components/Icon";
 import { errorMessage, formatDateTime } from "../lib/errors";
 import { notifyWorkspaceChanged, onWorkspaceChanged } from "../lib/workspace-events";
+import { useWorkspaceSource } from "../lib/workspace-status";
 
 const STATUS_TEXT: Record<string, string> = { active: "사용", draft: "초안", deprecated: "폐기" };
 
@@ -69,6 +70,8 @@ function formToText(form: FormModel, base: { id: string; app: string }): string 
 }
 
 export function TestcasesPage() {
+  /** 로컬 워크스페이스(ADR 0036)는 main 에 바로 저장한다. 작업 브랜치·PR 작성이 없다 */
+  const local = useWorkspaceSource() === "local";
   const [status, setStatus] = useState<WorkspaceStatus | null>(null);
   const [list, setList] = useState<TestcaseList | null>(null);
   const [filter, setFilter] = useState({ app: "", status: "", tag: "", q: "" });
@@ -82,6 +85,8 @@ export function TestcasesPage() {
   const [review, setReview] = useState({ title: "", body: "" });
   const [pr, setPr] = useState<RequestReviewResult | null>(null);
   const [branches, setBranches] = useState<WorkBranchList | null>(null);
+  /** 내 열린 PR. 가져오기 PR 로 잠긴 테스트 케이스의 "PR 열기"에 쓴다. 읽지 못하면 null */
+  const [pulls, setPulls] = useState<MyPullRequest[] | null>(null);
   /** PR 을 만들 작업 브랜치. 비면 지금 브랜치 */
   const [reviewBranch, setReviewBranch] = useState("");
   /** 진행 중인(또는 마지막) 플로우 만들기. 그 TC 를 저장하면 경고한다 */
@@ -96,7 +101,8 @@ export function TestcasesPage() {
     setAuthorJob(await window.qa.agent.currentAuthor());
     if (s.connected) {
       setList(await window.qa.workspace.testcases());
-      setBranches(await window.qa.workspace.branches());
+      setBranches(s.source === "github" ? await window.qa.workspace.branches() : null);
+      setPulls(s.source === "github" ? await window.qa.workspace.myPulls().catch(() => null) : null);
     }
   }, []);
   useEffect(() => {
@@ -106,6 +112,9 @@ export function TestcasesPage() {
   }, [refresh]);
 
   const appInfo: WorkspaceApp | undefined = list?.apps.find((a) => a.app === editing?.app);
+  // 머지 전인 가져오기 브랜치가 바꾼 테스트 케이스는 고치지 않는다(ADR 0036 결정 11)
+  const lockedBy = (editing && !editing.isNew ? list?.testcases.find((t) => t.app === editing.app && t.id === editing.id)?.lockedBy : null) ?? null;
+  const lockedPull = lockedBy ? (pulls?.find((p) => p.branch === lockedBy.branch) ?? null) : null;
   const lint = useMemo(
     () => (editing ? lintTestcase(text, { accountRoles: appInfo?.accountRoles ?? null, appTargets: appInfo?.targets ?? null }) : null),
     [text, editing, appInfo],
@@ -185,7 +194,7 @@ export function TestcasesPage() {
         return;
       }
       const r = await window.qa.workspace.saveTestcase({ app: editing.app, id: editing.id, text, summary: summary.trim() });
-      setMessage(`${r.branch} 에 커밋했습니다(${r.commit})`);
+      setMessage(r.status.source === "local" ? `저장했습니다(${r.commit})` : `${r.branch} 에 커밋했습니다(${r.commit})`);
       notifyWorkspaceChanged();
       setEditing({ ...editing, isNew: false });
       // 저장한 TC 의 작업 브랜치를 PR 작성 대상으로 둔다(다른 TC 의 브랜치였다면 제목도 새로)
@@ -195,7 +204,7 @@ export function TestcasesPage() {
       setReviewBranch(r.branch);
       setStatus(r.status);
       setList(await window.qa.workspace.testcases());
-      setBranches(await window.qa.workspace.branches());
+      setBranches(r.status.source === "github" ? await window.qa.workspace.branches() : null);
       setHistory(await window.qa.workspace.history({ app: editing.app, id: editing.id }));
     } catch (e) {
       setMessage(`저장 실패: ${errorMessage(e)}`);
@@ -233,7 +242,7 @@ export function TestcasesPage() {
 
   // 고른 작업 브랜치의 PR 작성 양식. 편집 중이면 편집 영역 맨 아래에, 아니면 오른쪽 칸에 카드로 둔다
   const reviewForm = (className: string) =>
-    canReview ? (
+    canReview && !local ? (
       <form className={className} onSubmit={requestReview} aria-label="PR 작성">
         <h2>PR 작성</h2>
         <p className="hint" data-testid="tc-review-target">
@@ -337,7 +346,7 @@ export function TestcasesPage() {
                             {t.flows.length ? <span className="badge ok">플로우 {t.flows.join(", ")}</span> : <span className="badge">플로우 없음</span>}
                           </span>
                           <span>{t.title ?? <span className="error">형식 오류</span>}</span>
-                          <span className="hint">{[t.status ? (STATUS_TEXT[t.status] ?? t.status) : null, t.targets.join(", "), t.tags.join(", ")].filter(Boolean).join(" · ")}</span>
+                          <span className="hint">{[t.status ? (STATUS_TEXT[t.status] ?? t.status) : null, t.targets.join(", "), t.tags.join(", "), t.lockedBy ? "가져오기 PR 머지 전" : null].filter(Boolean).join(" · ")}</span>
                         </button>
                       </li>
                     );
@@ -360,7 +369,13 @@ export function TestcasesPage() {
             {list && groups.length === 0 ? <p className="hint tc-list-none">{list.testcases.length === 0 ? "아직 테스트 케이스가 없습니다." : "조건에 맞는 테스트 케이스가 없습니다."}</p> : null}
           </div>
           <p className="hint tc-list-foot">
-            테스트 케이스 {shown.length}개 · 지금 브랜치 <code>{status?.branch ?? "-"}</code> 의 내용
+            {local ? (
+              <>테스트 케이스 {shown.length}개 · 이 Mac 의 로컬 워크스페이스</>
+            ) : (
+              <>
+                테스트 케이스 {shown.length}개 · 지금 브랜치 <code>{status?.branch ?? "-"}</code> 의 내용
+              </>
+            )}
           </p>
         </section>
 
@@ -381,59 +396,76 @@ export function TestcasesPage() {
                 </div>
               </div>
               <div className="tc-editor-body">
-                <form id="tc-edit" className="stack" onSubmit={save} aria-label="테스트 케이스 편집">
-                  {mode === "form" && form ? (
-                    <div className="stack" data-testid="tc-form">
-                      <label>
-                        제목
-                        <input value={form.title} onChange={(e) => updateForm({ ...form, title: e.target.value })} />
-                      </label>
-                      <div className="grid">
-                        <label>
-                          상태
-                          <select value={form.status} onChange={(e) => updateForm({ ...form, status: e.target.value as FormModel["status"] })}>
-                            {Object.entries(STATUS_TEXT).map(([k, v]) => (
-                              <option key={k} value={k}>
-                                {v}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label>
-                          우선순위
-                          <select value={form.priority} onChange={(e) => updateForm({ ...form, priority: e.target.value as FormModel["priority"] })}>
-                            <option value="">없음</option>
-                            <option value="high">high</option>
-                            <option value="medium">medium</option>
-                            <option value="low">low</option>
-                          </select>
-                        </label>
-                        <label>
-                          태그(쉼표로 구분)
-                          <input value={form.tags} onChange={(e) => updateForm({ ...form, tags: e.target.value })} />
-                        </label>
-                        <label>
-                          계정 역할
-                          <select value={form.account} onChange={(e) => updateForm({ ...form, account: e.target.value })}>
-                            <option value="">없음</option>
-                            {[...new Set([...(appInfo?.accountRoles ?? []), ...(form.account ? [form.account] : [])])].map((r) => (
-                              <option key={r}>{r}</option>
-                            ))}
-                          </select>
-                        </label>
+                {lockedBy ? (
+                  <div role="status" className="transfer-note" data-testid="tc-locked">
+                    <strong>가져오기 PR 을 머지할 때까지 고칠 수 없습니다</strong>
+                    <span>
+                      이 테스트 케이스는 <code>{lockedBy.branch}</code> 으로 가져왔고 {lockedPull ? `PR #${lockedPull.number} 이 열려 있습니다` : "아직 PR 을 올리지 않았습니다"}. 머지하고 툴바의 동기화를 누른 뒤 고칩니다.
+                      {lockedPull ? "" : " PR 은 툴바의 Git 상태에서 작성합니다."}
+                    </span>
+                    {lockedPull ? (
+                      <div className="row">
+                        <button type="button" className="secondary small" onClick={() => void window.qa.app.openExternal({ url: lockedPull.url }).catch((e: unknown) => setMessage(errorMessage(e)))}>
+                          PR 열기
+                        </button>
                       </div>
-                      <fieldset className="row">
-                        <legend>타깃</legend>
-                        {ALL_TARGETS.filter((t) => appInfo?.targets.includes(t) || form.targets.includes(t)).map((t) => (
-                          <label key={t} className="check">
-                            <input
-                              type="checkbox"
-                              checked={form.targets.includes(t)}
-                              onChange={(e) => updateForm({ ...form, targets: e.target.checked ? [...form.targets, t] : form.targets.filter((x) => x !== t) })}
-                            />
-                            {t}
+                    ) : null}
+                  </div>
+                ) : null}
+                <form id="tc-edit" className="stack" onSubmit={save} aria-label="테스트 케이스 편집">
+                  <fieldset className="tc-fields" disabled={lockedBy !== null}>
+                    {mode === "form" && form ? (
+                      <div className="stack" data-testid="tc-form">
+                        <label>
+                          제목
+                          <input value={form.title} onChange={(e) => updateForm({ ...form, title: e.target.value })} />
+                        </label>
+                        <div className="grid">
+                          <label>
+                            상태
+                            <select value={form.status} onChange={(e) => updateForm({ ...form, status: e.target.value as FormModel["status"] })}>
+                              {Object.entries(STATUS_TEXT).map(([k, v]) => (
+                                <option key={k} value={k}>
+                                  {v}
+                                </option>
+                              ))}
+                            </select>
                           </label>
-                        ))}
+                          <label>
+                            우선순위
+                            <select value={form.priority} onChange={(e) => updateForm({ ...form, priority: e.target.value as FormModel["priority"] })}>
+                              <option value="">없음</option>
+                              <option value="high">high</option>
+                              <option value="medium">medium</option>
+                              <option value="low">low</option>
+                            </select>
+                          </label>
+                          <label>
+                            태그(쉼표로 구분)
+                            <input value={form.tags} onChange={(e) => updateForm({ ...form, tags: e.target.value })} />
+                          </label>
+                          <label>
+                            계정 역할
+                            <select value={form.account} onChange={(e) => updateForm({ ...form, account: e.target.value })}>
+                              <option value="">없음</option>
+                              {[...new Set([...(appInfo?.accountRoles ?? []), ...(form.account ? [form.account] : [])])].map((r) => (
+                                <option key={r}>{r}</option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                        <fieldset className="row">
+                          <legend>타깃</legend>
+                          {ALL_TARGETS.filter((t) => appInfo?.targets.includes(t) || form.targets.includes(t)).map((t) => (
+                            <label key={t} className="check">
+                              <input
+                                type="checkbox"
+                                checked={form.targets.includes(t)}
+                                onChange={(e) => updateForm({ ...form, targets: e.target.checked ? [...form.targets, t] : form.targets.filter((x) => x !== t) })}
+                              />
+                              {t}
+                            </label>
+                          ))}
                       </fieldset>
                       <label>
                         전제조건(한 줄에 하나)
@@ -476,6 +508,7 @@ export function TestcasesPage() {
                   ) : (
                     <textarea className="editor" aria-label="테스트 케이스 원문" value={text} onChange={(e) => setText(e.target.value)} rows={24} spellCheck={false} />
                   )}
+                  </fieldset>
                 </form>
                 {history && history.length > 0 ? (
                   <details>
@@ -493,7 +526,7 @@ export function TestcasesPage() {
                 {prResult}
               </div>
               <div className="tc-editor-foot">
-                <LintPanel issues={lint?.issues ?? []} />
+                <LintPanel issues={lint?.issues ?? []} local={local} />
                 {authoringTc(authorJob, editing) ? (
                   <div role="alert" className="warning stack" data-testid="tc-authoring-warning">
                     <p>
@@ -511,10 +544,11 @@ export function TestcasesPage() {
                     변경 요약
                     <input form="tc-edit" value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={80} placeholder="예: signup expected text" />
                   </label>
-                  <button type="submit" form="tc-edit" disabled={busy || !summary.trim() || errors.length > 0}>
-                    {busy ? "저장 중" : "저장(커밋)"}
+                  <button type="submit" form="tc-edit" disabled={busy || !summary.trim() || errors.length > 0 || lockedBy !== null}>
+                    {busy ? "저장 중" : local ? "저장" : "저장(커밋)"}
                   </button>
                 </div>
+                {lockedBy ? <small className="hint">가져오기 PR 을 머지하면 고칠 수 있습니다</small> : null}
                 {errors.length > 0 ? <small className="error">차단 항목 {errors.length}개를 고쳐야 저장할 수 있습니다.</small> : null}
               </div>
             </section>
@@ -545,8 +579,8 @@ function swap<T>(items: T[], a: number, b: number): T[] {
   return next;
 }
 
-function LintPanel({ issues }: { issues: LintIssue[] }) {
-  if (issues.length === 0) return <p className="ok-text" data-testid="tc-lint">린트 문제 없음</p>;
+function LintPanel({ issues, local }: { issues: LintIssue[]; local: boolean }) {
+  if (issues.length === 0) return <p className="ok-text" data-testid="tc-lint">{local ? "린트 문제 없음 · 저장하면 바로 실행할 수 있습니다" : "린트 문제 없음"}</p>;
   return (
     <ul className="checks" data-testid="tc-lint" aria-label="린트">
       {issues.map((i, n) => (

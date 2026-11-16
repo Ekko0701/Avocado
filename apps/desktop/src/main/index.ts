@@ -33,6 +33,7 @@ import { JudgeService } from "./agent/judge-service";
 import { createSquirrelInstaller } from "./update/native-updater";
 import { UpdateService } from "./update/update-service";
 import { UPDATE_RELEASE_REPO, UPDATE_SIGNER_TEAM_ID } from "./update/trust";
+import { EvidenceExportService } from "./evidence/export-service";
 import { UploadService } from "./evidence/upload-service";
 import { EvidenceRetention } from "./evidence/retention";
 import { rescrubEvidence } from "./evidence/rescrub";
@@ -43,6 +44,7 @@ import { createMaestroSyntaxCheck } from "./setup/maestro-syntax";
 import Anthropic from "@anthropic-ai/sdk";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { appendFileSync, mkdirSync } from "node:fs";
+import { userInfo } from "node:os";
 
 const devServerUrl = app.isPackaged ? undefined : process.env["ELECTRON_RENDERER_URL"];
 const rendererIndex = join(__dirname, "../renderer/index.html");
@@ -167,6 +169,8 @@ void app.whenReady().then(() => {
     androidHome: process.env["ANDROID_HOME"] || join(app.getPath("home"), "Library", "Android", "sdk"),
     home: app.getPath("home"),
   });
+  // 로컬 워크스페이스(ADR 0036): GitHub 저장소 없이 이 Mac 에서 혼자 쓴다
+  const localWorkspaceDir = join(app.getPath("userData"), "local-workspace");
   const pick = async (options: Electron.OpenDialogOptions): Promise<string | null> => {
     const window = BrowserWindow.getFocusedWindow();
     const result = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options);
@@ -219,7 +223,7 @@ void app.whenReady().then(() => {
         .map((i) => settings.getSecret(i.name))
         .filter((v): v is string => v !== null),
     evidenceRoot: join(app.getPath("userData"), "evidence"),
-    trustedFlowRoots: [join(app.getPath("userData"), "workspaces")],
+    trustedFlowRoots: [join(app.getPath("userData"), "workspaces"), localWorkspaceDir],
     home: app.getPath("home"),
     androidHome: process.env["ANDROID_HOME"] || join(app.getPath("home"), "Library", "Android", "sdk"),
     run: runCommand,
@@ -276,6 +280,10 @@ void app.whenReady().then(() => {
   let authorBusy: () => string | null = () => null;
   const workspace = new WorkspaceService({
     root: join(app.getPath("userData"), "workspaces"),
+    source: () => settings.getSettings().settings.workspace.source,
+    saveSource: (source) => void settings.setWorkspaceSource(source),
+    localDir: localWorkspaceDir,
+    localAuthor: userInfo().username,
     remote,
     github: () => settings.getSettings().settings.github,
     token: () => settings.getSecret("githubToken"),
@@ -283,7 +291,27 @@ void app.whenReady().then(() => {
     // 실행·플로우 만들기가 워크스페이스 파일을 쓰는 동안에는 작업 브랜치를 바꾸지 않는다
     busy: (except) => (except !== "author" ? authorBusy() : null) ?? (runs.activeCount() > 0 ? "플로우 실행이 진행 중이다" : null),
     checkFlowSyntax: createMaestroSyntaxCheck({ run: runCommand, maestroBin: () => installer.maestroBin(), javaHome: () => installer.javaHome(), home: app.getPath("home") }),
+    openFolder: (path) => shell.openPath(path),
+    pickImport: (from) =>
+      pick(
+        from === "file"
+          ? { title: "가져올 워크스페이스 zip 선택", properties: ["openFile"], filters: [{ name: "워크스페이스 zip", extensions: ["zip"] }] }
+          : { title: "가져올 워크스페이스 폴더 선택", properties: ["openDirectory"], message: "workspace.yaml 이 있는 폴더를 고릅니다" },
+      ),
+    pickExportPath: async (defaultName) => {
+      const window = BrowserWindow.getFocusedWindow();
+      const options: Electron.SaveDialogOptions = { title: "워크스페이스 내보내기", defaultPath: join(app.getPath("downloads"), defaultName), filters: [{ name: "zip", extensions: ["zip"] }] };
+      const result = window ? await dialog.showSaveDialog(window, options) : await dialog.showSaveDialog(options);
+      return result.canceled || !result.filePath ? null : result.filePath;
+    },
   });
+  if (workspace.sourceKind() === "local") {
+    // 미리 만들어 둔다. 실패하면 기록하고, 화면이 처음 부르는 workspace:status 가 같은 오류를 보여 준다
+    void workspace.ensureLocal().catch((error: unknown) => {
+      mkdirSync(logDir, { recursive: true });
+      appendFileSync(join(logDir, "workspace.log"), `${JSON.stringify({ at: new Date().toISOString(), service: "workspace", event: "ensure-local-failed", error: error instanceof Error ? error.message : String(error) })}\n`, { mode: 0o600 });
+    });
+  }
   const androidHome = process.env["ANDROID_HOME"] || join(app.getPath("home"), "Library", "Android", "sdk");
   const author = new AuthorService({
     jobs: agentJobs,
@@ -371,17 +399,32 @@ void app.whenReady().then(() => {
   void mcpHost.start();
   app.on("will-quit", () => void mcpHost.close());
   const claude = new ClaudeConnectService({ host: mcpHost, home: app.getPath("home") });
+  const toJpeg = createSipsJpegConverter(runCommand, join(app.getPath("userData"), "tmp"));
+  // 앱 밖으로 나가는 증적에서 가릴 값: 키체인의 값 + 홈 폴더 경로(로그에 사용자 이름이 남는다, fixtures/README.md). 올리기와 내보내기가 같이 쓴다
+  const evidenceSecrets = (): string[] => [...allSecrets(), app.getPath("home")];
   const upload = new UploadService({
     db,
     runs,
     evidence,
     remote,
     uploadApproved: () => settings.getSettings().settings.policy.evidenceUploadApproved,
+    source: () => workspace.sourceKind(),
     github: () => settings.getSettings().settings.github,
-    // 키체인의 값 + 홈 폴더 경로(로그에 사용자 이름이 남는다, fixtures/README.md)
-    secrets: () => [...allSecrets(), app.getPath("home")],
-    toJpeg: createSipsJpegConverter(runCommand, join(app.getPath("userData"), "tmp")),
+    secrets: evidenceSecrets,
+    toJpeg,
     generator: `Avocado ${app.getVersion()}`,
+  });
+  // 증적 폴더로 내보내기(ADR 0036 결정 9). 게이트는 올리기와 같고, D11·출처는 보지 않는다
+  const exporter = new EvidenceExportService({
+    runs,
+    evidence,
+    secrets: evidenceSecrets,
+    toJpeg,
+    generator: `Avocado ${app.getVersion()}`,
+    pickFolder: () =>
+      pick({ title: "증적을 내보낼 폴더 선택", buttonLabel: "여기에 내보내기", defaultPath: app.getPath("downloads"), properties: ["openDirectory", "createDirectory"], message: "고른 폴더 안에 avocado-evidence- 로 시작하는 폴더를 만듭니다" }),
+    reveal: (path) => shell.showItemInFolder(path),
+    home: app.getPath("home"),
   });
   const update = new UpdateService({
     remote,
@@ -412,7 +455,7 @@ void app.whenReady().then(() => {
   });
   registerIpcHandlers(
     ipcMain,
-    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, iosDevice, runPickers, runQueue: new RunQueue(runs), evidence, upload, remote, workspace, agentJobs, author, judge, claude, update }),
+    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, iosDevice, runPickers, runQueue: new RunQueue(runs), evidence, upload, exporter, remote, workspace, agentJobs, author, judge, claude, update }),
     isAllowed,
   );
   createMainWindow();

@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { defaultSubflows } from "@qa/workspace";
 import { describeProblems, prepareDeviceFlow } from "./device-flow";
 
 let dir: string;
@@ -61,6 +62,19 @@ describe("prepareDeviceFlow", () => {
       ["TC-0102.yaml", 8, "setLocation"],
     ]);
     expect(describeProblems(r.problems)).toMatch(/^iOS 실기기에서 재생할 수 없는 명령이 있다: common\/launch-clean.yaml:3 launchApp.clearState\(iOS 실기기에서는 앱 데이터를 지울 수 없다\)/);
+  });
+
+  it("로컬 워크스페이스의 iOS 기본 서브플로우로 시작하는 플로우는 실기기에서 거절된다(시뮬레이터용, ADR 0036 결정 8)", () => {
+    for (const file of defaultSubflows("ios")) write(`common/${file.name}`, file.text);
+    write("TC-0105.yaml", 'appId: ${APP_ID}\n---\n- runFlow: common/launch-clean.yaml\n- assertVisible: "시작"\n');
+    const r = prepareDeviceFlow(join(flows, "TC-0105.yaml"), out);
+    expect(r.problems.map((p) => [p.file, p.command])).toEqual([
+      ["common/launch-clean.yaml", "clearKeychain"],
+      ["common/launch-clean.yaml", "launchApp.clearState"],
+    ]);
+    // 나머지 두 기본 파일은 실기기에서도 돈다
+    write("TC-0106.yaml", "appId: ${APP_ID}\n---\n- launchApp\n- runFlow: common/dismiss-system-prompts.yaml\n- runFlow: common/close-keyboard.yaml\n");
+    expect(prepareDeviceFlow(join(flows, "TC-0106.yaml"), out).problems).toEqual([]);
   });
 
   it("플로우 폴더 밖이나 없는 서브플로우는 문제로 본다", () => {

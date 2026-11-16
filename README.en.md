@@ -25,7 +25,7 @@ Your own Claude turns each test case into a Maestro flow. Approved flows replay 
 - **Your Claude writes the flow**: Claude Desktop or Claude Code follows the test case on a simulator and writes the Maestro flow. No API key is needed.
 - **Replay uses no AI**: approved flows run as they are with Maestro. No model is called during a run.
 - **Evidence for every step**: a step timeline, screenshots, the view hierarchy and logs. Secrets such as account values appear only in redacted copies.
-- **No server**: test cases and flows live in your team's GitHub repository and are approved through pull requests. Raw evidence stays on each person's Mac.
+- **No server**: working alone, test cases and flows live in a local workspace on your Mac. Working as a team, they live in your team's GitHub repository and are approved through pull requests. Raw evidence stays on each person's Mac.
 
 > The app's interface is in Korean only for now. This guide gives each menu and button name as it appears on screen, followed by its meaning in English.
 
@@ -46,7 +46,7 @@ Releases are signed and notarized by Apple, so the app opens without a security 
 |---|---|
 | Xcode | Install it from the App Store and open it once to install the additional components. You also need an iOS simulator runtime (Xcode → Settings → Components). |
 | Claude | Claude Desktop or Claude Code, used to create flows. Usage counts against your own Claude plan. |
-| GitHub | A workspace repository (test cases and flows) and a token that can write to it. Add an evidence repository if you want to upload evidence summaries. |
+| GitHub (optional) | Only when you work as a team. A workspace repository (test cases and flows) and a token that can write to it. Add an evidence repository if you want to upload evidence summaries. Not needed when you work alone. |
 | Android (optional) | The Android Studio SDK and an emulator, only if you test Android. |
 
 You don't install Maestro or Java yourself. Avocado's setup wizard downloads fixed versions and keeps them for its own use (about 360 MB).
@@ -75,9 +75,9 @@ claude mcp remove avocado
 The setup wizard opens on first launch. It has six steps, and any step you skip can be done later from the menu on the left.
 
 1. **Claude 연결** (Connect Claude): for Claude Desktop, click **Claude 데스크톱 앱에 등록** (Register with Claude Desktop) and reopen Claude. For Claude Code, copy the command shown and run it once in a terminal.
-2. **GitHub 토큰** (GitHub token): enter a fine-grained token with read and write access to Contents and Pull requests.
+2. **저장 위치** (Storage): with **GitHub 사용** (Use GitHub) off, the default, everything is saved in a local workspace on this Mac (`~/Library/Application Support/Avocado/local-workspace`). No token or repository is needed. To work as a team, turn it on and enter a fine-grained token with read and write access to Contents and Pull requests.
 3. **환경 점검·도구** (Environment check and tools): checks Xcode and the simulator runtime, then installs Java and Maestro.
-4. **GitHub·워크스페이스** (GitHub and workspace): choose the workspace repository from the list and connect it.
+4. **첫 앱** (First app) or **GitHub·워크스페이스** (GitHub and workspace): with GitHub off, register the app to test by its id and app IDs. Default common subflows are created with it; iOS flows that start from them are for the simulator only. With GitHub on, choose the workspace repository from the list and connect it.
 5. **QA 기기** (QA device): prepares an iOS simulator (1 to 3 minutes).
 6. **완료** (Done)
 

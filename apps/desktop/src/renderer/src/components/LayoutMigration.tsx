@@ -5,9 +5,9 @@ import { notifyWorkspaceChanged } from "../lib/workspace-events";
 
 const LAYOUT_BRANCH = /^qa\/[^/]+\/workspace\//;
 
-/** 폴더 구조 바꾸기를 보여 줄 때인가: 예전 구조이거나, 구조를 바꾼 작업 브랜치에 있을 때 */
+/** 폴더 구조 바꾸기를 보여 줄 때인가: 예전 구조이거나, 구조를 바꾼 작업 브랜치에 있을 때. 로컬 워크스페이스는 처음부터 새 구조다(ADR 0036) */
 export function needsLayoutMigration(status: WorkspaceStatus): boolean {
-  return status.connected && (status.layout === 1 || (status.layout === 2 && LAYOUT_BRANCH.test(status.branch ?? "")));
+  return status.source === "github" && status.connected && (status.layout === 1 || (status.layout === 2 && LAYOUT_BRANCH.test(status.branch ?? "")));
 }
 
 /**

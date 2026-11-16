@@ -135,6 +135,12 @@ function setup() {
     "workspace:status": () => {
       throw new Error("not used");
     },
+    "workspace:setSource": () => {
+      throw new Error("not used");
+    },
+    "workspace:reveal": () => {
+      throw new Error("not used");
+    },
     "workspace:connect": () => {
       throw new Error("not used");
     },
@@ -186,6 +192,21 @@ function setup() {
     "workspace:myPulls": () => {
       throw new Error("not used");
     },
+    "workspace:exportInfo": () => {
+      throw new Error("not used");
+    },
+    "workspace:export": () => {
+      throw new Error("not used");
+    },
+    "workspace:importPick": () => {
+      throw new Error("not used");
+    },
+    "workspace:importApply": () => {
+      throw new Error("not used");
+    },
+    "workspace:importCancel": () => {
+      throw new Error("not used");
+    },
     "runs:startFromWorkspace": () => {
       throw new Error("not used");
     },
@@ -226,6 +247,15 @@ function setup() {
       throw new Error("not used");
     },
     "evidence:uploads": () => {
+      throw new Error("not used");
+    },
+    "evidence:prepareExport": () => {
+      throw new Error("not used");
+    },
+    "evidence:export": () => {
+      throw new Error("not used");
+    },
+    "evidence:revealExport": () => {
       throw new Error("not used");
     },
     "agent:startAuthor": () => {
@@ -299,5 +329,11 @@ describe("설정 IPC", () => {
     await expect(call("settings:update", { evidence: { retentionDays: -1 } })).rejects.toMatchObject({
       reason: "invalid-input",
     });
+  });
+
+  it("워크스페이스 출처는 settings:update 로 바꾸지 못한다(workspace:setSource 만, ADR 0036)", async () => {
+    const { call, service } = setup();
+    await expect(call("settings:update", { workspace: { source: "github" } })).rejects.toMatchObject({ reason: "invalid-input" });
+    expect(service.getSettings().settings.workspace).toEqual({ source: "local" });
   });
 });

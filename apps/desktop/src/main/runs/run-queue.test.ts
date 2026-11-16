@@ -110,7 +110,7 @@ describe("차례 실행(RunQueue)", () => {
     const queue = new RunQueue(f.runs);
     const build = { id: "b1", app: "demo", target: "ios", appId: "com.example.demo.qa" } as Build;
     const handlers = createWorkspaceRunHandlers({
-      workspace: { flowsToRun: () => ({ appId: "com.example.demo", flows: [{ tcId: "TC-0101", path: "/ws/a.yaml" }, { tcId: "TC-0102", path: "/ws/b.yaml" }] }) },
+      workspace: { flowsToRun: () => ({ appId: "com.example.demo", flows: [{ tcId: "TC-0101", path: "/ws/a.yaml", envKeys: ["DEMO_TEST_PASSWORD"] }, { tcId: "TC-0102", path: "/ws/b.yaml", envKeys: [] }] }) },
       builds: { get: () => build },
       queue,
     });
@@ -122,18 +122,18 @@ describe("차례 실행(RunQueue)", () => {
     f.release("run-2");
     await queue.idle();
     expect(f.started.map((s) => [s.input.buildId, s.options])).toEqual([
-      ["b1", { skipInstall: false }],
-      ["b1", { skipInstall: true }],
+      ["b1", { skipInstall: false, envKeys: ["DEMO_TEST_PASSWORD"] }],
+      ["b1", { skipInstall: true, envKeys: [] }],
     ]);
 
     const noBuild = fakeRuns();
     const q2 = new RunQueue(noBuild.runs);
-    const h2 = createWorkspaceRunHandlers({ workspace: { flowsToRun: () => ({ appId: "com.example.demo", flows: [{ tcId: "TC-0101", path: "/ws/a.yaml" }] }) }, builds: { get: () => build }, queue: q2 });
+    const h2 = createWorkspaceRunHandlers({ workspace: { flowsToRun: () => ({ appId: "com.example.demo", flows: [{ tcId: "TC-0101", path: "/ws/a.yaml", envKeys: ["DEMO_TEST_PASSWORD"] }] }) }, builds: { get: () => build }, queue: q2 });
     await h2["runs:startFromWorkspace"]({ app: "demo", target: "ios", tcId: "TC-0101", deviceId: "SIM", buildId: null });
     await tick();
     noBuild.release("run-1");
     await q2.idle();
-    expect(noBuild.started[0]?.options).toEqual({ appId: "com.example.demo" });
+    expect(noBuild.started[0]?.options).toEqual({ appId: "com.example.demo", envKeys: ["DEMO_TEST_PASSWORD"] });
     await expect(async () => h2["runs:startFromWorkspace"]({ app: "sample", target: "ios", tcId: "TC-0002", deviceId: "SIM", buildId: "b1" })).rejects.toThrow("용이 아니다");
   });
 });

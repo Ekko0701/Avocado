@@ -1,21 +1,53 @@
-import type { AccountRoleEdit, AppSettingsDoc, GitHubSettings, RequestReviewResult, SaveAppSettingsInput, SaveAppSettingsResult, SaveSubflowInput, SaveSubflowResult, SaveTestcaseResult, Subflow, SubflowList, TestcaseHistory, TestcaseList, WorkBranch, WorkBranchList, WorkspaceAccounts, WorkspaceStatus } from "@qa/shared";
-import { AppIdSchema, AppTargetSchema, SaveSubflowInputSchema } from "@qa/shared";
-import { runGit, type AskpassServer, type RemoteProvider } from "@qa/remote";
-import { AccountsSchema, AppConfigSchema, hasBlocking, layoutOf, lintSubflow, lintTestcase, loadWorkspace, TC_ID, WorkspaceConfigSchema, type Accounts, type AppConfig, type WorkspaceLayout } from "@qa/workspace";
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, sep } from "node:path";
-import { Document, isSeq, parse as parseYaml, parseDocument, visit } from "yaml";
+import type { AccountRoleEdit, AppSettingsDoc, ExportInfo, ExportResult, GitHubSettings, ImportApplyInput, ImportApplyResult, ImportPickResult, ImportSource, RequestReviewResult, SaveAppSettingsInput, SaveAppSettingsResult, SaveSubflowInput, SaveSubflowResult, SaveTestcaseResult, Subflow, SubflowList, TestcaseHistory, TestcaseList, TransferItemKind, WorkBranch, WorkBranchList, WorkspaceAccounts, WorkspaceSourceKind, WorkspaceStatus } from "@qa/shared";
+import { AppIdSchema, AppTargetSchema, githubWorkspaceRefusal, localWorkspaceRefusal, SaveSubflowInputSchema, WorkBranchNameSchema } from "@qa/shared";
+import { runGit, runGitBytes, type AskpassServer, type RemoteProvider } from "@qa/remote";
+import {
+  AccountsSchema,
+  addAppToWorkspaceYaml,
+  AppConfigSchema,
+  defaultSubflows,
+  hasBlocking,
+  ImportPickError,
+  LATEST_LAYOUT,
+  layoutForSchemaVersion,
+  layoutOf,
+  lintSubflow,
+  lintTestcase,
+  loadWorkspace,
+  MAX_ZIP_FILE_BYTES,
+  planImport,
+  readFolder,
+  readZip,
+  TC_ID,
+  WorkspaceConfigSchema,
+  type Accounts,
+  type AppConfig,
+  type ArchiveRead,
+  type ImportPlan,
+  type Target,
+  type WorkspaceLayout,
+} from "@qa/workspace";
+import { randomUUID } from "node:crypto";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { basename, dirname, join, sep } from "node:path";
+import { Document, parse as parseYaml, parseDocument, visit } from "yaml";
+import { commitImportBranch, commitLocalImport, readTree } from "./import-commit";
+import { WorkspaceError } from "./workspace-error";
 
-export class WorkspaceError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "WorkspaceError";
-  }
-}
+export { WorkspaceError };
 
 export interface WorkspaceServiceOptions {
   /** userData/workspaces */
   root: string;
+  /** 워크스페이스의 출처(설정의 workspace.source, ADR 0036) */
+  source: () => WorkspaceSourceKind;
+  /** 출처를 설정에 저장한다 */
+  saveSource: (source: WorkspaceSourceKind) => void;
+  /** 로컬 워크스페이스 폴더(userData/local-workspace) */
+  localDir: string;
+  /** 로컬 워크스페이스의 커밋 작성자 이름(이 Mac 의 계정 이름) */
+  localAuthor: string;
   remote: RemoteProvider;
   github: () => GitHubSettings;
   token: () => string | null;
@@ -30,14 +62,43 @@ export interface WorkspaceServiceOptions {
   busy?: (except?: "author") => string | null;
   /** 앱이 관리하는 Maestro 로 플로우 YAML 문법을 검사한다(check-syntax). 오류면 이유를 담아 던진다 */
   checkFlowSyntax: (text: string) => Promise<void>;
+  /** 폴더를 Finder 에서 연다(shell.openPath). 실패하면 이유, 성공하면 빈 문자열 */
+  openFolder: (path: string) => Promise<string>;
+  /** main 이 연 창에서 가져올 zip(file)이나 폴더(folder)를 고른다. 닫으면 null(렌더러는 경로를 넘기지 않는다). 없으면 가져오기를 거절한다 */
+  pickImport?: (from: "file" | "folder") => Promise<string | null>;
+  /** main 이 연 저장 창에서 내보낼 zip 의 위치를 고른다. 닫으면 null. 없으면 내보내기를 거절한다 */
+  pickExportPath?: (defaultName: string) => Promise<string | null>;
+}
+
+/** 화면에 보이는 경로: 홈 폴더 아래면 ~ 로 줄인다 */
+export function displayPath(path: string, home: string): string {
+  const base = home.endsWith(sep) ? home.slice(0, -1) : home;
+  if (path === base) return "~";
+  return path.startsWith(`${base}${sep}`) ? `~${path.slice(base.length)}` : path;
 }
 
 const MAIN = "main";
+
+/** 워크스페이스가 있는 곳(ADR 0036 결정 5). 출처에 따라 달라지는 것은 이 값에서만 읽는다 */
+type WorkspaceSource =
+  | { kind: "local"; dir: string; author: { name: string; email: string } }
+  | { kind: "github"; dir: string; owner: string; repo: string };
+
+/** 새 로컬 워크스페이스의 workspace.yaml. 앱은 워크스페이스 화면에서 등록한다 */
+const LOCAL_WORKSPACE_YAML = `# 이 Mac 에서 혼자 쓰는 로컬 워크스페이스. 앱 목록과 기본값.
+schemaVersion: ${LATEST_LAYOUT}
+name: local-workspace
+apps: []
+`;
 
 /** 워크스페이스 전체를 바꾸는 작업 범위(폴더 구조 바꾸기, ADR 0032). 브랜치는 qa/<login>/workspace/<요약> */
 const WORKSPACE_SCOPE = "workspace";
 /** 앱 설정(app.yaml·accounts.yaml) 작업 범위 */
 const appScope = (app: string) => `app/${app}`;
+/** 가져오기 브랜치(qa/<login>/import/<요약>[-n]). 가져올 때마다 새 브랜치이고 그 브랜치 하나가 범위 하나다(ADR 0036 결정 11) */
+const IMPORT_SCOPE = "import/";
+const LOCAL_WORKSPACE_LABEL = "이 Mac 의 로컬 워크스페이스";
+const IMPORT_KIND_LABEL: Record<TransferItemKind, string> = { testcase: "테스트 케이스", app: "앱 설정", subflow: "공통 서브플로우" };
 
 /**
  * 작업 브랜치가 맡은 일(작업 범위): TC 는 "TC-0101"(qa/<login>/TC-0101-…), 앱 설정은 "app/<앱>"(qa/<login>/app/<앱>/…).
@@ -51,6 +112,7 @@ export function workBranchScope(branch: string, login: string): string | null {
   if (tc) return tc;
   const app = /^(?:app|accounts)\/([a-z0-9][a-z0-9-]{0,39})\//.exec(rest)?.[1];
   if (app) return appScope(app);
+  if (rest.startsWith(IMPORT_SCOPE)) return rest;
   return rest.startsWith("workspace/") ? WORKSPACE_SCOPE : null;
 }
 
@@ -92,6 +154,14 @@ export function branchSlug(summary: string): string {
   return slug || "edit";
 }
 
+/** 고른 zip 파일을 읽는다. 상한보다 크면 읽지 않는다 */
+function readZipFile(path: string): ArchiveRead {
+  const st = statSync(path);
+  if (!st.isFile()) return { ok: false, problems: [{ path: "", code: "type", message: "zip 파일이 아닙니다" }] };
+  if (st.size > MAX_ZIP_FILE_BYTES) return { ok: false, problems: [{ path: "", code: "size", message: "zip 파일이 너무 큽니다" }] };
+  return readZip(readFileSync(path));
+}
+
 /** 앱 설정 파일 본문. 앞쪽 설명 주석은 그대로 두고(없으면 defaultHeader), 목록은 한 줄([A, B])로 쓴다 */
 function yamlText(value: unknown, previous: string | null, defaultHeader: string): string {
   const header: string[] = [];
@@ -129,15 +199,8 @@ export function accountsYaml(app: string, accounts: Accounts, previous: string |
   return yamlText(accounts, previous, `# 계정 역할 → 키 이름. 값은 두지 않는다. 각자 앱 설정 화면에서 account:${app}:<KEY> 로 저장한다.`);
 }
 
-/** workspace.yaml 의 앱 목록에 앱을 더한다(주석과 목록 모양은 그대로) */
-export function addAppToWorkspaceYaml(text: string, app: string): string {
-  const doc = parseDocument(text);
-  const apps = doc.get("apps");
-  if (isSeq(apps)) apps.add(app);
-  else doc.set("apps", [app]);
-  return doc.toString({ lineWidth: 0, flowCollectionPadding: false });
-}
-
+/** 테스트 케이스 계정 역할의 키. 역할이 없으면 빈 목록이다. 플로우 만들기와 실행이 이 기준 하나를 쓴다 */
+const roleKeys = (accounts: Accounts, role: string | undefined): string[] => (role ? [...(accounts[role]?.keys ?? [])] : []);
 const toRoleEdits = (accounts: Accounts): AccountRoleEdit[] => Object.entries(accounts).map(([role, r]) => ({ role, description: r.description, keys: [...r.keys] }));
 
 /**
@@ -150,13 +213,42 @@ const toRoleEdits = (accounts: Accounts): AccountRoleEdit[] => Object.entries(ac
 export class WorkspaceService {
   /** 토큰별 로그인 이름(토큰을 바꾸면 다시 묻는다) */
   private login: { token: string; login: string } | null = null;
+  /** 진행 중인 로컬 저장소 만들기(동시에 불러도 한 번만 만든다) */
+  private creatingLocal: Promise<void> | null = null;
+  /** 마지막 가져오기 미리보기. 반영은 이때 읽은 바이트만 쓴다(원본을 다시 읽지 않는다) */
+  private pendingImport: { id: string; kind: WorkspaceSourceKind; dir: string; base: string; label: string; plan: ImportPlan } | null = null;
 
   constructor(private readonly options: WorkspaceServiceOptions) {}
 
-  private target(): { owner: string; repo: string; dir: string } {
+  private localSource(): Extract<WorkspaceSource, { kind: "local" }> {
+    const name = this.options.localAuthor;
+    return { kind: "local", dir: this.options.localDir, author: { name, email: `${name}@avocado.local` } };
+  }
+
+  /** 지금 출처의 워크스페이스. GitHub 인데 조직을 정하기 전이면 null */
+  private source(): WorkspaceSource | null {
+    if (this.options.source() === "local") return this.localSource();
     const g = this.options.github();
-    if (!g.owner) throw new WorkspaceError("GitHub 조직 이름을 먼저 설정한다");
-    return { owner: g.owner, repo: g.workspaceRepo, dir: join(this.options.root, g.workspaceRepo) };
+    return g.owner ? { kind: "github", dir: join(this.options.root, g.workspaceRepo), owner: g.owner, repo: g.workspaceRepo } : null;
+  }
+
+  private target(): WorkspaceSource {
+    const source = this.source();
+    if (!source) throw new WorkspaceError("GitHub 조직 이름을 먼저 설정한다");
+    return source;
+  }
+
+  /** 원격이 필요한 기능(ADR 0036 결정 6). 로컬이면 한 문장으로 거절하고, GitHub 이면 그 저장소를 돌려준다 */
+  private requireGithub(what: string): Extract<WorkspaceSource, { kind: "github" }> {
+    const source = this.target();
+    if (source.kind === "local") throw new WorkspaceError(localWorkspaceRefusal(what));
+    return source;
+  }
+
+  /** 화면과 플로우 만들기의 안내 문구가 보는 출처 */
+  sourceKind(): WorkspaceSourceKind {
+    // source() 가 null 인 것은 조직을 정하기 전의 GitHub 뿐이다
+    return this.source()?.kind ?? "github";
   }
 
   /** 이 워크스페이스의 폴더 구조(ADR 0032). 경로는 여기서 받은 것으로만 만든다 */
@@ -165,7 +257,7 @@ export class WorkspaceService {
   }
 
   /** raw: 출력을 자르지 않는다(파일 내용을 읽을 때) */
-  private async git(args: string[], opts: { auth?: boolean; cwd?: string; raw?: boolean } = {}): Promise<string> {
+  private async git(args: string[], opts: { auth?: boolean; cwd?: string; raw?: boolean; env?: Record<string, string>; input?: Uint8Array } = {}): Promise<string> {
     const token = this.options.token();
     let session: ReturnType<AskpassServer["session"]> | undefined;
     if (opts.auth) {
@@ -173,7 +265,7 @@ export class WorkspaceService {
       session = (await this.options.askpass()).session({ username: "x-access-token", password: token });
     }
     try {
-      const r = await runGit(args, { cwd: opts.cwd ?? this.target().dir, askpass: session, secrets: token ? [token] : [], home: this.options.home, timeoutMs: 180_000 });
+      const r = await runGit(args, { cwd: opts.cwd ?? this.target().dir, askpass: session, secrets: token ? [token] : [], home: this.options.home, timeoutMs: 180_000, env: opts.env, input: opts.input });
       if (r.code !== 0) throw new WorkspaceError(`git ${args[0] ?? ""} 실패: ${(r.stderr || r.stdout).trim().split("\n").slice(-3).join(" ")}`);
       return opts.raw ? r.stdout : r.stdout.trim();
     } finally {
@@ -181,21 +273,85 @@ export class WorkspaceService {
     }
   }
 
-  private async whoami(): Promise<string> {
+  /** 파일 내용을 바이트로 읽는 git(cat-file). 원격 인증을 쓰지 않는다 */
+  private async gitBytes(args: string[], opts: { cwd?: string; input?: Uint8Array } = {}): Promise<Buffer> {
+    const r = await runGitBytes(args, { cwd: opts.cwd ?? this.target().dir, home: this.options.home, timeoutMs: 180_000, input: opts.input });
+    if (r.code !== 0) throw new WorkspaceError(`git ${args[0] ?? ""} 실패: ${r.stderr.trim().split("\n").slice(-3).join(" ")}`);
+    return r.stdout;
+  }
+
+  /** 커밋 작성자. GitHub 는 로그인 이름(API)과 noreply 주소, 로컬은 이 Mac 의 계정 이름과 로컬 전용 주소(원격에 묻지 않는다) */
+  private async author(): Promise<{ name: string; email: string }> {
+    const source = this.target();
+    if (source.kind === "local") return source.author;
     const token = this.options.token() ?? "";
     if (!this.login || this.login.token !== token) this.login = { token, login: (await this.options.remote.verify([])).login };
-    return this.login.login;
+    return { name: this.login.login, email: `${this.login.login}@users.noreply.github.com` };
+  }
+
+  /** 커밋할 때 git 에 넘기는 작성자 인자 */
+  private async authorArgs(): Promise<string[]> {
+    const { name, email } = await this.author();
+    return ["-c", `user.name=${name}`, "-c", `user.email=${email}`];
+  }
+
+  /** 작업 브랜치 이름(qa/<이름>/…)에 쓰는 내 이름 */
+  private async whoami(): Promise<string> {
+    return (await this.author()).name;
   }
 
   private connected(): boolean {
-    const g = this.options.github();
-    return g.owner !== null && existsSync(join(this.options.root, g.workspaceRepo, ".git"));
+    const source = this.source();
+    return source !== null && existsSync(join(source.dir, ".git"));
+  }
+
+  /**
+   * 로컬 워크스페이스 저장소를 만든다(ADR 0036 결정 3). 이미 있으면 아무것도 하지 않는다.
+   * 옆의 임시 폴더에서 첫 커밋까지 끝낸 뒤 이름을 바꿔 제자리에 둔다. 그래서 .git 이 있으면 커밋도 있다
+   * (커밋 없는 저장소는 git rev-parse HEAD 가 실패해 모든 화면이 오류가 된다)
+   */
+  ensureLocal(): Promise<void> {
+    this.creatingLocal ??= this.createLocal().finally(() => {
+      this.creatingLocal = null;
+    });
+    return this.creatingLocal;
+  }
+
+  private async createLocal(): Promise<void> {
+    const { dir, author } = this.localSource();
+    if (existsSync(join(dir, ".git"))) return;
+    if (existsSync(dir)) throw new WorkspaceError(`로컬 워크스페이스 폴더가 이미 있지만 git 저장소가 아니다: ${dir}`);
+    const building = `${dir}.creating`;
+    // 만들다 멈춘 이전 시도의 임시 폴더는 버리고 처음부터 다시 만든다
+    rmSync(building, { recursive: true, force: true });
+    mkdirSync(building, { recursive: true, mode: 0o700 });
+    writeFileSync(join(building, "workspace.yaml"), LOCAL_WORKSPACE_YAML);
+    await this.git(["init", "--quiet", "--initial-branch", MAIN], { cwd: building });
+    await this.git(["add", "--", "workspace.yaml"], { cwd: building });
+    await this.git(["-c", `user.name=${author.name}`, "-c", `user.email=${author.email}`, "commit", "--quiet", "-m", "workspace: 로컬 워크스페이스를 만든다"], { cwd: building });
+    renameSync(building, dir);
+  }
+
+  /**
+   * 출처를 바꾼다(ADR 0036 결정 10). 플로우 저장은 저장하는 순간의 출처 폴더에 쓰므로 실행·플로우 만들기 중에는 바꾸지 않는다.
+   * 두 출처는 폴더가 따로이고 내용을 옮기지 않는다
+   */
+  async setSource(source: WorkspaceSourceKind): Promise<WorkspaceStatus> {
+    const busy = this.options.busy?.();
+    if (busy) throw new WorkspaceError(`${busy}. 끝난 뒤 워크스페이스 출처를 바꾼다`);
+    if (source === "local") await this.ensureLocal();
+    this.options.saveSource(source);
+    return this.status();
   }
 
   async status(): Promise<WorkspaceStatus> {
-    const g = this.options.github();
-    const repo = g.owner ? `${g.owner}/${g.workspaceRepo}` : null;
-    if (!this.connected()) return { connected: false, repo, branch: null, head: null, onMain: false, dirty: [], ahead: 0, behind: 0, issues: 0, layout: null };
+    const current = this.source();
+    // 화면이 가장 먼저 부르는 곳이다. 로컬이면 여기서 저장소가 있게 한다
+    if (current?.kind === "local") await this.ensureLocal();
+    const source = this.sourceKind();
+    const repo = current?.kind === "github" ? `${current.owner}/${current.repo}` : null;
+    const location = current?.kind === "local" ? displayPath(current.dir, this.options.home ?? homedir()) : null;
+    if (!this.connected()) return { source, connected: false, repo, branch: null, head: null, onMain: false, dirty: [], ahead: 0, behind: 0, issues: 0, layout: null, location };
     const branch = await this.git(["rev-parse", "--abbrev-ref", "HEAD"]);
     const head = await this.git(["rev-parse", "--short", "HEAD"]);
     const dirty = await this.dirtyFiles();
@@ -210,12 +366,22 @@ export class WorkspaceService {
       ahead = a ?? 0;
       behind = b ?? 0;
     }
-    return { connected: true, repo, branch, head, onMain: branch === MAIN, dirty, ahead, behind, issues: loadWorkspace(this.target().dir).issues.length, layout: this.layout().version };
+    return { source, connected: true, repo, branch, head, onMain: branch === MAIN, dirty, ahead, behind, issues: loadWorkspace(this.target().dir).issues.length, layout: this.layout().version, location };
+  }
+
+  /** 로컬 워크스페이스 폴더를 Finder 에서 연다. 폴더는 이 서비스가 아는 것만 연다(화면은 경로를 넘기지 않는다) */
+  async reveal(): Promise<{ opened: true }> {
+    const source = this.target();
+    if (source.kind !== "local") throw new WorkspaceError(githubWorkspaceRefusal("Finder 에서 열기"));
+    await this.ensureLocal();
+    const error = await this.options.openFolder(source.dir);
+    if (error) throw new WorkspaceError(`Finder 에서 열지 못했다: ${error}`);
+    return { opened: true };
   }
 
   /** 처음이면 clone 한다. 이미 있으면 그대로 둔다 */
   async connect(): Promise<WorkspaceStatus> {
-    const { owner, repo, dir } = this.target();
+    const { owner, repo, dir } = this.requireGithub("저장소 연결(clone)");
     if (!this.connected()) {
       if (existsSync(dir)) throw new WorkspaceError(`워크스페이스 폴더가 이미 있지만 git 저장소가 아니다: ${dir}`);
       mkdirSync(this.options.root, { recursive: true, mode: 0o700 });
@@ -227,15 +393,17 @@ export class WorkspaceService {
   /** git fetch 후, main 이고 변경이 없으면 fast-forward. 작업 브랜치는 그대로 둔다(PLAN 4.4 의 1) */
   async sync(): Promise<WorkspaceStatus> {
     if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
+    this.requireGithub("동기화");
     await this.git(["fetch", "--quiet", "--prune", "origin"], { auth: true });
     const s = await this.status();
     if (s.onMain && s.dirty.length === 0 && s.behind > 0) await this.git(["merge", "--ff-only", "--quiet", `origin/${MAIN}`]);
     return this.status();
   }
 
-  testcases(): TestcaseList {
+  async testcases(): Promise<TestcaseList> {
     if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
     const ws = loadWorkspace(this.target().dir);
+    const locks = await this.importLocks();
     return {
       testcases: ws.testcases.map((t) => ({
         app: t.app,
@@ -247,6 +415,7 @@ export class WorkspaceService {
         tags: t.doc?.frontMatter.tags ?? [],
         valid: t.doc !== null && !ws.issues.some((i) => i.path === t.path),
         flows: [...new Set(ws.flows.filter((f) => f.app === t.app && f.tcId === t.id).map((f) => f.target))],
+        lockedBy: this.lockFor(locks, ws.layout, (info) => (info.kind === "testcase" || info.kind === "flow") && info.app === t.app && info.id === t.id),
       })),
       apps: Object.entries(ws.apps).map(([app, a]) => ({
         app,
@@ -369,8 +538,10 @@ export class WorkspaceService {
       writes.push({ path: "workspace.yaml", text: addAppToWorkspaceYaml(source.workspaceText, app) });
     }
     if (writes.length === 0) throw new WorkspaceError("바뀐 내용이 없다");
+    writes.push(...this.defaultSubflowWrites(app, kinds.filter((target) => !(target in (source.config?.targets ?? {})))));
+    await this.refuseLocked(writes.map((w) => w.path));
 
-    const login = await this.whoami();
+    const author = await this.authorArgs();
     const { branch } = await this.workBranch(appScope(app), input.summary, "user");
     for (const w of writes) {
       mkdirSync(dirname(join(dir, w.path)), { recursive: true });
@@ -379,8 +550,22 @@ export class WorkspaceService {
     const paths = writes.map((w) => w.path);
     await this.git(["add", "--", ...paths]);
     if ((await this.git(["diff", "--cached", "--name-only", "--", ...paths])) === "") throw new WorkspaceError("바뀐 내용이 없다");
-    await this.git(["-c", `user.name=${login}`, "-c", `user.email=${login}@users.noreply.github.com`, "commit", "--quiet", "-m", `app: ${app} ${input.summary}`, "--", ...paths]);
+    await this.git([...author, "commit", "--quiet", "-m", `app: ${app} ${input.summary}`, "--", ...paths]);
     return { status: await this.status(), branch, commit: await this.git(["rev-parse", "--short", "HEAD"]) };
+  }
+
+  /**
+   * 새로 더한 타깃의 공통 서브플로우 기본 파일(ADR 0036 결정 8). 로컬에서만 만든다: 플로우 만들기가 첫 줄에서 부를 서브플로우가 있어야 한다.
+   * GitHub 방식에서는 앱 설정 PR 의 파일 목록이 그대로다. 이미 있는 파일은 덮어쓰지 않는다
+   */
+  private defaultSubflowWrites(app: string, addedTargets: Target[]): { path: string; text: string }[] {
+    if (this.target().kind !== "local") return [];
+    const lay = this.layout();
+    return addedTargets.flatMap((target) =>
+      defaultSubflows(target)
+        .map((file) => ({ path: `${lay.commonDir(app, target)}/${file.name}`, text: file.text }))
+        .filter((file) => !existsSync(this.insideWorkspace(file.path))),
+    );
   }
 
   /** 편집 기준: 이 앱의 진행 중인 앱 설정 브랜치(있으면)의 파일, 없으면 지금 브랜치의 파일 */
@@ -394,6 +579,18 @@ export class WorkspaceService {
     workspaceText: string | null;
   }> {
     const { branch, ref } = await this.appEditBase(app);
+    return { branch, ...(await this.appAt(ref, app)) };
+  }
+
+  /** ref(없으면 지금 작업 폴더)의 앱 설정 */
+  private async appAt(ref: string | null, app: string): Promise<{
+    exists: boolean;
+    config: AppConfig | null;
+    appText: string | null;
+    accounts: Accounts;
+    accountsText: string | null;
+    workspaceText: string | null;
+  }> {
     const workspaceText = await this.readAt(ref, "workspace.yaml");
     const wsConfig = workspaceText ? WorkspaceConfigSchema.safeParse(parseYaml(workspaceText)) : null;
     if (wsConfig && !wsConfig.success) throw new WorkspaceError(`workspace.yaml 형식 오류: ${wsConfig.error.issues.map((i) => i.message).join(" / ")}`);
@@ -404,7 +601,6 @@ export class WorkspaceService {
     const accounts = AccountsSchema.safeParse(accountsText ? (parseYaml(accountsText) ?? {}) : {});
     if (!accounts.success) throw new WorkspaceError(`apps/${app}/accounts.yaml 형식 오류: ${accounts.error.issues.map((i) => i.message).join(" / ")}`);
     return {
-      branch,
       exists: wsConfig?.data.apps.includes(app) ?? false,
       config: config?.data ?? null,
       appText,
@@ -482,10 +678,11 @@ export class WorkspaceService {
     const siblings = (await this.yamlFilesAt(ref, commonDir)).map((p) => p.slice(commonDir.length + 1)).filter((n) => n !== name && !n.includes("/"));
     const errors = lintSubflow(text, { envKeys, subflows: siblings }).filter((i) => i.level === "error");
     if (errors.length > 0) throw new WorkspaceError(`서브플로우 규약 오류: ${errors.map((i) => (i.line ? `${i.line}행 ${i.message}` : i.message)).join(" / ")}`);
+    await this.refuseLocked([path]);
     // 없는 명령·옵션 이름·값 형식은 Maestro 가 직접 본다. 규약 검사와 둘 다 통과해야 브랜치를 옮긴다
     await this.options.checkFlowSyntax(text);
 
-    const login = await this.whoami();
+    const author = await this.authorArgs();
     const { branch } = await this.workBranch(appScope(app), summary, "user");
     const { dir } = this.target();
     // 심볼릭 링크를 따라 워크스페이스 밖에 쓰지 않는다
@@ -494,7 +691,7 @@ export class WorkspaceService {
     writeFileSync(abs, text);
     await this.git(["add", "--", path]);
     if ((await this.git(["diff", "--cached", "--name-only", "--", path])) === "") throw new WorkspaceError("바뀐 내용이 없다");
-    await this.git(["-c", `user.name=${login}`, "-c", `user.email=${login}@users.noreply.github.com`, "commit", "--quiet", "-m", `subflow: ${app}/${target} ${name} ${summary}`, "--", path]);
+    await this.git([...author, "commit", "--quiet", "-m", `subflow: ${app}/${target} ${name} ${summary}`, "--", path]);
     return { status: await this.status(), branch, commit: await this.git(["rev-parse", "--short", "HEAD"]) };
   }
 
@@ -547,7 +744,8 @@ export class WorkspaceService {
     return ios ? { appId: ios.appId, scheme: ios.build?.scheme ?? null, configuration: ios.build?.configuration ?? null } : none;
   }
 
-  flowsToRun(input: { app: string; target: "ios" | "android"; tcId?: string; tag?: string }): { appId: string | null; flows: { tcId: string; path: string }[] } {
+  /** envKeys 는 그 TC 계정 역할의 키다. 실행은 이 키의 계정 값만 Maestro 에 넘긴다 */
+  flowsToRun(input: { app: string; target: "ios" | "android"; tcId?: string; tag?: string }): { appId: string | null; flows: { tcId: string; path: string; envKeys: string[] }[] } {
     if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
     if (!AppIdSchema.safeParse(input.app).success) throw new WorkspaceError("앱 id 형식이 아니다");
     const { dir } = this.target();
@@ -557,10 +755,11 @@ export class WorkspaceService {
       .filter((t) => t.app === input.app && t.doc && !ws.issues.some((i) => i.path === t.path))
       .filter((t) => (input.tcId ? t.id === input.tcId : t.doc?.frontMatter.status === "active" && (t.doc?.frontMatter.tags ?? []).includes(input.tag ?? "")))
       .sort((a, b) => a.id.localeCompare(b.id));
-    const out: { tcId: string; path: string }[] = [];
+    const accounts = ws.apps[input.app]?.accounts ?? {};
+    const out: { tcId: string; path: string; envKeys: string[] }[] = [];
     for (const t of picked) {
       const flow = ws.flows.find((f) => f.app === input.app && f.target === input.target && f.tcId === t.id);
-      if (flow) out.push({ tcId: t.id, path: join(dir, flow.path) });
+      if (flow) out.push({ tcId: t.id, path: join(dir, flow.path), envKeys: roleKeys(accounts, t.doc?.frontMatter.account) });
     }
     if (input.tcId && out.length === 0) throw new WorkspaceError(`${input.tcId} 의 ${input.target} 플로우가 없다(${ws.layout.flowPath(input.app, input.target, input.tcId)})`);
     if (!input.tcId && out.length === 0) throw new WorkspaceError(`태그 ${input.tag ?? ""} 인 active 테스트 케이스 중 ${input.target} 플로우가 있는 것이 없다`);
@@ -587,24 +786,33 @@ export class WorkspaceService {
     const { dir } = this.target();
     const ws = loadWorkspace(dir);
     if (!ws.config?.apps.includes(input.app)) throw new WorkspaceError(`workspace.yaml 에 없는 앱이다: ${input.app}`);
+    // 검사는 커밋될 브랜치의 앱 설정으로 한다. 작업 폴더가 앱 설정 브랜치이면 main 에서 갈라질 테스트 케이스 브랜치에는 그 앱 설정이 없다
+    const base = await this.appAt(await this.workBranchRef(input.id), input.app);
+    if (!base.exists) throw new WorkspaceError(await this.unmergedAppSettings(input.app, `${input.app} 앱 설정이 아직 main 에 없다`));
     // 화면과 같은 린트(PLAN 4.2)를 저장할 때 다시 한다. 차단 항목이 있으면 저장하지 않는다
-    const appInfo = ws.apps[input.app];
-    const lint = lintTestcase(input.text, { accountRoles: Object.keys(appInfo?.accounts ?? {}), appTargets: Object.keys(appInfo?.config?.targets ?? {}) }, path);
+    const lint = lintTestcase(input.text, { accountRoles: Object.keys(base.accounts), appTargets: Object.keys(base.config?.targets ?? {}) }, path);
     if (!lint.doc) throw new WorkspaceError(`테스트 케이스 형식 오류: ${lint.issues.map((i) => i.message).join(" / ")}`);
     if (lint.doc.frontMatter.id !== input.id || lint.doc.frontMatter.app !== input.app) {
       throw new WorkspaceError(`front matter 의 id·app(${lint.doc.frontMatter.id}, ${lint.doc.frontMatter.app})이 저장 위치와 다르다`);
     }
+    const here = ws.apps[input.app];
+    const baseTargets = base.config?.targets ?? {};
+    const unmergedTargets = lint.doc.frontMatter.targets.filter((t) => !(t in baseTargets) && t in (here?.config?.targets ?? {}));
+    if (unmergedTargets.length > 0) throw new WorkspaceError(await this.unmergedAppSettings(input.app, `${input.app} 의 ${unmergedTargets.join(", ")} 타깃이 아직 main 의 앱 설정에 없다`));
+    const role = lint.doc.frontMatter.account;
+    if (role && !(role in base.accounts) && role in (here?.accounts ?? {})) throw new WorkspaceError(await this.unmergedAppSettings(input.app, `${input.app} 의 계정 역할 ${role} 이 아직 main 의 앱 설정에 없다`));
     if (hasBlocking(lint.issues)) {
       throw new WorkspaceError(`테스트 케이스 린트 오류: ${lint.issues.filter((i) => i.level === "error").map((i) => i.message).join(" / ")}`);
     }
 
-    const login = await this.whoami();
+    await this.refuseLockedTestcase(input.id, input.app);
+    const author = await this.authorArgs();
     const { branch } = await this.workBranch(input.id, input.summary, "user");
     mkdirSync(dirname(join(dir, path)), { recursive: true });
     writeFileSync(join(dir, path), input.text.endsWith("\n") ? input.text : `${input.text}\n`);
     await this.git(["add", "--", path]);
     if ((await this.git(["diff", "--cached", "--name-only"])) === "") throw new WorkspaceError("바뀐 내용이 없다");
-    await this.git(["-c", `user.name=${login}`, "-c", `user.email=${login}@users.noreply.github.com`, "commit", "--quiet", "-m", `tc: ${input.id} ${input.summary}`]);
+    await this.git([...author, "commit", "--quiet", "-m", `tc: ${input.id} ${input.summary}`]);
     return { status: await this.status(), branch, commit: await this.git(["rev-parse", "--short", "HEAD"]) };
   }
 
@@ -625,8 +833,7 @@ export class WorkspaceService {
     if (!fm.targets.includes(target)) throw new WorkspaceError(`${id} 의 targets 에 ${target} 가 없다`);
     const targetConfig = appInfo.config.targets[target];
     if (!targetConfig) throw new WorkspaceError(`apps/${app}/app.yaml 에 ${target} 타깃이 없다`);
-    const role = fm.account;
-    const envKeys = role ? [...(appInfo.accounts[role]?.keys ?? [])] : [];
+    const envKeys = roleKeys(appInfo.accounts, fm.account);
 
     const flowDir = ws.layout.flowDir(app, target);
     const commonDir = join(dir, flowDir, "common");
@@ -680,6 +887,7 @@ export class WorkspaceService {
   async saveFlow(input: { id: string; flowPath: string; metaPath: string; yaml: string; meta: string; summary: string }): Promise<{ branch: string; commit: string; unchanged: boolean }> {
     if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
     const { dir } = this.target();
+    await this.refuseLockedTestcase(input.id);
     const startBranch = await this.currentBranch();
     // 플로우 만들기가 스스로 부른다(시작할 때 이 TC 의 브랜치나 main 으로 옮겨 두었다)
     const { branch, created } = await this.workBranch(input.id, input.summary, "author-save");
@@ -702,10 +910,10 @@ export class WorkspaceService {
       }
       return { branch, commit: await this.git(["rev-parse", "--short", "HEAD"]), unchanged: true };
     }
-    const login = await this.whoami();
+    const author = await this.authorArgs();
     try {
       // 이 두 파일만 커밋한다(다른 스테이지 변경을 끌고 가지 않는다)
-      await this.git(["-c", `user.name=${login}`, "-c", `user.email=${login}@users.noreply.github.com`, "commit", "--quiet", "-m", `flow: ${input.id} ${input.summary}`, "--", ...paths]);
+      await this.git([...author, "commit", "--quiet", "-m", `flow: ${input.id} ${input.summary}`, "--", ...paths]);
     } catch (error) {
       // 쓴 파일을 커밋 전으로 되돌린다. 남겨 두면 다음 브랜치 바꾸기가 막힌다
       await this.git(["reset", "--quiet", "--", ...paths]).catch(() => undefined);
@@ -722,14 +930,19 @@ export class WorkspaceService {
   private flowAbs(flowPath: string): string {
     const info = this.layout().parse(flowPath);
     if (info?.kind !== "flow" || (info.target !== "ios" && info.target !== "android")) throw new WorkspaceError(`플로우 경로 형식이 아니다: ${flowPath}`);
+    const abs = this.insideWorkspace(flowPath);
+    if (existsSync(abs) && lstatSync(abs).isSymbolicLink()) throw new WorkspaceError(`심볼릭 링크 파일에는 쓰지 않는다: ${flowPath}`);
+    return abs;
+  }
+
+  /** 워크스페이스 기준 경로의 절대 경로. 이미 있는 가장 가까운 상위 폴더의 실제 경로가 워크스페이스 안이어야 한다(심볼릭 링크 폴더로 밖에 쓰지 않게) */
+  private insideWorkspace(rel: string): string {
     const root = realpathSync(this.target().dir);
-    const abs = join(root, flowPath);
-    // 이미 있는 가장 가까운 상위 폴더의 실제 경로가 워크스페이스 안이어야 한다(심볼릭 링크 폴더로 밖에 쓰지 않게)
+    const abs = join(root, rel);
     let dir = dirname(abs);
     while (!existsSync(dir)) dir = dirname(dir);
     const real = realpathSync(dir);
-    if (real !== root && !real.startsWith(`${root}${sep}`)) throw new WorkspaceError(`워크스페이스 밖을 가리키는 경로다: ${flowPath}`);
-    if (existsSync(abs) && lstatSync(abs).isSymbolicLink()) throw new WorkspaceError(`심볼릭 링크 파일에는 쓰지 않는다: ${flowPath}`);
+    if (real !== root && !real.startsWith(`${root}${sep}`)) throw new WorkspaceError(`워크스페이스 밖을 가리키는 경로다: ${rel}`);
     return abs;
   }
 
@@ -741,6 +954,12 @@ export class WorkspaceService {
    * by: user(TC 저장)는 실행·플로우 만들기가 진행 중이면 옮기지 않는다. author-save 는 플로우 만들기 자신의 커밋이다.
    */
   private async workBranch(scope: string, summary: string, by: "user" | "author-save"): Promise<{ branch: string; created: boolean }> {
+    if (this.target().kind === "local") {
+      // 로컬에는 작업 브랜치와 승인 단계가 없다(ADR 0036 결정 3·4). main 이 아니면 다른 곳에 커밋하지 않고 알린다
+      const branch = await this.currentBranch();
+      if (branch !== MAIN) throw new WorkspaceError(`로컬 워크스페이스가 main 브랜치가 아니다(${branch}). 로컬 워크스페이스는 main 에만 저장한다`);
+      return { branch: MAIN, created: false };
+    }
     const login = await this.whoami();
     const current = await this.currentBranch();
     if (workBranchScope(current, login) === scope) return { branch: current, created: false };
@@ -787,6 +1006,25 @@ export class WorkspaceService {
   }
 
   /** 이 작업 범위(TC 또는 앱 계정 역할)의 내 작업 브랜치 중 main 에 아직 없는 변경이 있는 가장 최근 것 */
+  /**
+   * 이 범위의 저장이 커밋될 곳. 브랜치를 옮기지 않고 workBranch() 와 같은 규칙으로 본다. null 이면 지금 작업 폴더다
+   */
+  private async workBranchRef(scope: string): Promise<string | null> {
+    if (this.target().kind === "local") return null;
+    const login = await this.whoami();
+    const current = await this.currentBranch();
+    if (workBranchScope(current, login) === scope) return null;
+    const existing = await this.scopeBranch(login, scope);
+    if (existing) return existing === current ? null : `refs/heads/${existing}`;
+    return current === MAIN ? null : `refs/heads/${MAIN}`;
+  }
+
+  /** 앱 설정이 아직 머지되지 않아 테스트 케이스를 저장하지 않을 때의 안내. 진행 중인 앱 설정 브랜치가 있으면 이름을 붙인다 */
+  private async unmergedAppSettings(app: string, what: string): Promise<string> {
+    const pending = await this.scopeBranch(await this.whoami(), appScope(app));
+    return `${what}${pending ? `(${pending})` : ""}. 앱 설정 PR 을 머지하고 동기화한 뒤 테스트 케이스를 저장한다`;
+  }
+
   private async scopeBranch(login: string, scope: string): Promise<string | null> {
     for (const name of await this.myBranches(login)) {
       if (workBranchScope(name, login) === scope && (await this.hasPendingWork(name))) return name;
@@ -815,6 +1053,7 @@ export class WorkspaceService {
    */
   async migrateLayout(): Promise<SaveTestcaseResult> {
     if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
+    this.requireGithub("폴더 구조 바꾸기");
     if (this.layout().version === 2) throw new WorkspaceError("이미 새 폴더 구조다(schemaVersion 2)");
     const busy = this.options.busy?.();
     if (busy) throw new WorkspaceError(`${busy}. 끝난 뒤 폴더 구조를 바꾼다`);
@@ -822,6 +1061,7 @@ export class WorkspaceService {
     if (dirty.length > 0) throw new WorkspaceError(`저장하지 않은 변경이 있어 폴더 구조를 바꾸지 않는다: ${dirty.join(", ")}`);
     if ((await this.currentBranch()) !== MAIN) throw new WorkspaceError("main 에서 바꾼다. 테스트 케이스 화면에서 main 으로 옮긴다");
     const login = await this.whoami();
+    const author = await this.authorArgs();
     const pending: string[] = [];
     for (const name of await this.myBranches(login)) if (await this.hasPendingWork(name)) pending.push(name);
     if (pending.length > 0) {
@@ -873,7 +1113,7 @@ export class WorkspaceService {
         }
       }
       await this.git(["add", "--", ...touched]);
-      await this.git(["-c", `user.name=${login}`, "-c", `user.email=${login}@users.noreply.github.com`, "commit", "--quiet", "-m", "workspace: 폴더를 앱별로 모은다(schemaVersion 2)"]);
+      await this.git([...author, "commit", "--quiet", "-m", "workspace: 폴더를 앱별로 모은다(schemaVersion 2)"]);
     } catch (error) {
       // 옮긴 것을 거꾸로 되돌리고, 방금 만든 브랜치를 지운다
       for (const move of done.reverse()) {
@@ -888,6 +1128,216 @@ export class WorkspaceService {
       throw error;
     }
     return { status: await this.status(), branch, commit: await this.git(["rev-parse", "--short", "HEAD"]) };
+  }
+
+  /**
+   * 머지 전인 내 가져오기 브랜치가 바꾼 파일(경로 → 브랜치). GitHub 방식에서만 있다.
+   * 그 PR 이 머지되기 전에 가져온 항목을 고치면 main 에서 갈라진 브랜치에 가져온 앱 설정이 없어 깨진다(ADR 0036 결정 11).
+   * workspace.yaml 은 항목이 아니라 넣지 않는다(다른 새 앱 등록은 막지 않는다).
+   * 이 Mac 의 로컬 브랜치만 본다(가져오기 브랜치는 이 Mac 에서만 만든다). 그래서 GitHub 로그인을 묻지 않는다
+   */
+  private async importLocks(): Promise<Map<string, string>> {
+    const locks = new Map<string, string>();
+    if (this.target().kind !== "github") return locks;
+    const refs = await this.git(["for-each-ref", "--format=%(refname:short)", "refs/heads/qa/"]);
+    for (const name of refs.split("\n").filter((r) => /^qa\/[^/]+\/import\//.test(r))) {
+      if (!(await this.hasPendingWork(name))) continue;
+      for (const path of (await this.git(["diff", "--name-only", `${MAIN}...refs/heads/${name}`])).split("\n")) {
+        if (path && path !== "workspace.yaml" && !locks.has(path)) locks.set(path, name);
+      }
+    }
+    return locks;
+  }
+
+  /** 잠긴 경로 가운데 조건에 맞는 첫 것의 브랜치 */
+  private lockFor(locks: Map<string, string>, lay: WorkspaceLayout, match: (info: NonNullable<ReturnType<WorkspaceLayout["parse"]>>) => boolean): { branch: string } | null {
+    for (const [path, branch] of locks) {
+      const info = lay.parse(path);
+      if (info && match(info)) return { branch };
+    }
+    return null;
+  }
+
+  /** 테스트 케이스는 파일(.md·플로우·meta) 하나라도 잠겼으면 통째로 잠긴 것으로 본다(화면의 lockedBy 와 같은 기준) */
+  private async refuseLockedTestcase(id: string, app?: string): Promise<void> {
+    const locked = this.lockFor(await this.importLocks(), this.layout(), (info) => (info.kind === "testcase" || info.kind === "flow") && info.id === id && (app === undefined || info.app === app));
+    if (locked) throw new WorkspaceError(`${id} 는 가져오기 브랜치 ${locked.branch} 가 바꿨다. 가져오기 PR 을 머지하고 동기화한 뒤 고친다`);
+  }
+
+  private async refuseLocked(paths: readonly string[]): Promise<void> {
+    const locks = await this.importLocks();
+    for (const path of paths) {
+      const branch = locks.get(path);
+      if (branch) throw new WorkspaceError(`${path} 는 가져오기 브랜치 ${branch} 가 바꿨다. 가져오기 PR 을 머지하고 동기화한 뒤 고친다`);
+    }
+  }
+
+  /** 내보낼 ref: 로컬은 HEAD(저장마다 커밋한다), GitHub 방식은 main(작업 브랜치의 승인 전 수정이 섞이지 않게) */
+  private exportRef(): "HEAD" | "main" {
+    return this.target().kind === "local" ? "HEAD" : MAIN;
+  }
+
+  /** 내보낼 내용(ADR 0036 결정 11). 넣는 경로는 workspace.yaml 과 apps/ 뿐이다 */
+  async exportInfo(): Promise<ExportInfo> {
+    if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
+    const ref = this.exportRef();
+    const wsText = await this.readAt(ref, "workspace.yaml");
+    if (wsText === null) throw new WorkspaceError(`${ref} 에 workspace.yaml 이 없다`);
+    let schemaVersion: unknown;
+    try {
+      const raw: unknown = parseYaml(wsText);
+      schemaVersion = raw !== null && typeof raw === "object" ? (raw as { schemaVersion?: unknown }).schemaVersion : undefined;
+    } catch (error) {
+      throw new WorkspaceError(`workspace.yaml YAML 오류: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    const lay = layoutForSchemaVersion(schemaVersion);
+    if (lay.version !== 2) throw new WorkspaceError("예전 폴더 구조(schemaVersion 1)는 내보내지 않는다. 워크스페이스 화면에서 폴더 구조를 먼저 바꾼다");
+    const paths = (await this.git(["ls-tree", "-r", "--name-only", "-z", ref, "--", "apps"], { raw: true })).split("\0").filter(Boolean);
+    const apps = paths.flatMap((p) => /^apps\/([^/]+)\/app\.yaml$/.exec(p)?.[1] ?? []).sort();
+    const appNames: string[] = [];
+    for (const app of apps) {
+      const parsed = AppConfigSchema.safeParse(parseYaml((await this.readAt(ref, `apps/${app}/app.yaml`)) ?? ""));
+      appNames.push(parsed.success ? parsed.data.name : app);
+    }
+    const infos = paths.map((p) => lay.parse(p));
+    const now = new Date();
+    const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    return {
+      apps: apps.length,
+      testcases: infos.filter((i) => i?.kind === "testcase").length,
+      flows: infos.filter((i) => i?.kind === "flow" && !i.meta).length,
+      subflows: infos.filter((i) => i?.kind === "subflow").length,
+      ref,
+      fileName: `avocado-workspace-${day}.zip`,
+      appNames,
+      testcaseIds: infos.flatMap((i) => (i?.kind === "testcase" ? [i.id] : [])).sort(),
+    };
+  }
+
+  /** main 이 연 저장 창에서 고른 곳에 zip 을 쓴다(git archive). 옆의 임시 파일에 만든 뒤 이름을 바꿔 반쯤 쓴 zip 이 남지 않게 한다 */
+  async exportZip(): Promise<ExportResult> {
+    const info = await this.exportInfo();
+    if (!this.options.pickExportPath) throw new WorkspaceError("저장 창을 열 수 없다");
+    const dest = await this.options.pickExportPath(info.fileName);
+    if (!dest) return null;
+    const tmp = `${dest}.avocado-${randomUUID()}.tmp`;
+    try {
+      // 앱이 없는 워크스페이스에는 apps/ 가 없고, 없는 경로를 주면 git archive 가 실패한다
+      const hasApps = (await this.git(["ls-tree", "--name-only", info.ref, "--", "apps"])) !== "";
+      await this.git(["archive", "--format=zip", `--output=${tmp}`, info.ref, "--", "workspace.yaml", ...(hasApps ? ["apps"] : [])]);
+      renameSync(tmp, dest);
+    } finally {
+      rmSync(tmp, { force: true });
+    }
+    return { path: displayPath(dest, this.options.home ?? homedir()) };
+  }
+
+  /** GitHub 방식에서 가져오기의 기준인 main 이 원격보다 뒤처져 있으면 거절한다(동기화한 main 위에 가져온다) */
+  private async requireMainCurrent(): Promise<void> {
+    const hasOrigin = await this.git(["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${MAIN}`]).then(
+      () => true,
+      () => false,
+    );
+    if (!hasOrigin) return;
+    const behind = Number(await this.git(["rev-list", "--count", `refs/heads/${MAIN}..refs/remotes/origin/${MAIN}`]));
+    if (behind > 0) throw new WorkspaceError(`main 이 원격보다 ${behind}개 뒤처져 있다. main 으로 옮겨 동기화한 뒤 가져온다`);
+  }
+
+  /**
+   * 가져올 곳을 읽고 받는 쪽과 견준다(ADR 0036 결정 11). zip·폴더는 main 이 연 창에서 고르고, 이 Mac 의 로컬 워크스페이스는 GitHub 방식에서만 고른다.
+   * 하나라도 걸리면 묶음 전체를 거절하고 아무것도 쓰지 않는다. 미리보기의 바이트는 이 서비스에만 둔다
+   */
+  async importPick(from: ImportSource): Promise<ImportPickResult> {
+    if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
+    const target = this.target();
+    let label: string;
+    let read: ArchiveRead;
+    if (from === "local-workspace") {
+      if (target.kind !== "github") throw new WorkspaceError(`${LOCAL_WORKSPACE_LABEL}에서 가져오기: GitHub 사용을 켠 워크스페이스에서만 쓴다`);
+      const localDir = this.options.localDir;
+      if (!existsSync(join(localDir, ".git"))) throw new WorkspaceError(`${LOCAL_WORKSPACE_LABEL}가 없다`);
+      label = LOCAL_WORKSPACE_LABEL;
+      // 앱이 만든 local-workspace 만 git 으로 읽는다(사람이 고른 폴더에서는 git 을 실행하지 않는다)
+      read = await readTree(
+        (args, opts) => this.git(args, { ...opts, cwd: localDir }),
+        (args, opts) => this.gitBytes(args, { ...opts, cwd: localDir }),
+        "HEAD",
+        { hostile: true },
+      );
+    } else {
+      if (!this.options.pickImport) throw new WorkspaceError("가져올 곳을 고를 창을 열 수 없다");
+      const picked = await this.options.pickImport(from);
+      if (!picked) return { status: "canceled" };
+      label = basename(picked);
+      read = from === "file" ? readZipFile(picked) : readFolder(picked);
+    }
+    if (!read.ok) return { status: "rejected", sourceLabel: label, problems: read.problems };
+    if (target.kind === "github") await this.requireMainCurrent();
+    const ref = target.kind === "local" ? "HEAD" : `refs/heads/${MAIN}`;
+    const base = await this.git(["rev-parse", ref]);
+    const receiving = await readTree(
+      (args, opts) => this.git(args, opts),
+      (args, opts) => this.gitBytes(args, opts),
+      ref,
+      { hostile: false },
+    );
+    if (!receiving.ok) throw new WorkspaceError("이 워크스페이스를 읽지 못했다");
+    let result;
+    try {
+      result = await planImport({ incoming: read.files, receiving: receiving.files, checks: { checkFlowSyntax: this.options.checkFlowSyntax } });
+    } catch (error) {
+      if (error instanceof WorkspaceError) throw error;
+      throw new WorkspaceError(error instanceof Error ? error.message : String(error));
+    }
+    if (!result.ok) return { status: "rejected", sourceLabel: label, problems: result.problems };
+    const id = randomUUID();
+    this.pendingImport = { id, kind: target.kind, dir: target.dir, base, label, plan: result.plan };
+    return { status: "preview", preview: { importId: id, sourceLabel: label, items: result.plan.items, skipped: result.plan.skipped, summary: result.plan.summary } };
+  }
+
+  /**
+   * 미리보기에서 고른 항목을 쓴다. 실행·플로우 만들기 중이거나 미리보기 뒤 워크스페이스가 바뀌었으면 거절한다.
+   * 로컬은 main 에 한 커밋, GitHub 방식은 새 가져오기 브랜치에 한 커밋(작업 폴더와 지금 브랜치는 그대로)
+   */
+  async importApply(input: ImportApplyInput): Promise<ImportApplyResult> {
+    const pending = this.pendingImport;
+    if (!pending || pending.id !== input.importId) throw new WorkspaceError("가져오기 미리보기가 없다. 다시 고른다");
+    const busy = this.options.busy?.();
+    if (busy) throw new WorkspaceError(`${busy}. 끝난 뒤 가져온다`);
+    const target = this.target();
+    if (target.kind !== pending.kind || target.dir !== pending.dir) throw new WorkspaceError("미리보기를 만든 뒤 워크스페이스 출처가 바뀌었다. 다시 고른다");
+    if (target.kind === "github") await this.requireMainCurrent();
+    const ref = target.kind === "local" ? "HEAD" : `refs/heads/${MAIN}`;
+    if ((await this.git(["rev-parse", ref])) !== pending.base) throw new WorkspaceError("미리보기를 만든 뒤 워크스페이스가 바뀌었다. 다시 고른다");
+    let writes;
+    try {
+      writes = pending.plan.apply(input.picks);
+    } catch (error) {
+      if (error instanceof ImportPickError) throw new WorkspaceError(error.message);
+      throw error;
+    }
+    const counts = (Object.keys(IMPORT_KIND_LABEL) as TransferItemKind[])
+      .map((kind) => [kind, writes.picked.filter((p) => p.item.kind === kind && p.action !== "keep-ours").length] as const)
+      .filter(([, n]) => n > 0)
+      .map(([kind, n]) => `${IMPORT_KIND_LABEL[kind]} ${n}`);
+    const message = `import: ${pending.label}에서 가져온다(${counts.join(", ")})`;
+    const author = await this.authorArgs();
+    if (target.kind === "local") {
+      if ((await this.currentBranch()) !== MAIN) throw new WorkspaceError("로컬 워크스페이스가 main 브랜치가 아니다. 로컬 워크스페이스는 main 에만 저장한다");
+      const commit = await commitLocalImport({ git: (args, opts) => this.git(args, opts), files: writes.files, message, author, resolve: (rel) => this.insideWorkspace(rel) });
+      this.pendingImport = null;
+      return { source: "local", commit, renumbered: writes.renumbered };
+    }
+    const login = await this.whoami();
+    const apps = [...new Set(writes.picked.map((p) => p.item.app))].sort();
+    const { branch, commit } = await commitImportBranch({ git: (args, opts) => this.git(args, opts), branchBase: `qa/${login}/${IMPORT_SCOPE}${branchSlug(apps.join(" "))}`, files: writes.files, message, author });
+    this.pendingImport = null;
+    return { source: "github", branch: WorkBranchNameSchema.parse(branch), commit, renumbered: writes.renumbered };
+  }
+
+  importCancel(importId: string): { canceled: true } {
+    if (this.pendingImport?.id === importId) this.pendingImport = null;
+    return { canceled: true };
   }
 
   async history(app: string, id: string): Promise<TestcaseHistory> {
@@ -905,7 +1355,10 @@ export class WorkspaceService {
 
   /** 워크스페이스 저장소의 내 열린 PR(홈 화면) */
   async myPullRequests(): Promise<{ number: number; title: string; url: string; branch: string; createdAt: string }[]> {
-    const { owner, repo } = this.target();
+    const source = this.target();
+    // 로컬에는 PR 이 없다. 홈 화면이 늘 읽는 목록이라 거절하지 않고 빈 목록을 준다
+    if (source.kind === "local") return [];
+    const { owner, repo } = source;
     const login = await this.whoami();
     const pulls = await this.options.remote.listOpenPullRequests({ owner, repo });
     return pulls.filter((p) => p.author === login).map(({ number, title, url, branch, createdAt }) => ({ number, title, url, branch, createdAt }));
@@ -918,6 +1371,7 @@ export class WorkspaceService {
    */
   async requestReview(input: { title: string; body: string; branch?: string | undefined }): Promise<RequestReviewResult> {
     if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
+    const { owner, repo } = this.requireGithub("PR 작성");
     const current = await this.currentBranch();
     const branch = input.branch ?? current;
     if (branch === MAIN || branch === "HEAD") throw new WorkspaceError("main 에서는 PR 을 만들지 않는다. 테스트 케이스를 저장하면 작업 브랜치가 생긴다");
@@ -929,7 +1383,6 @@ export class WorkspaceService {
     }
     if ((await this.git(["rev-list", "--count", `${MAIN}..refs/heads/${branch}`])) === "0") throw new WorkspaceError(`${branch} 에 main 보다 앞선 커밋이 없다`);
     await this.git(["push", "--quiet", "--set-upstream", "origin", `refs/heads/${branch}:refs/heads/${branch}`], { auth: true });
-    const { owner, repo } = this.target();
     const open = (await this.options.remote.listOpenPullRequests({ owner, repo })).find((p) => p.branch === branch && p.author === login);
     if (open) return { number: open.number, url: open.url, branch, existing: true };
     const pr = await this.options.remote.createPullRequest({ repo: { owner, repo }, head: branch, base: MAIN, title: input.title, body: input.body });
@@ -960,7 +1413,10 @@ export class WorkspaceService {
   /** main 이나 내 작업 브랜치로 바꾼다(화면에서 다른 TC 의 작업을 볼 때) */
   async checkout(branch: string): Promise<WorkspaceStatus> {
     if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
-    if (branch !== MAIN && !(await this.myBranches(await this.whoami())).includes(branch)) throw new WorkspaceError(`내 작업 브랜치가 아니다: ${branch}`);
+    if (branch !== MAIN) {
+      this.requireGithub("작업 브랜치로 바꾸기");
+      if (!(await this.myBranches(await this.whoami())).includes(branch)) throw new WorkspaceError(`내 작업 브랜치가 아니다: ${branch}`);
+    }
     if (branch !== (await this.currentBranch())) await this.switchTo(branch, { by: "user" });
     return this.status();
   }
@@ -971,6 +1427,7 @@ export class WorkspaceService {
    */
   async useTestcaseBranch(id: string): Promise<string> {
     if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
+    await this.refuseLockedTestcase(id);
     const login = await this.whoami();
     const current = await this.currentBranch();
     if (workBranchTc(current, login) === id) return current;

@@ -1,6 +1,7 @@
 import type { IpcHandlers } from "@qa/shared";
 import { app, shell } from "electron";
 import { isAllowedExternalUrl } from "./security";
+import type { EvidenceExportService } from "./evidence/export-service";
 import type { UploadService } from "./evidence/upload-service";
 import { createSettingsHandlers } from "./settings/settings-handlers";
 import type { SettingsService } from "./settings/settings-service";
@@ -45,6 +46,7 @@ export interface HandlerDeps {
   runQueue: RunQueue;
   evidence: EvidenceService;
   upload: UploadService;
+  exporter: EvidenceExportService;
   remote: RemoteProvider;
   workspace: WorkspaceService;
   agentJobs: AgentJobStore;
@@ -86,7 +88,7 @@ export function createHandlers(deps: HandlerDeps): IpcHandlers {
     ...createBuildHandlers(deps.builds, deps.buildPickers, deps.projectBuilds),
     ...createRunHandlers(deps.runs, deps.runPickers),
     ...createWorkspaceRunHandlers({ workspace: deps.workspace, builds: deps.builds, queue: deps.runQueue }),
-    ...createEvidenceHandlers(deps.evidence, deps.upload),
+    ...createEvidenceHandlers(deps.evidence, deps.upload, deps.exporter),
     ...createRemoteHandlers(deps.remote, () => deps.settings.getSettings().settings),
     ...createWorkspaceHandlers(deps.workspace),
     ...createAgentHandlers(deps.agentJobs, deps.author, deps.judge, () => deps.settings.getSettings().settings),

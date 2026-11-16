@@ -1,11 +1,13 @@
 import type { AgentProvider, ClaudeJudgeJob, EvidenceArtifact, EvidenceFile, EvidenceSearchResult, Execution, HierarchyView, Judgement, RunDetail, RunStep, RunSummary } from "@qa/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClaudeRequest } from "../components/ClaudeRequest";
+import { EvidenceExportPanel } from "../components/EvidenceExportPanel";
 import { EvidenceUploadPanel } from "../components/EvidenceUploadPanel";
 import { CaptureStrip } from "../components/CaptureStrip";
 import { shortDateTime } from "../lib/dashboard";
 import { errorMessage, formatDateTime } from "../lib/errors";
 import { durationText, filterCounts, filterRuns, latestMatrix, runTitle, TARGET_LABEL, type RunFilter } from "../lib/results";
+import { useWorkspaceSource } from "../lib/workspace-status";
 
 const RUN_STATUS: Record<RunSummary["status"], string> = { queued: "대기", running: "실행 중", passed: "통과", failed: "실패", error: "오류", canceled: "취소" };
 const JUDGE_LABEL: Record<Judgement["verdict"], string> = { pass: "정상", fail: "결함", uncertain: "불확실" };
@@ -21,7 +23,7 @@ const FILTERS: { id: RunFilter; label: string }[] = [
 /** 로그를 열 때 처음 보여 줄 줄(실패 흔적) */
 const FAILURE_LINE = /FAILED|Element not found|Assertion is false|Exception|Error:/;
 
-type EvidenceTab = "log" | "tree" | "captures" | "upload";
+type EvidenceTab = "log" | "tree" | "captures" | "export" | "upload";
 
 const badge = (s: string) => (s === "passed" || s === "completed" ? "badge ok" : s === "failed" || s === "error" ? "badge bad" : "badge");
 const verdictBadge = (v: Judgement["verdict"]) => (v === "pass" ? "badge ok" : v === "fail" ? "badge bad" : "badge");
@@ -41,6 +43,7 @@ function defaultStep(e: Execution | undefined): number | null {
  * 칸마다 따로 스크롤하고 페이지는 창 높이에 맞춘다
  */
 export function ResultsPage(props: { initialRunId?: string | null; onOpenRuns?: () => void }) {
+  const source = useWorkspaceSource();
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
   const [runId, setRunId] = useState<string | null>(props.initialRunId ?? null);
   const [listTab, setListTab] = useState<"runs" | "matrix">("runs");
@@ -222,9 +225,12 @@ export function ResultsPage(props: { initialRunId?: string | null; onOpenRuns?: 
   }, [runId, executionId, shotPath]);
 
   const shots = execution?.steps.filter((s) => s.failureScreenshot || s.screenshot).length ?? 0;
-  const canUpload = uploadApproved && detail !== null && isFinished(detail.status);
-  // 고른 탭이 이 실행에 없으면(캡처가 없거나 올릴 수 없는 실행) 로그를 보인다
-  const tab: EvidenceTab = (evidenceTab === "captures" && shots === 0) || (evidenceTab === "upload" && !canUpload) ? "log" : evidenceTab;
+  // 증적 올리기는 GitHub 워크스페이스에서만 있다(로컬은 main 이 거절한다, ADR 0036)
+  const canUpload = source === "github" && uploadApproved && detail !== null && isFinished(detail.status);
+  // 폴더로 내보내기는 출처·정책과 상관없이 끝난 실행에 있다(ADR 0036 결정 9)
+  const canExport = detail !== null && isFinished(detail.status);
+  // 고른 탭이 이 실행에 없으면(캡처가 없거나 내보낼 수 없는 실행) 로그를 보인다
+  const tab: EvidenceTab = (evidenceTab === "captures" && shots === 0) || (evidenceTab === "upload" && !canUpload) || (evidenceTab === "export" && !canExport) ? "log" : evidenceTab;
 
   // 화면 트리 탭을 보고 있으면 고른 스텝의 트리를 읽는다
   const hierarchyPath = step?.hierarchy ?? null;
@@ -592,6 +598,11 @@ export function ResultsPage(props: { initialRunId?: string | null; onOpenRuns?: 
                         캡처 {shots}장
                       </button>
                     ) : null}
+                    {canExport ? (
+                      <button type="button" role="tab" aria-selected={tab === "export"} onClick={() => setEvidenceTab("export")}>
+                        폴더로 내보내기
+                      </button>
+                    ) : null}
                     {canUpload ? (
                       <button type="button" role="tab" aria-selected={tab === "upload"} onClick={() => setEvidenceTab("upload")}>
                         증적 올리기
@@ -680,6 +691,8 @@ export function ResultsPage(props: { initialRunId?: string | null; onOpenRuns?: 
                   ) : null}
 
                   {tab === "captures" && detail ? <CaptureStrip runId={detail.id} executionId={execution.id} steps={execution.steps} selected={stepIndex} onSelect={setStepIndex} /> : null}
+
+                  {tab === "export" ? <EvidenceExportPanel runId={detail.id} executionId={execution.id} passed={detail.status === "passed"} /> : null}
 
                   {tab === "upload" ? <EvidenceUploadPanel runId={detail.id} executionId={execution.id} finished={isFinished(detail.status)} passed={detail.status === "passed"} /> : null}
                 </div>

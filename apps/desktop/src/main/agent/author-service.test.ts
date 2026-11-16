@@ -110,6 +110,8 @@ async function setup(
     launch?: string;
     /** 작업 브랜치(또는 main)에 같은 플로우가 이미 있다 */
     unchanged?: "branch" | "main";
+    /** 워크스페이스의 출처. 로컬은 main 에 바로 저장한다(ADR 0036) */
+    source?: "local" | "github";
   } = {},
 ) {
   await api?.close();
@@ -148,9 +150,11 @@ async function setup(
         // 브랜치를 옮길 수 있게 초안은 커밋 전에 되돌려져 있어야 한다
         const abs = join(ws, input.flowPath);
         saved.push({ yaml: input.yaml, meta: input.meta, flowPath: input.flowPath, draftLeft: existsSync(abs) && readFileSync(abs, "utf8") === input.yaml });
+        if (opts.source === "local") return { branch: "main", commit: "10ca1aa", unchanged: opts.unchanged !== undefined };
         if (opts.unchanged === "main") return { branch: "main", commit: "0a1b2c3", unchanged: true };
         return { branch: "qa/tester/TC-0101-agent-flow", commit: "f00d123", unchanged: opts.unchanged === "branch" };
       },
+      sourceKind: () => opts.source ?? "github",
     },
     runs: {
       start: async (input, options) => {
@@ -375,6 +379,31 @@ describe("AuthorService (가짜 API·maestro mcp·재생)", () => {
     expect(done).toContain("이미 main 에 승인돼 있어 새로 커밋하지 않았다");
     expect(done).toContain("PR 은 필요 없다");
     expect(service.status(job.id).result).toMatchObject({ branch: "main", unchanged: true });
+  });
+
+  it("로컬 워크스페이스: 저장한 플로우를 바로 실행할 수 있다고 알리고 작업 브랜치·PR 을 말하지 않는다 (ADR 0036)", async () => {
+    const claude = { id: "conn-local", client: "claude-code 2.1.220" };
+    const finish = async (unchanged?: "main") => {
+      const { service } = await setup([], [{ status: "passed" }, { status: "passed" }], { provider: "claude-app", apiKey: null, source: "local", unchanged });
+      const { job } = await service.start(INPUT);
+      await service.mcpCall(claude, "author_status", { waitSeconds: 5 });
+      await service.mcpCall(claude, "attach_author", {});
+      await service.mcpCall(claude, "submit_flow", SUBMIT(GOOD));
+      const done = (await service.mcpCall(claude, "author_status", { waitSeconds: 10 })).content.map((c) => (c.type === "text" ? c.text : "")).join("\n");
+      return { done, status: service.status(job.id) };
+    };
+    const saved = await finish();
+    expect(saved.status.result).toMatchObject({ branch: "main", commit: "10ca1aa", unchanged: false });
+    expect(saved.done).toContain("플로우를 저장했다(10ca1aa)");
+    expect(saved.done).toContain("바로 실행할 수 있다");
+    const again = await finish("main");
+    expect(again.status.result).toMatchObject({ branch: "main", unchanged: true });
+    expect(again.done).toContain("이미 저장돼 있어 새로 저장하지 않았다(10ca1aa)");
+    expect(again.done).toContain("바로 실행할 수 있다");
+    // 다음 할 일과 진행 기록 어디에도 브랜치·PR·승인이 없다
+    for (const text of [saved.done, again.done, ...saved.status.log.map((l) => l.message), ...again.status.log.map((l) => l.message)]) {
+      expect(text).not.toMatch(/브랜치|PR|승인/);
+    }
   });
 
   it("재생 중에 취소하면 재생을 멈추고 커밋하지 않는다", async () => {

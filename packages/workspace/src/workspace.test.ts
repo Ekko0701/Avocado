@@ -139,6 +139,19 @@ describe("워크스페이스 읽기", () => {
     }
   });
 
+  it("앱이 없는 워크스페이스도 문제 없이 읽는다(새 로컬 워크스페이스의 시작 상태, ADR 0036 결정 7)", () => {
+    const root = mkdtempSync(join(tmpdir(), "qa-ws-noapps-"));
+    try {
+      writeFileSync(join(root, "workspace.yaml"), "schemaVersion: 2\nname: local-workspace\napps: []\n");
+      const ws = loadWorkspace(root);
+      expect(ws.issues).toEqual([]);
+      expect(ws.config?.apps).toEqual([]);
+      expect({ apps: ws.apps, testcases: ws.testcases, flows: ws.flows }).toEqual({ apps: {}, testcases: [], flows: [] });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("workspace.yaml 이 없으면 알린다", () => {
     const root = mkdtempSync(join(tmpdir(), "qa-ws-empty-"));
     expect(loadWorkspace(root).issues).toEqual([{ path: "workspace.yaml", line: null, message: "workspace.yaml 이 없다" }]);

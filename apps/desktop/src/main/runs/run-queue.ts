@@ -3,7 +3,7 @@ import type { RunSummary } from "@qa/shared";
 export interface QueuedRun {
   label: string;
   input: { app: string; flowPath: string; deviceId: string; buildId: string | null };
-  options: { appId?: string; skipInstall?: boolean };
+  options: { appId?: string; skipInstall?: boolean; envKeys?: readonly string[] };
 }
 
 /**

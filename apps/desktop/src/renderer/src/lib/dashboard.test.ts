@@ -1,6 +1,6 @@
 import type { RunDetail, RunSummary } from "@qa/shared";
 import { describe, expect, it } from "vitest";
-import { attention, dailyCounts, elapsed, localDay, runProgress } from "./dashboard";
+import { attention, authorPhaseText, dailyCounts, elapsed, localDay, runProgress } from "./dashboard";
 
 const NOW = new Date("2026-11-10T12:00:00");
 let n = 0;
@@ -102,5 +102,11 @@ describe("대시보드 계산", () => {
     expect(elapsed(new Date(NOW.getTime() - 42_000).toISOString(), NOW)).toBe("42초");
     expect(elapsed(new Date(NOW.getTime() - 130_000).toISOString(), NOW)).toBe("2분 10초");
     expect(elapsed(null, NOW)).toBe("시작 전");
+  });
+
+  it("플로우 만들기 저장 단계는 로컬 워크스페이스에서 작업 브랜치를 말하지 않는다", () => {
+    expect(authorPhaseText("saving", "github")).toBe("작업 브랜치에 저장하는 중");
+    expect(authorPhaseText("saving", "local")).toBe("로컬 워크스페이스에 저장하는 중");
+    expect(authorPhaseText("exploring", "local")).toBe("Claude 가 화면을 탐색하는 중");
   });
 });

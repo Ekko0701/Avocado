@@ -1,22 +1,28 @@
 import type { TestcaseList, WorkspaceStatus } from "@qa/shared";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { AppSettingsEditor, NEW_APP } from "../components/AppSettingsEditor";
+import { FirstAppFields, useFirstApp } from "../components/FirstAppForm";
 import { Icon } from "../components/Icon";
 import { LayoutMigration, needsLayoutMigration } from "../components/LayoutMigration";
 import { SubflowEditor } from "../components/SubflowEditor";
+import { TransferPanel } from "../components/TransferPanel";
 import { errorMessage } from "../lib/errors";
 import { TARGET_LABEL } from "../lib/results";
 import { notifyWorkspaceChanged, onWorkspaceChanged } from "../lib/workspace-events";
+import { useWorkspaceSource } from "../lib/workspace-status";
 
 const PROBLEMS = "__problems__";
 const LAYOUT = "__layout__";
+const TRANSFER = "__transfer__";
 const targetLabel = (t: string) => (t in TARGET_LABEL ? TARGET_LABEL[t as keyof typeof TARGET_LABEL] : t);
 
 /**
  * 워크스페이스: 위는 저장소 상태 한 줄(브랜치·바뀐 파일의 자세한 내용은 Git 상태 인스펙터), 왼쪽은 앱 목록과 문제,
- * 오른쪽은 고른 앱의 탭(앱 설정 | 공통 서브플로우). 테스트 케이스는 메뉴 "테스트 케이스"에서 다룬다
+ * 오른쪽은 고른 앱의 탭(앱 설정 | 공통 서브플로우). 테스트 케이스는 메뉴 "테스트 케이스"에서 다룬다.
+ * 로컬 워크스페이스(ADR 0036)는 출처와 폴더를 보이고, 앱이 없으면 첫 앱 등록을 연다. 브랜치·연결·폴더 구조 바꾸기가 없다
  */
 export function WorkspacePage(props: { onOpenInspector?: () => void; onOpenSettings?: () => void }) {
+  const local = useWorkspaceSource() === "local";
   const [status, setStatus] = useState<WorkspaceStatus | null>(null);
   const [list, setList] = useState<TestcaseList | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -57,7 +63,7 @@ export function WorkspacePage(props: { onOpenInspector?: () => void; onOpenSetti
   const layout = status !== null && needsLayoutMigration(status);
   // 폴더 구조를 바꿔야 하면 그것부터, 아니면 첫 앱(없으면 새 앱)을 연다
   const selected = picked ?? (layout ? LAYOUT : (apps[0]?.app ?? NEW_APP));
-  const isApp = selected !== PROBLEMS && selected !== LAYOUT;
+  const isApp = selected !== PROBLEMS && selected !== LAYOUT && selected !== TRANSFER;
   const creating = selected === NEW_APP;
   // 방금 만든 앱은 main 에 들어가기 전이라 목록에 없을 수 있다
   const pending = isApp && !creating && !apps.some((a) => a.app === selected) ? selected : null;
@@ -69,6 +75,18 @@ export function WorkspacePage(props: { onOpenInspector?: () => void; onOpenSetti
     setPicked(next);
     setTab("settings");
   }
+
+  async function reveal() {
+    setMessage(null);
+    try {
+      await window.qa.workspace.reveal();
+    } catch (e) {
+      setMessage(`Finder 에서 열지 못했습니다: ${errorMessage(e)}`);
+    }
+  }
+
+  // 로컬에서 앱이 하나도 없으면 오른쪽은 첫 앱 등록이다
+  const firstApp = local && connected && list !== null && apps.length === 0 && selected === NEW_APP;
 
   const tabs =
     isApp && !creating ? (
@@ -86,7 +104,19 @@ export function WorkspacePage(props: { onOpenInspector?: () => void; onOpenSetti
     <div className="ws-page">
       <h1>워크스페이스</h1>
       <section className="card ws-status" aria-label="워크스페이스 상태">
-        {status ? (
+        {status && local ? (
+          <>
+            <span className="dot on" aria-hidden="true" />
+            <div className="ws-status-text" data-testid="workspace-status">
+              <strong>로컬 워크스페이스</strong>
+              {status.location ? <code className="hint">{status.location}</code> : null}
+            </div>
+            <small className="hint ws-status-note">이 Mac 에서 혼자 씁니다. {list !== null && apps.length === 0 ? "아직 등록한 앱이 없습니다." : "저장하면 바로 실행할 수 있습니다."}</small>
+            <button type="button" className="secondary small" onClick={() => void reveal()}>
+              Finder 에서 열기
+            </button>
+          </>
+        ) : status ? (
           <>
             <span className={connected ? "dot on" : "dot waiting"} aria-hidden="true" />
             <div className="ws-status-text" data-testid="workspace-status">
@@ -143,6 +173,7 @@ export function WorkspacePage(props: { onOpenInspector?: () => void; onOpenSetti
         <nav className="card ws-nav" aria-label="앱과 문제">
           <strong className="group-label">앱</strong>
           {!connected ? <p className="hint">연결하면 보입니다.</p> : null}
+          {local && list !== null && apps.length === 0 ? <p className="hint">등록한 앱이 없습니다</p> : null}
           {apps.map((a) => {
             const count = list?.testcases.filter((t) => t.app === a.app).length ?? 0;
             return (
@@ -184,6 +215,17 @@ export function WorkspacePage(props: { onOpenInspector?: () => void; onOpenSetti
             </button>
           ) : null}
           {connected ? (
+            <>
+              <hr className="ws-nav-rule" />
+              <button type="button" className={selected === TRANSFER ? "run-item selected" : "run-item"} aria-current={selected === TRANSFER ? "page" : undefined} data-testid="ws-nav-transfer" onClick={() => pick(TRANSFER)}>
+                <span className="run-item-body">
+                  <strong>내보내기·가져오기</strong>
+                  <small className="hint">zip 으로 건네고 받기</small>
+                </span>
+              </button>
+            </>
+          ) : null}
+          {connected ? (
             <button type="button" className={selected === PROBLEMS ? "run-item selected" : "run-item"} aria-current={selected === PROBLEMS ? "page" : undefined} data-testid="ws-nav-problems" onClick={() => pick(PROBLEMS)}>
               <span className="run-item-body">
                 <strong>문제</strong>
@@ -202,8 +244,19 @@ export function WorkspacePage(props: { onOpenInspector?: () => void; onOpenSetti
         ) : null}
 
         {/* 탭을 오가도 고치던 내용이 남게 두 편집기를 함께 두고 안 보는 쪽만 숨긴다 */}
-        {connected && list && isApp ? <AppSettingsEditor apps={apps} selected={selected} onSelect={pick} tabs={tabs} hidden={tab !== "settings"} /> : null}
+        {firstApp ? (
+          <FirstAppCard
+            onRegistered={(app) => {
+              void refresh()
+                .then(() => setPicked(app))
+                .catch((e: unknown) => setMessage(errorMessage(e)));
+            }}
+          />
+        ) : null}
+        {connected && list && isApp && !firstApp ? <AppSettingsEditor apps={apps} selected={selected} onSelect={pick} tabs={tabs} hidden={tab !== "settings"} /> : null}
         {connected && list && isApp && !creating ? <SubflowEditor app={selected} title={`${appName} (${selected})`} tabs={tabs} hidden={tab !== "subflows"} onCount={setSubflowCount} /> : null}
+
+        {connected && selected === TRANSFER ? <TransferPanel local={local} /> : null}
 
         {connected && status && selected === LAYOUT ? <LayoutMigration status={status} onChanged={(next) => void refresh(next).catch((e: unknown) => setMessage(errorMessage(e)))} /> : null}
 
@@ -234,5 +287,34 @@ export function WorkspacePage(props: { onOpenInspector?: () => void; onOpenSetti
         ) : null}
       </div>
     </div>
+  );
+}
+
+/** 빈 로컬 워크스페이스의 첫 앱 등록(ADR 0036 결정 7). 마법사의 첫 앱 단계와 같은 입력이다 */
+function FirstAppCard(props: { onRegistered: (app: string) => void }) {
+  const first = useFirstApp([]);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const app = await first.register();
+    if (app) props.onRegistered(app);
+  }
+  return (
+    <form className="card ws-detail" aria-label="첫 앱 등록" data-testid="first-app-card" onSubmit={(e) => void submit(e)}>
+      <div className="ws-head">
+        <h2>첫 앱 등록</h2>
+        <small className="hint">테스트할 앱의 이름과 타깃별 앱 ID 를 넣습니다. 등록하면 테스트 케이스를 쓰고 플로우를 만들 수 있습니다.</small>
+      </div>
+      <div className="ws-body">
+        <FirstAppFields draft={first.draft} onChange={first.setDraft} problems={first.problems} error={first.error} />
+      </div>
+      <div className="ws-foot">
+        <div className="row">
+          <span className="hint grow">앱 id 는 나중에 바꿀 수 없습니다</span>
+          <button type="submit" disabled={!first.canRegister}>
+            {first.busy ? "등록 중" : "앱 등록"}
+          </button>
+        </div>
+      </div>
+    </form>
   );
 }

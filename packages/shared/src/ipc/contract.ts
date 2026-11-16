@@ -15,6 +15,7 @@ import {
   type Settings,
   type SettingsPatch,
   type SettingsState,
+  type WorkspaceSourceKind,
 } from "../settings";
 import {
   InstallProgressSchema,
@@ -97,6 +98,11 @@ import {
   type PrepareUploadInput,
   type UploadPreview,
   type UploadRecord,
+  ExportPreviewSchema,
+  ExportEvidenceInputSchema,
+  EvidenceExportRecordSchema,
+  type ExportPreview,
+  type EvidenceExportRecord,
 } from "../evidence";
 import { RemoteRepoSchema, RemoteVerifySchema, type RemoteRepo, type RemoteVerify } from "../remote";
 import {
@@ -109,6 +115,7 @@ import {
   TestcaseRefSchema,
   WorkspaceAccountsSchema,
   TestcaseTextSchema,
+  SetWorkspaceSourceInputSchema,
   WorkspaceStatusSchema,
   type RequestReviewResult,
   type SaveTestcaseResult,
@@ -134,6 +141,19 @@ import {
   type SubflowList,
   WorkBranchListSchema,
   type WorkBranchList,
+  ExportInfoSchema,
+  ExportResultSchema,
+  ImportApplyInputSchema,
+  ImportApplyResultSchema,
+  ImportCancelInputSchema,
+  ImportPickInputSchema,
+  ImportPickResultSchema,
+  type ExportInfo,
+  type ExportResult,
+  type ImportApplyInput,
+  type ImportApplyResult,
+  type ImportPickResult,
+  type ImportSource,
 } from "../workspace";
 
 /**
@@ -227,9 +247,15 @@ export const ipcContract = {
   "evidence:prepareUpload": { input: PrepareUploadInputSchema, output: UploadPreviewSchema },
   "evidence:upload": { input: UploadInputSchema, output: UploadRecordSchema },
   "evidence:uploads": { input: ExecutionRefSchema, output: z.array(UploadRecordSchema) },
+  "evidence:prepareExport": { input: PrepareUploadInputSchema, output: ExportPreviewSchema },
+  /** 폴더 고르기를 취소하면 null */
+  "evidence:export": { input: ExportEvidenceInputSchema, output: EvidenceExportRecordSchema.nullable() },
+  "evidence:revealExport": { input: z.strictObject({ exportId: z.string().min(1).max(100) }), output: z.strictObject({ opened: z.literal(true) }) },
   "remote:verify": { input: z.undefined(), output: RemoteVerifySchema },
   "remote:repos": { input: z.undefined(), output: z.array(RemoteRepoSchema) },
   "workspace:status": { input: z.undefined(), output: WorkspaceStatusSchema },
+  "workspace:setSource": { input: SetWorkspaceSourceInputSchema, output: WorkspaceStatusSchema },
+  "workspace:reveal": { input: z.undefined(), output: z.strictObject({ opened: z.literal(true) }) },
   "workspace:connect": { input: z.undefined(), output: WorkspaceStatusSchema },
   "workspace:sync": { input: z.undefined(), output: WorkspaceStatusSchema },
   "workspace:testcases": { input: z.undefined(), output: TestcaseListSchema },
@@ -246,6 +272,11 @@ export const ipcContract = {
   "workspace:migrateLayout": { input: z.undefined(), output: SaveTestcaseResultSchema },
   "workspace:history": { input: TestcaseRefSchema, output: TestcaseHistorySchema },
   "workspace:myPulls": { input: z.undefined(), output: z.array(MyPullRequestSchema) },
+  "workspace:exportInfo": { input: z.undefined(), output: ExportInfoSchema },
+  "workspace:export": { input: z.undefined(), output: ExportResultSchema },
+  "workspace:importPick": { input: ImportPickInputSchema, output: ImportPickResultSchema },
+  "workspace:importApply": { input: ImportApplyInputSchema, output: ImportApplyResultSchema },
+  "workspace:importCancel": { input: ImportCancelInputSchema, output: z.strictObject({ canceled: z.literal(true) }) },
   "agent:usage": { input: z.undefined(), output: AgentUsageSchema },
   "agent:startAuthor": { input: StartAuthorInputSchema, output: AuthorJobSchema },
   "agent:authorStatus": { input: AgentJobRefSchema, output: AuthorJobSchema },
@@ -362,6 +393,12 @@ export interface QaApi {
     /** "개인정보 확인함" 뒤에 증적 저장소에 올린다 */
     upload(input: { bundleId: string; privacyConfirmed: true }): Promise<UploadRecord>;
     uploads(input: { runId: string; executionId: string }): Promise<UploadRecord[]>;
+    /** 폴더로 내보낼 요약 묶음을 만들고 같은 가림 게이트를 통과하는지 본다(ADR 0036 결정 9). 정책 스위치(D11)·출처와 상관없다 */
+    prepareExport(input: PrepareUploadInput): Promise<ExportPreview>;
+    /** "개인정보 확인함" 뒤에 main 이 연 창에서 고른 폴더에 쓴다. 취소하면 null */
+    export(input: { bundleId: string; privacyConfirmed: true }): Promise<EvidenceExportRecord | null>;
+    /** 이번 실행 중에 내보낸 폴더를 Finder 에서 보인다 */
+    revealExport(input: { exportId: string }): Promise<{ opened: true }>;
   };
   remote: {
     /** 저장된 GitHub 토큰으로 로그인과 워크스페이스·증적 저장소 권한을 확인한다 */
@@ -372,6 +409,10 @@ export interface QaApi {
   /** 워크스페이스 저장소. main 에 직접 푸시하지 않고 작업 브랜치와 PR 로만 올린다(PLAN 4.4) */
   workspace: {
     status(): Promise<WorkspaceStatus>;
+    /** 출처를 바꾼다(로컬 ↔ GitHub, ADR 0036). 실행·플로우 만들기 중에는 거절한다. 두 출처는 폴더가 따로이고 내용을 옮기지 않는다 */
+    setSource(input: { source: WorkspaceSourceKind }): Promise<WorkspaceStatus>;
+    /** 로컬 워크스페이스 폴더를 Finder 에서 연다. 경로는 main 이 안다 */
+    reveal(): Promise<{ opened: true }>;
     connect(): Promise<WorkspaceStatus>;
     sync(): Promise<WorkspaceStatus>;
     testcases(): Promise<TestcaseList>;
@@ -400,6 +441,15 @@ export interface QaApi {
     history(input: { app: string; id: string }): Promise<TestcaseHistory>;
     /** 워크스페이스 저장소의 내 열린 PR */
     myPulls(): Promise<MyPullRequest[]>;
+    /** 내보낼 내용(로컬은 HEAD, GitHub 방식은 main) */
+    exportInfo(): Promise<ExportInfo>;
+    /** main 이 연 저장 창에서 고른 곳에 zip 으로 저장한다. 창을 닫으면 null */
+    export(): Promise<ExportResult>;
+    /** main 이 연 창에서 zip·폴더를 고르거나(로컬 워크스페이스는 GitHub 방식에서만) 읽어 견준다. 풀지 않고 읽고, 하나라도 걸리면 전체를 거절한다 */
+    importPick(input: { from: ImportSource }): Promise<ImportPickResult>;
+    /** 미리보기에서 읽은 바이트 그대로 고른 항목만 쓴다. 로컬은 main 에 한 커밋, GitHub 방식은 새 가져오기 브랜치에 한 커밋 */
+    importApply(input: ImportApplyInput): Promise<ImportApplyResult>;
+    importCancel(input: { importId: string }): Promise<{ canceled: true }>;
   };
   /** LLM 사용량·비용(PLAN 6.4). 키와 프롬프트 내용은 보내지 않는다 */
   agent: {

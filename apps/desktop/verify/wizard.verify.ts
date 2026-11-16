@@ -15,7 +15,7 @@ test("wizard: 단계 표시줄과 단계별 화면", async () => {
     await run.shot("1-claude");
     await page.getByRole("region", { name: "Claude 연결 단계" }).getByRole("button", { name: "다음" }).click();
     await run.shot("2-token");
-    await page.getByRole("region", { name: "GitHub 토큰 단계" }).getByRole("button", { name: "건너뛰기" }).click();
+    await page.getByRole("region", { name: "저장 위치 단계" }).getByRole("button", { name: "건너뛰기" }).click();
     const env = page.getByRole("region", { name: "환경 점검 단계" });
     await expect(env.getByTestId("check-xcode").getByTestId("check-status")).not.toHaveText("", { timeout: 60_000 });
     await page.waitForTimeout(500);
