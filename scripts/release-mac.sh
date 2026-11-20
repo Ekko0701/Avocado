@@ -78,6 +78,7 @@ if [ "$DMG_ONLY" -eq 1 ]; then
 else
   echo "== 빌드·서명$([ "$NOTARIZE" -eq 1 ] && echo "·.app 공증" || true)"
   rm -rf dist
+  pnpm --filter @qa/cli build
   pnpm exec electron-vite build
   # 서명 신원을 못 찾으면 멈춘다. electron-builder 는 공증 자격이 없으면 공증을 건너뛰기만 하므로 아래에서 다시 확인한다
   pnpm exec electron-builder --config electron-builder.yml --publish never \
@@ -90,6 +91,8 @@ codesign --verify --deep --strict --verbose=2 "$app"
 sig="$(codesign -dv "$app" 2>&1)"
 grep -q "^TeamIdentifier=$TEAM_ID\$" <<<"$sig" || die ".app 의 서명 팀이 $TEAM_ID 가 아니다"
 grep -q "flags=.*(runtime)" <<<"$sig" || die ".app 에 hardened runtime 이 없다"
+# 번들의 avocado 명령이 서명한 앱의 런타임(runAsNode)으로 돈다(ADR 0035 결정 6). 앱에 붙지 않는 도움말로 본다
+"$app/Contents/Resources/bin/avocado" --help >/dev/null || die "번들의 avocado 명령이 돌지 않는다(runAsNode 가 꺼졌거나 CLI 가 빠졌다)"
 
 if [ "$NOTARIZE" -eq 0 ]; then
   echo "서명까지만 했다(공증 없음). 배포하지 않는다: $DESKTOP/dist"
@@ -132,6 +135,9 @@ inside="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$check
 assess="$(spctl --assess --type exec -vv "$check/Avocado.app" 2>&1)" || die "zip 안 앱을 Gatekeeper 가 거부했다: $assess"
 grep -q "source=Notarized Developer ID" <<<"$assess" || die "zip 안 앱이 공증된 Developer ID 로 인정되지 않는다"
 codesign --verify "-R=anchor apple generic and certificate leaf[subject.OU] = \"$TEAM_ID\"" "$check/Avocado.app" || die "zip 안 앱이 팀 $TEAM_ID 의 서명이 아니다"
+# 인터넷에서 받은 것처럼 격리 표시를 붙인 사본에서도 avocado 명령이 돈다
+xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");Safari;" "$check/Avocado.app"
+"$check/Avocado.app/Contents/Resources/bin/avocado" --help >/dev/null || die "격리 표시를 붙인 앱에서 avocado 명령이 돌지 않는다"
 rm -rf "$check"
 (cd dist && shasum -a 256 "$(basename "$zip")" > "$(basename "$zip").sha256")
 

@@ -302,6 +302,9 @@ const handlers: IpcHandlers = {
   "claude:connectDesktop": () => {
     throw new Error("not used");
   },
+  "cli:info": () => {
+    throw new Error("not used");
+  },
   "setup:complete": () => {
     throw new Error("not used");
   },

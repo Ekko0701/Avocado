@@ -300,7 +300,7 @@ export class WorkspaceService {
     return (await this.author()).name;
   }
 
-  private connected(): boolean {
+  connected(): boolean {
     const source = this.source();
     return source !== null && existsSync(join(source.dir, ".git"));
   }
@@ -744,27 +744,52 @@ export class WorkspaceService {
     return ios ? { appId: ios.appId, scheme: ios.build?.scheme ?? null, configuration: ios.build?.configuration ?? null } : none;
   }
 
-  /** envKeys 는 그 TC 계정 역할의 키다. 실행은 이 키의 계정 값만 Maestro 에 넘긴다 */
-  flowsToRun(input: { app: string; target: "ios" | "android"; tcId?: string; tag?: string }): { appId: string | null; flows: { tcId: string; path: string; envKeys: string[] }[] } {
-    if (!this.connected()) throw new WorkspaceError("워크스페이스를 먼저 연결한다");
-    if (!AppIdSchema.safeParse(input.app).success) throw new WorkspaceError("앱 id 형식이 아니다");
+  /**
+   * 실행할 플로우를 고른다(ADR 0035 결정 3). 던지지 않고 무엇이 없는지를 돌려준다. 거절 코드는 startRunBatch 가 정한다.
+   * - known: 워크스페이스에 있는 앱인가. apps 는 후보로 보인다
+   * - missing: tcIds 로 골랐는데 없거나 형식 문제가 있는 TC
+   * - noFlow: 골랐지만 이 타깃의 플로우가 없는 TC
+   * - envKeys: 그 TC 계정 역할의 키. 실행은 이 키의 계정 값만 Maestro 에 넘긴다
+   * 연결 전이면 null
+   */
+  runPlan(input: { app: string; target: "ios" | "android"; tcIds?: readonly string[]; tag?: string }): {
+    known: boolean;
+    apps: string[];
+    appId: string | null;
+    flows: { tcId: string; path: string; envKeys: string[] }[];
+    missing: string[];
+    noFlow: string[];
+  } | null {
+    if (!this.connected()) return null;
     const { dir } = this.target();
     const ws = loadWorkspace(dir);
+    const apps = ws.config?.apps ?? Object.keys(ws.apps);
+    const known = AppIdSchema.safeParse(input.app).success && apps.includes(input.app);
+    if (!known) return { known, apps, appId: null, flows: [], missing: [], noFlow: [] };
     // 화면의 TC 목록과 같은 기준: 형식 문제가 있는 TC 는 돌리지 않는다
-    const picked = ws.testcases
-      .filter((t) => t.app === input.app && t.doc && !ws.issues.some((i) => i.path === t.path))
-      .filter((t) => (input.tcId ? t.id === input.tcId : t.doc?.frontMatter.status === "active" && (t.doc?.frontMatter.tags ?? []).includes(input.tag ?? "")))
-      .sort((a, b) => a.id.localeCompare(b.id));
+    const usable = ws.testcases.filter((t) => t.app === input.app && t.doc && !ws.issues.some((i) => i.path === t.path));
+    const wanted = input.tcIds ? [...new Set(input.tcIds)] : null;
+    const picked = (wanted ? usable.filter((t) => wanted.includes(t.id)) : usable.filter((t) => t.doc?.frontMatter.status === "active" && (t.doc?.frontMatter.tags ?? []).includes(input.tag ?? ""))).sort((a, b) =>
+      a.id.localeCompare(b.id),
+    );
     const accounts = ws.apps[input.app]?.accounts ?? {};
-    const out: { tcId: string; path: string; envKeys: string[] }[] = [];
+    const flows: { tcId: string; path: string; envKeys: string[] }[] = [];
+    const noFlow: string[] = [];
     for (const t of picked) {
       const flow = ws.flows.find((f) => f.app === input.app && f.target === input.target && f.tcId === t.id);
-      if (flow) out.push({ tcId: t.id, path: join(dir, flow.path), envKeys: roleKeys(accounts, t.doc?.frontMatter.account) });
+      if (flow) flows.push({ tcId: t.id, path: join(dir, flow.path), envKeys: roleKeys(accounts, t.doc?.frontMatter.account) });
+      else noFlow.push(t.id);
     }
-    if (input.tcId && out.length === 0) throw new WorkspaceError(`${input.tcId} 의 ${input.target} 플로우가 없다(${ws.layout.flowPath(input.app, input.target, input.tcId)})`);
-    if (!input.tcId && out.length === 0) throw new WorkspaceError(`태그 ${input.tag ?? ""} 인 active 테스트 케이스 중 ${input.target} 플로우가 있는 것이 없다`);
+    const missing = wanted ? wanted.filter((id) => !picked.some((t) => t.id === id)).sort() : [];
     // 빌드 없이(기기에 설치된 앱으로) 돌릴 때 ${APP_ID} 에 넣을 값
-    return { appId: ws.apps[input.app]?.config?.targets[input.target]?.appId ?? null, flows: out };
+    return { known, apps, appId: ws.apps[input.app]?.config?.targets[input.target]?.appId ?? null, flows, missing, noFlow };
+  }
+
+  /** 앱 설정에 있는 타깃. 타깃을 주지 않은 실행에서 기기를 고를 때 쓴다. 없는 앱·연결 전이면 [] */
+  appTargets(app: string): ("ios" | "android")[] {
+    if (!this.connected() || !AppIdSchema.safeParse(app).success) return [];
+    const targets = loadWorkspace(this.target().dir).apps[app]?.config?.targets ?? {};
+    return (["ios", "android"] as const).filter((t) => t in targets);
   }
 
   private testcasePath(app: string, id: string): string {

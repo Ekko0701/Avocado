@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { UpdateStatusSchema, type UpdateStatus } from "../update";
+import { CliInfoSchema, type CliInfo } from "../cli";
 import { AgentJobRefSchema, AgentUsageSchema, AuthorJobSchema, ClaudeConnectionSchema, ClaudeJudgeJobSchema, JudgementSchema, StartAuthorInputSchema, type AgentUsage, type AuthorJob, type ClaudeConnection, type ClaudeJudgeJob, type Judgement, type StartAuthorInput } from "../agent";
 import {
   SecretNameSchema,
@@ -289,6 +290,7 @@ export const ipcContract = {
   "agent:cancelClaudeJudge": { input: AgentJobRefSchema, output: ClaudeJudgeJobSchema },
   "claude:status": { input: z.undefined(), output: ClaudeConnectionSchema },
   "claude:connectDesktop": { input: z.undefined(), output: ClaudeConnectionSchema },
+  "cli:info": { input: z.undefined(), output: CliInfoSchema },
   "update:status": { input: z.undefined(), output: UpdateStatusSchema },
   "update:check": { input: z.undefined(), output: UpdateStatusSchema },
   "update:download": { input: z.undefined(), output: UpdateStatusSchema },
@@ -473,6 +475,10 @@ export interface QaApi {
     status(): Promise<ClaudeConnection>;
     /** Claude 데스크톱 앱 설정에 Avocado 를 등록한다(다른 항목은 그대로, 사본을 남긴다) */
     connectDesktop(): Promise<ClaudeConnection>;
+  };
+  /** 터미널의 avocado 명령(T-122): 번들의 명령과 PATH 에 거는 명령, 걸었는지 */
+  cli: {
+    info(): Promise<CliInfo>;
   };
   /** 새 버전 확인과 받기(SHA-256·서명 확인 뒤에만 연다). 받은 .zip 은 재시작으로 적용한다(ADR 0027) */
   update: {

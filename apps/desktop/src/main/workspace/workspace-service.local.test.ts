@@ -126,7 +126,7 @@ describe("로컬 워크스페이스 (ADR 0036)", { timeout: 30_000 }, () => {
     expect(committedFiles(localDir)).toEqual(["apps/first/flows/ios/TC-0001.meta.yaml", "apps/first/flows/ios/TC-0001.yaml"]);
 
     // 승인 단계가 없다: 저장한 플로우가 바로 실행 대상이다
-    expect(ws.flowsToRun({ app: "first", target: "ios", tcId: "TC-0001" })).toEqual({ appId: "com.example.first", flows: [{ tcId: "TC-0001", path: join(localDir, "apps/first/flows/ios/TC-0001.yaml"), envKeys: [] }] });
+    expect(ws.runPlan({ app: "first", target: "ios", tcIds: ["TC-0001"] })).toMatchObject({ appId: "com.example.first", flows: [{ tcId: "TC-0001", path: join(localDir, "apps/first/flows/ios/TC-0001.yaml"), envKeys: [] }] });
     expect((await ws.testcases()).testcases).toMatchObject([{ app: "first", id: "TC-0001", valid: true, flows: ["ios"] }]);
     expect(await ws.history("first", "TC-0001")).toMatchObject([{ author: AUTHOR, subject: "tc: TC-0001 new tc" }]);
 
@@ -180,12 +180,20 @@ describe("로컬 워크스페이스 (ADR 0036)", { timeout: 30_000 }, () => {
       cancel: (id) => ({ id }) as RunSummary,
       summary: (id) => ({ id, status: "passed" }) as RunSummary,
     });
-    const handlers = createWorkspaceRunHandlers({ workspace: ws, builds: { get: () => { throw new Error("빌드 없음"); } }, queue });
+    const sim = { id: "SIM", platform: "ios", kind: "simulator", name: "Sim", osVersion: "18.0", state: "booted", managed: true, serial: null, locale: null } as const;
+    const handlers = createWorkspaceRunHandlers({
+      workspace: ws,
+      builds: { get: () => { throw new Error("빌드 없음"); } },
+      devices: { list: () => Promise.resolve({ devices: [sim] }) },
+      queue,
+      iosDeviceProblem: () => Promise.resolve(null),
+      deviceBusy: () => null,
+    });
     await handlers["runs:startFromWorkspace"]({ app: "two", target: "ios", tag: "smoke", deviceId: "SIM", buildId: null });
     await queue.idle();
     expect(started).toEqual([
-      { appId: "com.example.two", envKeys: ["TWO_SIGNUP_PASSWORD"] },
-      { appId: "com.example.two", envKeys: [] },
+      { appId: "com.example.two", envKeys: ["TWO_SIGNUP_PASSWORD"], trigger: "manual" },
+      { appId: "com.example.two", envKeys: [], trigger: "manual" },
     ]);
   });
 

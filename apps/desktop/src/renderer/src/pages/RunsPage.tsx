@@ -35,15 +35,17 @@ export function RunsPage(props: { preset?: RunPreset | null; onOpenResults?: (ru
     void reloadRuns();
   }, [reloadRuns]);
 
-  // 실행 중인 것이 있으면 2초마다 새로 읽는다
+  // 실행 중인 것이 있으면 2초마다, 없어도 터미널(avocado CLI)에서 시작한 실행이 보이게 4초마다 새로 읽는다
   const anyActive = runs?.some(isActive) ?? false;
   const openId = openRun?.id ?? null;
   useEffect(() => {
-    if (!anyActive) return;
-    const timer = setInterval(() => {
-      void reloadRuns();
-      if (openId) void window.qa.runs.get({ runId: openId }).then(setOpenRun, () => undefined);
-    }, 2000);
+    const timer = setInterval(
+      () => {
+        void reloadRuns();
+        if (anyActive && openId) void window.qa.runs.get({ runId: openId }).then(setOpenRun, () => undefined);
+      },
+      anyActive ? 2000 : 4000,
+    );
     return () => clearInterval(timer);
   }, [anyActive, openId, reloadRuns]);
 

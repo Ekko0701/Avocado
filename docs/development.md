@@ -18,6 +18,23 @@ pnpm dev            # 개발 실행
 pnpm package        # .app·dmg 만들기 (apps/desktop/dist)
 ```
 
+## 터미널에서 실행 (개발용)
+
+`avocado` 명령은 켜져 있는 Avocado 앱의 MCP 소켓에 붙어 테스트 케이스를 실행합니다. 앱이 실행 주체이고, 결과와 증적은 앱에서 돌린 것과 똑같이 남습니다. 플로우가 있는 테스트 케이스만 돌립니다(재생, 모델을 부르지 않습니다).
+
+```bash
+pnpm avocado qa options                          # 앱·테스트 케이스·준비된 기기·빌드
+pnpm avocado qa run demo-TC-0101 --device <id>   # 실행하고 끝까지 따라간다. Ctrl-C 는 이 실행 묶음을 취소
+pnpm avocado qa run --app demo --tag smoke --json
+pnpm avocado qa status <묶음 id>
+pnpm avocado qa cancel <묶음 id>
+```
+
+- 소켓은 `AVOCADO_SOCKET`, `QA_USER_DATA_DIR/mcp/avocado.sock`, `~/Library/Application Support/Avocado/mcp/avocado.sock` 순서로 찾습니다.
+- 진행은 stderr, 요약과 `--json` 결과는 stdout 으로 나옵니다.
+- 종료 코드: 0 모두 통과, 1 실패, 2 인자 오류(없는 앱·테스트 케이스 포함), 3 앱에 연결하지 못함, 4 취소, 5 플로우가 없어 돌리지 않은 테스트 케이스가 있음, 6 시작하지 못했거나 오류.
+- 앱의 실행 큐는 한 번에 한 묶음입니다. 앱에서 차례 실행이 도는 동안에는 종료 코드 6 으로 거절됩니다.
+
 ## 앱 아이콘
 
 아이콘 원본은 `apps/desktop/build/icon-source.svg` 입니다(1024×1024, 여백 없이 꽉 채운 그림. 둥근 모서리는 시스템이 깎습니다). 고친 뒤 아래 명령으로 Icon Composer 묶음(`apps/desktop/build/icon.icon`)의 그림을 다시 만듭니다. 패키징할 때 electron-builder 가 `actool`(Xcode 26 이상)로 아이콘을 컴파일합니다.
@@ -55,6 +72,7 @@ packages/maestro      Maestro CLI 래퍼·플로우 규약
 packages/evidence     산출물 파서·가림·요약 묶음
 packages/agent        MCP 브리지·프롬프트
 packages/remote       GitHub 연동
+packages/cli          avocado 명령(앱의 MCP 소켓 클라이언트)
 examples/qa-workspace 예시 워크스페이스(가상 앱)
 ```
 

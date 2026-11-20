@@ -159,6 +159,7 @@ Claude 는 계정 비밀번호 같은 값을 보지 못합니다. Avocado 가 �
 - [설치와 첫 실행](docs/user-guide/install.md)
 - [내 Claude 로 플로우 만들기](docs/user-guide/claude-connect.md)
 - [테스트 케이스 쓰기](docs/user-guide/testcase.md)
+- [터미널에서 실행하기](docs/user-guide/terminal.md): `avocado qa run demo-TC-0101`, CI·스크립트용 종료 코드
 - [예시 워크스페이스](examples/qa-workspace): 가상 앱으로 만든 테스트 케이스·플로우 예
 
 ## 개발

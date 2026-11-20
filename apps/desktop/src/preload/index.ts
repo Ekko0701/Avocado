@@ -112,6 +112,9 @@ const api: QaApi = {
     status: () => invoke("claude:status", undefined),
     connectDesktop: () => invoke("claude:connectDesktop", undefined),
   },
+  cli: {
+    info: () => invoke("cli:info", undefined),
+  },
   update: {
     status: () => invoke("update:status", undefined),
     check: () => invoke("update:check", undefined),

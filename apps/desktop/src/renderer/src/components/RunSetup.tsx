@@ -69,9 +69,9 @@ export function RunSetup(props: { preset?: RunPreset | null; onStarted: (runId: 
   }, [reloadTargets]);
 
   const queueBusy = queue !== null && (queue.running !== null || queue.pending.length > 0);
+  // 터미널(avocado CLI)에서 시작한 차례 실행도 보이게 쉬는 동안에도 4초마다 읽는다
   useEffect(() => {
-    if (!queueBusy) return;
-    const timer = setInterval(() => void window.qa.runs.queue().then(setQueue, () => undefined), 2000);
+    const timer = setInterval(() => void window.qa.runs.queue().then(setQueue, () => undefined), queueBusy ? 2000 : 4000);
     return () => clearInterval(timer);
   }, [queueBusy]);
 
@@ -318,7 +318,8 @@ export function RunSetup(props: { preset?: RunPreset | null; onStarted: (runId: 
       {queue && (queue.running || queue.pending.length > 0 || queue.errors.length > 0) ? (
         <div className="row" data-testid="run-queue">
           <span className="hint">
-            {queue.running ? "실행 중" : "대기"} · 남은 것: {queue.pending.length ? queue.pending.join(", ") : "없음"}
+            {queue.running ? `실행 중: ${queue.running}` : "대기"} · 남은 것: {queue.pending.length ? queue.pending.join(", ") : "없음"}
+            {queue.origin && queue.origin !== "app" ? ` · 터미널에서 시작(${queue.origin})` : ""}
           </span>
           {queueBusy ? (
             <button type="button" className="secondary" onClick={() => void window.qa.runs.clearQueue().then(setQueue, (e: unknown) => setMessage({ text: errorMessage(e), error: true }))}>

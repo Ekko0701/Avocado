@@ -116,6 +116,18 @@ export function ResultsPage(props: { initialRunId?: string | null; onOpenRuns?: 
     return () => clearInterval(timer);
   }, [claudeJobId, claudeRunning]);
 
+  // 다른 화면이나 터미널(avocado CLI)에서 시작한 실행도 목록에 나타나게 4초마다 다시 읽는다.
+  // 열어 둔 실행이 아직 진행 중이면 그 상세도 다시 읽어 끝난 결과가 보이게 한다
+  const openActive = detail !== null && (detail.status === "queued" || detail.status === "running");
+  const openRunId = detail?.id ?? null;
+  useEffect(() => {
+    const timer = setInterval(() => {
+      window.qa.runs.list().then(setRuns, () => undefined);
+      if (openActive && openRunId) window.qa.runs.get({ runId: openRunId }).then(setDetail, () => undefined);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [openActive, openRunId]);
+
   // 실행을 고르면 마지막 회차와 기본 스텝(실패 스텝)을 연다
   useEffect(() => {
     if (!runId) return;

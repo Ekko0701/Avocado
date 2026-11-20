@@ -4,6 +4,7 @@ import {
   type AgentUsage,
   type AppInfo,
   type ClaudeConnection,
+  type CliInfo,
   type DbStatus,
   type IosSigningTeam,
   type RemoteVerify,
@@ -17,6 +18,7 @@ import {
 import { ClaudeConnectionPanel } from "../components/ClaudeConnectionPanel";
 import { GitHubRepoPicker } from "../components/GitHubRepoPicker";
 import { SecretRow } from "../components/SecretRow";
+import { TerminalSection } from "../components/TerminalSection";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { errorMessage } from "../lib/errors";
 import { sectionSummaries, SETTINGS_SECTIONS, type SettingsSectionId } from "../lib/settings-sections";
@@ -27,7 +29,7 @@ import { useWorkspaceStatus } from "../lib/workspace-status";
 /**
  * 설정: 왼쪽은 구역 목록(구역마다 지금 상태 한 줄), 오른쪽은 고른 구역 하나.
  * 구역은 하는 일에 따라 묶는다: GitHub(토큰·저장소·연결 확인), Claude(방식·연결, API 키 방식이면 키·상한·사용량),
- * 증적(로컬 보관·업로드 정책), 기기(언어·iPhone 러너 서명 팀), 앱 정보(버전·진단)
+ * 증적(로컬 보관·업로드 정책), 기기(언어·iPhone 러너 서명 팀), 터미널(avocado 명령을 PATH 에 걸기), 앱 정보(버전·진단)
  */
 export function SettingsPage() {
   const [state, setState] = useState<SettingsState | null>(null);
@@ -36,6 +38,17 @@ export function SettingsPage() {
   const [usage, setUsage] = useState<AgentUsage | null>(null);
   const [usageError, setUsageError] = useState<string | null>(null);
   const [update, setUpdate] = useState<UpdateStatus | null>(null);
+  const [cli, setCli] = useState<CliInfo | null>(null);
+  const [cliError, setCliError] = useState<string | null>(null);
+  const loadCli = useCallback(() => {
+    window.qa.cli.info().then(
+      (c) => {
+        setCli(c);
+        setCliError(null);
+      },
+      (e: unknown) => setCliError(errorMessage(e)),
+    );
+  }, []);
   const [section, setSection] = useState<SettingsSectionId>("github");
   const [error, setError] = useState<string | null>(null);
   const { status: workspace } = useWorkspaceStatus();
@@ -62,10 +75,11 @@ export function SettingsPage() {
 
   useEffect(() => {
     void reload();
+    loadCli();
     window.qa.update.status().then(setUpdate, () => undefined);
     // 배너에서 받기를 하면 이 화면도 맞춘다
     return onUpdateStatus(setUpdate);
-  }, [reload]);
+  }, [reload, loadCli]);
 
   if (error) {
     return (
@@ -78,7 +92,7 @@ export function SettingsPage() {
 
   const { settings } = state;
   const locked = !secrets.encryptionAvailable;
-  const summaries = sectionSummaries({ settings, secrets, claude, usage, update, source: workspace?.source ?? null });
+  const summaries = sectionSummaries({ settings, secrets, claude, usage, update, source: workspace?.source ?? null, cli });
   const secret = (name: string): SecretStatus => secrets.items.find((i) => i.name === name) ?? { name, stored: false, updatedAt: null };
 
   return (
@@ -124,6 +138,7 @@ export function SettingsPage() {
           <EvidenceSection key={String(settings.policy.evidenceUploadApproved)} settings={settings} local={workspace?.source === "local"} onSaved={reload} onOpenGitHub={() => setSection("github")} />
         ) : null}
         {section === "devices" ? <DevicesSection settings={settings} onSaved={reload} /> : null}
+        {section === "terminal" ? <TerminalSection info={cli} error={cliError} onRefresh={loadCli} /> : null}
         {section === "app" ? <AppSection status={update} onStatus={setUpdate} /> : null}
       </div>
     </div>

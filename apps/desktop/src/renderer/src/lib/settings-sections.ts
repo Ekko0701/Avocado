@@ -1,10 +1,11 @@
-import type { AgentUsage, ClaudeConnection, SecretsList, Settings, UpdateStatus, WorkspaceSourceKind } from "@qa/shared";
+import type { AgentUsage, ClaudeConnection, CliInfo, SecretsList, Settings, UpdateStatus, WorkspaceSourceKind } from "@qa/shared";
 
 export const SETTINGS_SECTIONS = [
   { id: "github", label: "GitHub" },
   { id: "claude", label: "Claude" },
   { id: "evidence", label: "증적" },
   { id: "devices", label: "기기" },
+  { id: "terminal", label: "터미널" },
   { id: "app", label: "앱 정보" },
 ] as const;
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"];
@@ -20,7 +21,7 @@ export interface SectionSummary {
 const stored = (secrets: SecretsList, name: string) => secrets.items.some((i) => i.name === name && i.stored);
 const usd = (value: number) => `$${value.toFixed(2)}`;
 
-/** 구역마다 지금 상태 한 줄. claude·usage·update·source 는 아직 못 읽었으면 null 이다. 로컬 워크스페이스는 GitHub 에 할 일이 없다(ADR 0036) */
+/** 구역마다 지금 상태 한 줄. claude·usage·update·source·cli 는 아직 못 읽었으면 null 이다. 로컬 워크스페이스는 GitHub 에 할 일이 없다(ADR 0036) */
 export function sectionSummaries(input: {
   settings: Settings;
   secrets: SecretsList;
@@ -28,8 +29,9 @@ export function sectionSummaries(input: {
   usage: AgentUsage | null;
   update: UpdateStatus | null;
   source: WorkspaceSourceKind | null;
+  cli: CliInfo | null;
 }): Record<SettingsSectionId, SectionSummary> {
-  const { settings, secrets, claude, usage, update, source } = input;
+  const { settings, secrets, claude, usage, update, source, cli } = input;
   const local = source === "local";
   const g = settings.github;
   const github: SectionSummary = local
@@ -60,6 +62,13 @@ export function sectionSummaries(input: {
     claude: claudeSummary,
     evidence: { hint: local ? `${settings.evidence.retentionDays}일 보관` : `${settings.evidence.retentionDays}일 보관 · 업로드 ${settings.policy.evidenceUploadApproved ? "켜짐" : "꺼짐"}`, dot: null },
     devices: { hint: `언어 ${settings.devices.locale}${settings.devices.iosSigningTeam ? ` · iPhone 서명 ${settings.devices.iosSigningTeam}` : ""}`, dot: null },
+    terminal: !cli
+      ? { hint: "avocado 명령", dot: null }
+      : !cli.available
+        ? { hint: "개발 실행 · pnpm avocado", dot: null }
+        : cli.link === "this"
+          ? { hint: "avocado 명령 · 연결됨", dot: "on" }
+          : { hint: "avocado 명령 · 연결 전", dot: null },
     app: {
       hint: !update ? "버전 확인 중" : update.available ? `${update.current} · 새 버전 ${update.latest ?? ""}`.trim() : update.latest ? `${update.current} · 최신 버전` : update.current,
       dot: update?.available ? "waiting" : null,

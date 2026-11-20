@@ -63,7 +63,7 @@ test("렌더러에는 Node 와 범용 IPC 가 노출되지 않는다", async () 
     require: "undefined",
     process: "undefined",
     module: "undefined",
-    qaKeys: ["agent", "app", "builds", "claude", "db", "devices", "evidence", "remote", "runs", "secrets", "settings", "setup", "update", "workspace"],
+    qaKeys: ["agent", "app", "builds", "claude", "cli", "db", "devices", "evidence", "remote", "runs", "secrets", "settings", "setup", "update", "workspace"],
     appKeys: ["getInfo", "openExternal", "ping"],
     secretKeys: ["delete", "list", "set"],
     // Claude 연결(ADR 0022)은 상태 읽기와 데스크톱 앱 등록만 연다

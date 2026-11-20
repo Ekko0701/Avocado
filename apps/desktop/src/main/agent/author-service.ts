@@ -457,6 +457,17 @@ export class AuthorService {
     }
   }
 
+  /** 이 MCP 연결이 진행 중인 작업을 맡고 있나(화면 데이터를 읽는 연결은 실행을 시작하지 못한다, ADR 0035 결정 8) */
+  holdsConnection(connectionId: string): boolean {
+    return [...this.live.values()].some((l) => l.phase !== "done" && l.claude?.claimedBy?.id === connectionId);
+  }
+
+  /** 진행 중인 플로우 만들기가 쓰는 기기. 그 기기로는 실행을 시작하지 않는다(ADR 0035 결정 4) */
+  activeDeviceId(): string | null {
+    const live = this.active && this.active !== "starting" ? this.live.get(this.active) : undefined;
+    return live && live.phase !== "done" ? live.input.deviceId : null;
+  }
+
   /** MCP 연결이 끊기면 맡은 작업을 놓는다. 다른 대화가 attach_author 로 이어받을 수 있다 */
   releaseConnection(connectionId: string): void {
     for (const live of this.live.values()) {

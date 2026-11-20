@@ -18,7 +18,7 @@ const claude = (over: Partial<ClaudeConnection> = {}): ClaudeConnection => ({
 });
 const usage = (costUsd: number, monthlyBudgetUsd = 100): AgentUsage => ({ month: "2026-11", costUsd, monthlyBudgetUsd, jobs: 1, byType: [], recent: [] });
 const update = (over: Partial<UpdateStatus> = {}): UpdateStatus => ({ current: "0.1.18", source: "acme/app", latest: null, available: false, checkedAt: null, release: null, asset: null, error: null, downloaded: null, ...over }) as UpdateStatus;
-const none = { claude: null, usage: null, update: null, source: "github" as const };
+const none = { claude: null, usage: null, update: null, source: "github" as const, cli: null };
 
 describe("설정 구역 요약", () => {
   it("GitHub: 토큰 → 저장소 순으로 남은 일을 알리고, 다 되면 저장소 이름", () => {
@@ -69,5 +69,14 @@ describe("설정 구역 요약", () => {
     const out = sectionSummaries({ settings: s, secrets: secrets(), ...none, source: "local" });
     expect(out.github).toEqual({ hint: "쓰지 않음 · 로컬 워크스페이스", dot: null });
     expect(out.evidence).toEqual({ hint: "30일 보관", dot: null });
+  });
+
+  it("터미널: 개발 실행은 pnpm avocado, 패키징한 앱은 연결 여부", () => {
+    const base = { available: true, scriptPath: "/Applications/Avocado.app/Contents/Resources/bin/avocado", linkPath: "~/.local/bin/avocado", linkCommand: "ln -sf …" };
+    const s = settings();
+    expect(sectionSummaries({ settings: s, secrets: secrets(), ...none }).terminal).toEqual({ hint: "avocado 명령", dot: null });
+    expect(sectionSummaries({ settings: s, secrets: secrets(), ...none, cli: { ...base, available: false, scriptPath: null, linkCommand: null, link: "none" } }).terminal).toEqual({ hint: "개발 실행 · pnpm avocado", dot: null });
+    expect(sectionSummaries({ settings: s, secrets: secrets(), ...none, cli: { ...base, link: "other" } }).terminal).toEqual({ hint: "avocado 명령 · 연결 전", dot: null });
+    expect(sectionSummaries({ settings: s, secrets: secrets(), ...none, cli: { ...base, link: "this" } }).terminal).toEqual({ hint: "avocado 명령 · 연결됨", dot: "on" });
   });
 });

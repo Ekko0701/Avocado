@@ -21,6 +21,9 @@ import { ProjectBuilds } from "./builds/project-builds";
 import { runToLog } from "./process/run-to-log";
 import { RunService } from "./runs/run-service";
 import { RunQueue } from "./runs/run-queue";
+import { runActivity } from "./runs/activity";
+import { collectRunOptions, startRunBatch, type RunBatchDeps } from "./runs/run-batch";
+import { createRunPort } from "./claude/run-port";
 import { EvidenceService } from "./evidence/evidence-service";
 import { AskpassServer, GitHubProvider } from "@qa/remote";
 import { WorkspaceService } from "./workspace/workspace-service";
@@ -158,7 +161,7 @@ void app.whenReady().then(() => {
     locale: () => settings.getSettings().settings.devices.locale,
     logDir: join(app.getPath("userData"), "logs"),
     // 실행·플로우 만들기가 기기를 쓰는 동안에는 지우지 않는다(runs·author 는 아래에서 만든다)
-    busy: (): string | null => authorBusy() ?? (runs.activeCount() > 0 ? "플로우 실행이 진행 중이다" : null),
+    busy: (): string | null => authorBusy() ?? runBusy(),
   });
   const builds = new BuildService({
     db,
@@ -228,6 +231,8 @@ void app.whenReady().then(() => {
     androidHome: process.env["ANDROID_HOME"] || join(app.getPath("home"), "Library", "Android", "sdk"),
     run: runCommand,
   });
+  const runQueue = new RunQueue(runs);
+  const runBusy = runActivity(runs, runQueue);
   const runPickers = {
     pickFlow: () => pick({ title: "실행할 Maestro 플로우 선택", properties: ["openFile"], filters: [{ name: "Maestro 플로우", extensions: ["yaml", "yml"] }] }),
   };
@@ -289,7 +294,7 @@ void app.whenReady().then(() => {
     token: () => settings.getSecret("githubToken"),
     askpass: getAskpass,
     // 실행·플로우 만들기가 워크스페이스 파일을 쓰는 동안에는 작업 브랜치를 바꾸지 않는다
-    busy: (except) => (except !== "author" ? authorBusy() : null) ?? (runs.activeCount() > 0 ? "플로우 실행이 진행 중이다" : null),
+    busy: (except) => (except !== "author" ? authorBusy() : null) ?? runBusy(),
     checkFlowSyntax: createMaestroSyntaxCheck({ run: runCommand, maestroBin: () => installer.maestroBin(), javaHome: () => installer.javaHome(), home: app.getPath("home") }),
     openFolder: (path) => shell.openPath(path),
     pickImport: (from) =>
@@ -373,10 +378,32 @@ void app.whenReady().then(() => {
   });
   onRunFinished = (runId) => void judge.autoJudge(runId);
   authorBusy = () => author.busy();
+  // 실행 화면과 밖의 MCP 클라이언트가 같이 쓰는 실행 묶음 입구(ADR 0035)
+  const runBatch: RunBatchDeps = {
+    workspace,
+    builds,
+    devices,
+    queue: runQueue,
+    iosDeviceProblem: async (id) => {
+      try {
+        const failed = (await iosDevice.check(id, false)).checks.filter((c) => !c.ok);
+        return failed.length > 0 ? `iPhone 이 준비되지 않았다: ${failed.map((c) => `${c.label} — ${c.detail}`).join(" / ")}` : null;
+      } catch (error) {
+        return error instanceof Error ? error.message : String(error);
+      }
+    },
+    deviceBusy: (device) => (author.activeDeviceId() === device.id ? "플로우 만들기가 이 기기를 쓰고 있다. 끝난 뒤 시작한다" : null) ?? runs.deviceBusy(device),
+  };
   // 각자의 Claude 앱 연결(D17, ADR 0022): Claude 앱이 nc 로 이 소켓에 붙어 author 도구를 부른다
   const mcpPort = routeMcpPorts([
     { tools: () => AuthorService.mcpTools(), call: (connection, name, args, signal) => author.mcpCall(connection, name, args, signal) },
     { tools: () => JudgeService.mcpTools(), call: (connection, name, args) => judge.mcpCall(connection, name, args) },
+    createRunPort({
+      start: (input, origin) => startRunBatch(runBatch, input, origin),
+      options: () => collectRunOptions({ appVersion: app.getVersion(), workspace, devices, builds, busy: () => authorBusy() ?? runBusy() }),
+      queue: runQueue,
+      holdsJob: (connectionId) => author.holdsConnection(connectionId) || judge.holdsConnection(connectionId),
+    }),
   ]);
   const mcpHost = new McpSocketHost({
     socketPath: join(app.getPath("userData"), "mcp", "avocado.sock"),
@@ -437,7 +464,7 @@ void app.whenReady().then(() => {
     showItemInFolder: (path) => shell.showItemInFolder(path),
     signerTeamId: UPDATE_SIGNER_TEAM_ID,
     installer: createSquirrelInstaller(),
-    busy: () => authorBusy() ?? (runs.activeCount() > 0 ? "플로우 실행이 진행 중이다" : null) ?? (builds.activity().running ? "빌드가 진행 중이다" : null),
+    busy: () => authorBusy() ?? runBusy() ?? (builds.activity().running ? "빌드가 진행 중이다" : null),
   });
   // 자동 E2E(패키징 안 된 앱의 테스트 데이터 폴더)에서는 주기 확인을 하지 않는다
   if (!testUserData) update.schedule();
@@ -455,7 +482,7 @@ void app.whenReady().then(() => {
   });
   registerIpcHandlers(
     ipcMain,
-    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, iosDevice, runPickers, runQueue: new RunQueue(runs), evidence, upload, exporter, remote, workspace, agentJobs, author, judge, claude, update }),
+    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, iosDevice, runPickers, runBatch, evidence, upload, exporter, remote, workspace, agentJobs, author, judge, claude, update }),
     isAllowed,
   );
   createMainWindow();

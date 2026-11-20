@@ -136,7 +136,7 @@ describe("로컬 워크스페이스 내보내기·가져오기", { timeout: 60_0
     for (const path of git(a.dir, "ls-files", "apps").split("\n").filter((x) => !skipped.has(x))) expect(readFileSync(join(b.dir, path))).toEqual(readFileSync(join(a.dir, path)));
     expect(existsSync(join(b.dir, "apps/settings/notes.txt"))).toBe(false);
     expect(git(b.dir, "status", "--porcelain")).toBe("");
-    expect(b.ws.flowsToRun({ app: "settings", target: "ios", tcId: "TC-0001" }).flows).toHaveLength(1);
+    expect(b.ws.runPlan({ app: "settings", target: "ios", tcIds: ["TC-0001"] })?.flows).toHaveLength(1);
     // 같은 미리보기로 두 번 쓰지 않는다
     await expect(b.ws.importApply({ importId: p.importId, picks: defaults(p) })).rejects.toThrow(/미리보기가 없다/);
   });

@@ -186,7 +186,7 @@ export class RunService {
    * - trigger: run.trigger 기록
    * - skipInstall: 빌드를 기록·검사하지만 이미 설치했으므로 다시 설치하지 않는다(차례 실행의 두 번째부터)
    */
-  async start(input: StartRunInput, options: { appId?: string; envKeys?: readonly string[]; trigger?: "manual" | "author"; skipInstall?: boolean } = {}): Promise<RunSummary> {
+  async start(input: StartRunInput, options: { appId?: string; envKeys?: readonly string[]; trigger?: "manual" | "author" | "mcp"; skipInstall?: boolean } = {}): Promise<RunSummary> {
     const flowPath = this.assertFlowAllowed(input.flowPath);
     const flow = readFlowInfo(flowPath);
     const device = (await this.options.devices.list()).devices.find((d) => d.id === input.deviceId);
@@ -272,11 +272,18 @@ export class RunService {
     }
   }
 
-  /** 테스트·종료 처리용: 실행이 끝날 때까지 기다린다 */
-  /** 진행 중인 실행 수(워크스페이스 브랜치를 바꾸지 않게 할 때 본다) */
+  /** 진행 중인 실행 수. "실행 중" 검사는 이것 대신 activity.ts 를 쓴다(묶음의 항목 사이도 본다) */
   activeCount(): number {
     return this.active.size;
   }
+
+  /** 이 기기에서 도는 실행이 있으면 그 이유 */
+  deviceBusy(device: Pick<Device, "platform" | "id">): string | null {
+    const runId = this.busyDevices.get(`${device.platform}:${device.id}`);
+    return runId ? `이 기기에서 이미 실행 중이다: ${runId}` : null;
+  }
+
+  /** 테스트·종료 처리용: 실행이 끝날 때까지 기다린다 */
 
   async wait(runId: string): Promise<void> {
     await this.active.get(runId)?.done;
