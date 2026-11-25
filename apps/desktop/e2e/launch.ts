@@ -20,10 +20,15 @@ export interface LaunchOptions {
   toolsFile?: string;
   /** 앱에 더 넘길 테스트 환경 변수(예: QA_E2E_GITHUB_API) */
   env?: Record<string, string>;
+  /**
+   * 새 데이터 폴더의 워크스페이스 출처(ADR 0036). 기본은 github: 기존 시험은 GitHub 방식을 본다.
+   * local 이면 설정 파일에 workspace 를 넣지 않는다. GitHub 조직이 없는 예전 파일을 읽는 길로 로컬이 된다
+   */
+  workspaceSource?: "local" | "github";
 }
 
 /** 새 데이터 폴더에 넣는 설정. 스키마가 바뀌면 테스트가 먼저 깨져서 알 수 있다. */
-function settingsJson(completed: boolean) {
+function settingsJson(completed: boolean, workspaceSource: "local" | "github") {
   return {
     version: 1,
     evidence: { retentionDays: 30 },
@@ -31,6 +36,7 @@ function settingsJson(completed: boolean) {
     devices: { locale: "ko_KR" },
     policy: { evidenceUploadApproved: false },
     setup: { completedAt: completed ? "2026-10-21T00:00:00.000Z" : null },
+    ...(workspaceSource === "github" ? { workspace: { source: "github" } } : {}),
   };
 }
 
@@ -42,7 +48,7 @@ export async function launchApp(options: LaunchOptions = {}): Promise<LaunchedAp
   const userDataDir = options.userDataDir ?? mkdtempSync(join(tmpdir(), "qa-e2e-userdata-"));
   mkdirSync(userDataDir, { recursive: true });
   if (!existsSync(join(userDataDir, "settings.json"))) {
-    writeFileSync(join(userDataDir, "settings.json"), JSON.stringify(settingsJson(options.setupCompleted ?? true)));
+    writeFileSync(join(userDataDir, "settings.json"), JSON.stringify(settingsJson(options.setupCompleted ?? true, options.workspaceSource ?? "github")));
   }
   const env: Record<string, string> = { ...(process.env as Record<string, string>), QA_USER_DATA_DIR: userDataDir };
   if (!options.realKeychain) env["QA_E2E_TEST_CRYPTO"] = "1";

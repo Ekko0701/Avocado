@@ -1,0 +1,16 @@
+#!/bin/sh
+# Avocado 앱 번들의 avocado 명령(ADR 0035 결정 6). 앱 실행 파일을 Node 로 띄워(ELECTRON_RUN_AS_NODE) 번들 안의 CLI 를 돌린다.
+# ~/.local/bin 같은 곳에 심볼릭 링크로 걸어도 링크를 따라가 번들 안을 찾는다.
+set -eu
+self="$0"
+while [ -L "$self" ]; do
+  link="$(readlink "$self")"
+  case "$link" in
+    /*) self="$link" ;;
+    *) self="$(dirname "$self")/$link" ;;
+  esac
+done
+resources="$(cd "$(dirname "$self")/.." && pwd -P)"
+# 패키징한 앱은 QA_USER_DATA_DIR 를 쓰지 않는다. CLI 도 설치한 앱의 소켓을 찾게 지운다
+unset QA_USER_DATA_DIR
+ELECTRON_RUN_AS_NODE=1 exec "$resources/../MacOS/Avocado" "$resources/cli/avocado.cjs" "$@"

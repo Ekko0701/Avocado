@@ -1,12 +1,20 @@
 import type { Build, Device, PickedFlow, RunQueueStatus, TestcaseList } from "@qa/shared";
 import { AppIdSchema } from "@qa/shared";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildLabel } from "../lib/build-label";
 import { deviceLabel } from "../lib/device-label";
 import { errorMessage } from "../lib/errors";
+import { useDevicePolling } from "../lib/use-device-polling";
+import { useWorkspaceSource } from "../lib/workspace-status";
 
 const TARGETS = ["ios", "android"] as const;
 type Target = (typeof TARGETS)[number];
+/** 다른 화면(플로우 만들기)에서 열 때 미리 고르는 테스트 케이스 */
+export interface RunPreset {
+  app: string;
+  target: Target;
+  tcId: string;
+}
 /** 실행할 것을 고르는 방법: 워크스페이스의 테스트 케이스 하나, 태그로 묶은 여럿, 워크스페이스 밖의 플로우 파일 하나 */
 type Mode = "tc" | "tag" | "file";
 const MODES: { id: Mode; label: string }[] = [
@@ -20,16 +28,17 @@ const MODES: { id: Mode; label: string }[] = [
  * 어느 방법이든 Maestro 플로우를 LLM 없이 재생한다. 테스트 케이스·태그는 main 이 워크스페이스에서 그 플로우를 찾고, 플로우 파일은 고른 파일을 그대로 쓴다.
  * 워크스페이스를 연결하지 않았으면 플로우 파일만 쓸 수 있다
  */
-export function RunSetup(props: { onStarted: (runId: string | null) => void }) {
+export function RunSetup(props: { preset?: RunPreset | null; onStarted: (runId: string | null) => void }) {
+  const local = useWorkspaceSource() === "local";
   const [list, setList] = useState<TestcaseList | null>(null);
   /** 워크스페이스 목록을 읽지 못한 이유(연결 전 등). 있으면 플로우 파일로만 실행한다 */
   const [listError, setListError] = useState<string | null>(null);
   const [builds, setBuilds] = useState<Build[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [picked, setPicked] = useState<Mode>("tc");
-  const [app, setApp] = useState("");
-  const [target, setTarget] = useState<Target>("ios");
-  const [tcId, setTcId] = useState("");
+  const [app, setApp] = useState(props.preset?.app ?? "");
+  const [target, setTarget] = useState<Target>(props.preset?.target ?? "ios");
+  const [tcId, setTcId] = useState(props.preset?.tcId ?? "");
   const [tag, setTag] = useState("");
   const [flow, setFlow] = useState<PickedFlow | null>(null);
   const [appInput, setAppInput] = useState("");
@@ -39,6 +48,8 @@ export function RunSetup(props: { onStarted: (runId: string | null) => void }) {
   const [starting, setStarting] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
 
+  // 기기를 꽂거나 빼면 새로고침 없이 기기 고르기에 반영한다(실행 중인·연결된 기기만)
+  useDevicePolling((l) => setDevices(l.devices.filter((x) => x.state === "booted")));
   const reloadTargets = useCallback(async () => {
     const [b, d] = await Promise.allSettled([window.qa.builds.list(), window.qa.devices.list()]);
     if (b.status === "fulfilled") setBuilds(b.value);
@@ -58,9 +69,9 @@ export function RunSetup(props: { onStarted: (runId: string | null) => void }) {
   }, [reloadTargets]);
 
   const queueBusy = queue !== null && (queue.running !== null || queue.pending.length > 0);
+  // 터미널(avocado CLI)에서 시작한 차례 실행도 보이게 쉬는 동안에도 4초마다 읽는다
   useEffect(() => {
-    if (!queueBusy) return;
-    const timer = setInterval(() => void window.qa.runs.queue().then(setQueue, () => undefined), 2000);
+    const timer = setInterval(() => void window.qa.runs.queue().then(setQueue, () => undefined), queueBusy ? 2000 : 4000);
     return () => clearInterval(timer);
   }, [queueBusy]);
 
@@ -68,8 +79,11 @@ export function RunSetup(props: { onStarted: (runId: string | null) => void }) {
   const mode: Mode = list ? picked : "file";
   const fromWorkspace = mode !== "file";
 
-  // 앱·타깃을 바꾸면 그 앱·타깃 것이 아닌 선택을 지운다
+  // 앱·타깃을 바꾸면 그 앱·타깃 것이 아닌 선택을 지운다. 처음 그릴 때는 미리 고른 테스트 케이스를 둔다
+  const chosen = useRef({ app, target });
   useEffect(() => {
+    if (chosen.current.app === app && chosen.current.target === target) return;
+    chosen.current = { app, target };
     setTcId("");
     setTag("");
   }, [app, target]);
@@ -253,7 +267,11 @@ export function RunSetup(props: { onStarted: (runId: string | null) => void }) {
             </label>
           )}
           <p className="hint" data-testid="run-what-hint">
-            {list ? "워크스페이스에 없는 플로우 파일을 한 번 재생합니다. 빌드를 고르면 그 빌드의 앱을 씁니다." : "워크스페이스를 연결하면 테스트 케이스·태그로도 실행할 수 있습니다."}
+            {list
+              ? "워크스페이스에 없는 플로우 파일을 한 번 재생합니다. 빌드를 고르면 그 빌드의 앱을 씁니다."
+              : local
+                ? `로컬 워크스페이스를 읽지 못했습니다${listError ? `: ${listError}` : ""}. 플로우 파일로만 실행합니다.`
+                : "워크스페이스를 연결하면 테스트 케이스·태그로도 실행할 수 있습니다."}
           </p>
         </>
       ) : null}
@@ -300,7 +318,8 @@ export function RunSetup(props: { onStarted: (runId: string | null) => void }) {
       {queue && (queue.running || queue.pending.length > 0 || queue.errors.length > 0) ? (
         <div className="row" data-testid="run-queue">
           <span className="hint">
-            {queue.running ? "실행 중" : "대기"} · 남은 것: {queue.pending.length ? queue.pending.join(", ") : "없음"}
+            {queue.running ? `실행 중: ${queue.running}` : "대기"} · 남은 것: {queue.pending.length ? queue.pending.join(", ") : "없음"}
+            {queue.origin && queue.origin !== "app" ? ` · 터미널에서 시작(${queue.origin})` : ""}
           </span>
           {queueBusy ? (
             <button type="button" className="secondary" onClick={() => void window.qa.runs.clearQueue().then(setQueue, (e: unknown) => setMessage({ text: errorMessage(e), error: true }))}>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { GitInspector } from "./components/GitInspector";
 import { Icon, type IconName } from "./components/Icon";
+import type { RunPreset } from "./components/RunSetup";
 import { Toolbar } from "./components/Toolbar";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { AuthorPage } from "./pages/AuthorPage";
@@ -17,6 +18,7 @@ import { SetupWizard } from "./pages/SetupWizard";
 import { TestAccountsPage } from "./pages/TestAccountsPage";
 import { missingAccountValues } from "./lib/account-values";
 import { onWorkspaceChanged } from "./lib/workspace-events";
+import { useWorkspaceSource } from "./lib/workspace-status";
 
 type Page = "home" | "workspace" | "testcases" | "author" | "runs" | "results" | "qajobs" | "accounts" | "devices" | "builds" | "settings" | "setup";
 
@@ -62,8 +64,12 @@ const NAV: { group: string | null; items: { id: Page; label: string; icon: IconN
 export function App() {
   const [page, setPage] = useState<Page | null>(null);
   const [resultsRunId, setResultsRunId] = useState<string | null>(null);
-  /** 오른쪽 Git 상태 인스펙터. 화면을 옮겨도 열린 채로 둔다 */
+  /** 플로우 만들기에서 "실행 화면에서 열기"로 올 때 실행 화면이 미리 고를 테스트 케이스·타깃 */
+  const [runsPreset, setRunsPreset] = useState<RunPreset | null>(null);
+  /** 오른쪽 Git 상태 인스펙터. 화면을 옮겨도 열린 채로 둔다. 로컬 워크스페이스에는 없다 */
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const local = useWorkspaceSource() === "local";
+  const inspector = inspectorOpen && !local;
 
   // 마법사를 끝내지 않았으면 마법사부터 연다.
   useEffect(() => {
@@ -96,11 +102,12 @@ export function App() {
 
   function go(next: Page) {
     setResultsRunId(null);
+    setRunsPreset(null);
     setPage(next);
   }
 
   return (
-    <div className={inspectorOpen ? "window with-inspector" : "window"}>
+    <div className={inspector ? "window with-inspector" : "window"}>
       {/* 떠 있는 유리 사이드바. 머리는 신호등 버튼 자리이자 창 끌기 영역이다 */}
       <aside className="sidebar glass">
         <div className="sidebar-head" />
@@ -151,10 +158,15 @@ export function App() {
                 setResultsRunId(runId);
                 setPage("results");
               }}
+              onOpenRuns={(preset) => {
+                setRunsPreset(preset);
+                setPage("runs");
+              }}
             />
           ) : null}
           {page === "runs" ? (
             <RunsPage
+              preset={runsPreset}
               onOpenResults={(runId) => {
                 setResultsRunId(runId);
                 setPage("results");
@@ -177,7 +189,7 @@ export function App() {
           {page === "setup" ? <SetupWizard onFinished={() => setPage("home")} onClose={() => setPage("home")} /> : null}
         </main>
       </div>
-      {inspectorOpen ? <GitInspector onClose={() => setInspectorOpen(false)} /> : null}
+      {inspector ? <GitInspector onClose={() => setInspectorOpen(false)} /> : null}
     </div>
   );
 }

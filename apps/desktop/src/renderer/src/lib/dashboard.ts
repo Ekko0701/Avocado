@@ -1,4 +1,4 @@
-import type { AuthorJob, RunDetail, RunSummary } from "@qa/shared";
+import type { AuthorJob, RunDetail, RunSummary, WorkspaceSourceKind } from "@qa/shared";
 
 /** 끝난 실행. 취소는 결과가 아니라서 세지 않는다 */
 const FINISHED = new Set<RunSummary["status"]>(["passed", "failed", "error"]);
@@ -94,7 +94,7 @@ export function runProgress(detail: RunDetail): RunProgress | null {
   return { done, total: steps.length, current: current?.description ?? null, attempt: execution.attempt };
 }
 
-export const AUTHOR_PHASE_TEXT: Record<AuthorJob["phase"], string> = {
+const AUTHOR_PHASE_TEXT: Record<AuthorJob["phase"], string> = {
   preparing: "기기와 앱을 준비하는 중",
   waiting_claude: "Claude 앱이 맡기를 기다리는 중",
   exploring: "Claude 가 화면을 탐색하는 중",
@@ -103,6 +103,11 @@ export const AUTHOR_PHASE_TEXT: Record<AuthorJob["phase"], string> = {
   saving: "작업 브랜치에 저장하는 중",
   done: "끝남",
 };
+
+/** 플로우 만들기의 지금 단계 한 줄. 로컬 워크스페이스는 작업 브랜치가 없다(ADR 0036) */
+export function authorPhaseText(phase: AuthorJob["phase"], source: WorkspaceSourceKind | null): string {
+  return phase === "saving" && source === "local" ? "로컬 워크스페이스에 저장하는 중" : AUTHOR_PHASE_TEXT[phase];
+}
 
 export const isActiveAuthor = (a: AuthorJob | null): a is AuthorJob => a !== null && (a.job.status === "queued" || a.job.status === "running");
 

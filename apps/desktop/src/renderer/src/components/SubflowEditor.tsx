@@ -2,6 +2,7 @@ import type { RequestReviewResult, SubflowList } from "@qa/shared";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { errorMessage } from "../lib/errors";
 import { notifyWorkspaceChanged } from "../lib/workspace-events";
+import { useWorkspaceSource } from "../lib/workspace-status";
 
 const MAESTRO_COMMANDS_DOC = "https://docs.maestro.dev/reference/commands-available";
 const MAESTRO_SELECTORS_DOC = "https://docs.maestro.dev/maestro-flows/flow-control-and-logic/how-to-use-selectors";
@@ -52,11 +53,12 @@ const COMMON_COMMANDS: { names: string[]; use: string; example: string }[] = [
 
 /**
  * 공통 서브플로우(그 앱 플로우 폴더의 <타깃>/common/*.yaml) 편집. 있는 파일만 고친다.
- * 저장하면 main 이 서브플로우 규약을 검사하고 그 앱의 앱 설정 작업 브랜치에 커밋한다. PR 작성은 앱 설정과 같다.
+ * 저장하면 main 이 서브플로우 규약을 검사하고 그 앱의 앱 설정 작업 브랜치에 커밋한다. PR 작성은 앱 설정과 같다. 로컬 워크스페이스는 main 에 바로 저장하고 PR 이 없다.
  * 어느 앱인지는 워크스페이스 화면의 왼쪽 목록이 정한다. 파일 목록 · 편집기 · 자주 쓰는 Maestro 명령을 나란히 둔다
  */
 export function SubflowEditor(props: { app: string; title: string; tabs?: ReactNode; hidden?: boolean; onCount?: (count: number | null) => void }) {
   const { app, onCount } = props;
+  const local = useWorkspaceSource() === "local";
   const [list, setList] = useState<SubflowList | null>(null);
   const [path, setPath] = useState<string | null>(null);
   const [text, setText] = useState("");
@@ -117,7 +119,7 @@ export function SubflowEditor(props: { app: string; title: string; tabs?: ReactN
     try {
       const r = await window.qa.workspace.saveSubflow({ app, target: current.target, name: current.name, text, summary: summary.trim() });
       setSaved({ app, label: `${current.target}/common/${current.name}`, branch: r.branch });
-      setMessage(`${r.branch} 에 커밋했습니다(${r.commit}).`);
+      setMessage(local ? `저장했습니다(${r.commit}).` : `${r.branch} 에 커밋했습니다(${r.commit}).`);
       notifyWorkspaceChanged();
       await load(app, current.path);
     } catch (e) {
@@ -239,14 +241,14 @@ export function SubflowEditor(props: { app: string; title: string; tabs?: ReactN
               <input aria-label="서브플로우 변경 요약" value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={80} placeholder="예: wait for login button" />
             </label>
             <button type="submit" disabled={!canSave}>
-              {busy ? "저장 중" : "저장(커밋)"}
+              {busy ? "저장 중" : local ? "저장" : "저장(커밋)"}
             </button>
             {changed ? (
               <button type="button" className="secondary" disabled={busy} onClick={() => setText(current.text)}>
                 되돌리기
               </button>
             ) : null}
-            {saved ? (
+            {saved && !local ? (
               <button type="button" className="secondary" disabled={busy} onClick={() => void review()}>
                 PR 작성
               </button>

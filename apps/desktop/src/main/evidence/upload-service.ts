@@ -1,8 +1,9 @@
-import { BundleError, buildSecretSet, buildSummaryBundle, checkBundle, MIN_SECRET_LENGTH, type JpegConverter, type SummaryBundle } from "@qa/evidence";
+import { checkBundle, type SummaryBundle } from "@qa/evidence";
 import type { RemoteProvider } from "@qa/remote";
-import { evidenceRepoOf, type GitHubSettings, type PrepareUploadInput, type RunDetail, type UploadPreview, type UploadRecord } from "@qa/shared";
+import { evidenceRepoOf, localWorkspaceRefusal, type GitHubSettings, type PrepareUploadInput, type UploadPreview, type UploadRecord, type WorkspaceSourceKind } from "@qa/shared";
 import { randomUUID } from "node:crypto";
 import type { AppDatabase } from "../db/database";
+import { buildGatedBundle, bundlePreview, finishedExecution, type BundleGateOptions } from "./bundle-gate";
 
 export class UploadError extends Error {
   constructor(message: string) {
@@ -11,21 +12,14 @@ export class UploadError extends Error {
   }
 }
 
-export interface UploadServiceOptions {
+export interface UploadServiceOptions extends BundleGateOptions {
   db: AppDatabase;
-  runs: { get(runId: string): RunDetail };
-  evidence: { redactedDir(runId: string, executionId: string): string };
   remote: Pick<RemoteProvider, "commitFiles" | "fileUrl">;
   /** D11 정책 스위치 */
   uploadApproved(): boolean;
+  /** 워크스페이스의 출처(ADR 0036). 로컬에는 올리기가 없다 */
+  source(): WorkspaceSourceKind;
   github(): GitHubSettings;
-  /** 가릴 값 전체(키체인의 계정 값·토큰) */
-  secrets(): string[];
-  toJpeg: JpegConverter;
-  /** 예: "Avocado 0.1.0" */
-  generator: string;
-  /** 미리보기로 보여 줄 수 있는 캡처 수(넘으면 올리지 않는다). 기본 50 */
-  maxImages?: number;
   now?: () => Date;
   newId?: () => string;
 }
@@ -40,7 +34,7 @@ interface Prepared {
 }
 
 const PREPARED_TTL_MS = 30 * 60_000;
-const MAX_THUMBNAILS = 50;
+const fail = (message: string) => new UploadError(message);
 
 /**
  * 증적 요약 묶음 업로드(PLAN 9.2~9.4). 정책 스위치가 꺼져 있으면 아무것도 하지 않는다.
@@ -59,6 +53,7 @@ export class UploadService {
 
   /** 업로드가 허용됐는지 보고 그 해의 증적 저장소를 돌려준다(이름을 그대로 정했으면 그 저장소, 아니면 접두사 + 연도) */
   private ensureAllowed(year: number): { owner: string; repo: string } {
+    if (this.options.source() === "local") throw new UploadError(localWorkspaceRefusal("증적 올리기"));
     if (!this.options.uploadApproved()) throw new UploadError("증적 업로드가 조직 정책으로 승인되지 않았다(D11). 설정의 조직 정책에서 켠다");
     const repo = evidenceRepoOf(this.options.github(), year);
     if (!repo) throw new UploadError("GitHub 조직 이름을 먼저 설정한다");
@@ -69,56 +64,16 @@ export class UploadService {
     const date = this.now();
     const repo = this.ensureAllowed(date.getFullYear());
     const run = this.options.runs.get(input.runId);
-    if (run.status === "queued" || run.status === "running") throw new UploadError("끝나지 않은 실행은 올리지 않는다");
-    const execution = run.executions.find((e) => e.id === input.executionId);
-    if (!execution) throw new UploadError(`실행을 찾지 못했다: ${input.executionId}`);
+    const execution = finishedExecution(run, input.executionId, "올리지", fail);
     const previous = this.uploads(run.id, execution.id)[0];
     if (previous) throw new UploadError(`이미 올린 실행이다: ${previous.url}`);
-    const secrets = this.options.secrets();
-    // 너무 짧아 가릴 수 없는 값이 있으면 묶음에 그대로 남을 수 있다(redact.ts MIN_SECRET_LENGTH)
-    if (buildSecretSet(secrets).unredactable > 0) throw new UploadError(`가릴 수 없을 만큼 짧은(${MIN_SECRET_LENGTH}자 미만) 비밀 값이 있어 올리지 않는다. 설정에서 확인한다`);
-    let bundle: SummaryBundle;
-    try {
-      bundle = await buildSummaryBundle({
-        meta: {
-          runId: run.id,
-          executionId: execution.id,
-          attempt: execution.attempt,
-          tcId: run.tcId,
-          app: run.app,
-          target: run.target,
-          flowName: run.flowName,
-          deviceName: run.deviceName,
-          buildLabel: run.buildLabel,
-          result: run.status,
-          flaky: run.flaky,
-          failureClass: execution.failureClass ?? (run.flaky ? "flaky" : null),
-          createdAt: run.createdAt,
-          finishedAt: run.finishedAt,
-          generator: this.options.generator,
-        },
-        redactedDir: this.options.evidence.redactedDir(run.id, execution.id),
-        includePassScreens: input.includePassScreens,
-        secrets,
-        toJpeg: this.options.toJpeg,
-        date,
-      });
-    } catch (error) {
-      if (error instanceof BundleError) throw new UploadError(error.message);
-      throw error;
-    }
-    const images = bundle.files.filter((f) => f.kind === "screen" || f.kind === "failure_screen");
-    // 미리보기로 보지 않은 캡처는 올리지 않는다
-    const maxImages = this.options.maxImages ?? MAX_THUMBNAILS;
-    if (images.length > maxImages) throw new UploadError(`캡처가 ${maxImages}장을 넘어 미리보기로 모두 확인할 수 없다(${images.length}장). 화면 캡처를 빼고 다시 만든다`);
-    const residue = checkBundle(bundle, secrets);
-    const blocked = residue.length > 0;
+    const gated = await buildGatedBundle(this.options, { run, execution, includePassScreens: input.includePassScreens, date }, "올리지", fail);
     this.sweep();
     let bundleId: string | null = null;
-    if (!blocked) {
+    if (gated.residue.length === 0) {
       bundleId = this.newId();
       this.prepared.set(bundleId, {
-        bundle,
+        bundle: gated.bundle,
         runId: run.id,
         executionId: execution.id,
         repo,
@@ -126,17 +81,7 @@ export class UploadService {
         expiresAt: date.getTime() + PREPARED_TTL_MS,
       });
     }
-    return {
-      bundleId,
-      repo: `${repo.owner}/${repo.repo}`,
-      root: bundle.root,
-      files: bundle.files.map((f) => ({ path: f.path, kind: f.kind, bytes: f.content.length })),
-      thumbnails: images.map((f) => ({ path: f.path, dataUrl: `data:image/jpeg;base64,${f.content.toString("base64")}` })),
-      totalBytes: bundle.totalBytes,
-      warnings: bundle.warnings,
-      blocked,
-      residue,
-    };
+    return { ...bundlePreview(gated, bundleId), repo: `${repo.owner}/${repo.repo}`, root: gated.bundle.root };
   }
 
   async upload(input: { bundleId: string; privacyConfirmed: true }): Promise<UploadRecord> {

@@ -14,7 +14,8 @@ export const WorkspaceConfigSchema = z.strictObject({
   /** 1: 종류별 폴더(testcases/, flows/), 2: 앱별 폴더(apps/<앱>/testcases, apps/<앱>/flows). ADR 0032 */
   schemaVersion: z.union([z.literal(1), z.literal(2)]),
   name: z.string().min(1),
-  apps: z.array(AppIdSchema).min(1),
+  /** 새 로컬 워크스페이스는 앱 없이 시작한다(ADR 0036 결정 7) */
+  apps: z.array(AppIdSchema),
   defaults: z.strictObject({ locale: LocaleSchema.optional() }).optional(),
 });
 export type WorkspaceConfig = z.infer<typeof WorkspaceConfigSchema>;

@@ -67,6 +67,39 @@ describe("설정", () => {
     service.updateSettings({ devices: { locale: "en_US" } });
     expect(JSON.parse(readFileSync(join(dir, "settings.json"), "utf8")).github).toEqual(github);
   });
+
+  // T-124 전에 쓴 settings.json 에는 workspace 가 없다
+  const legacyFile = (owner: string | null) => ({
+    ...Object.fromEntries(Object.entries(DEFAULT_SETTINGS).filter(([key]) => key !== "workspace")),
+    github: { ...DEFAULT_SETTINGS.github, owner },
+  });
+
+  it("워크스페이스 출처가 없는 예전 파일: GitHub 조직을 정해 둔 사람은 github, 아니면 local 로 읽는다 (ADR 0036)", () => {
+    writeFileSync(join(dir, "settings.json"), JSON.stringify(legacyFile("acme")));
+    const connected = makeService().getSettings();
+    expect(connected.issue).toBeNull();
+    expect(connected.settings.workspace).toEqual({ source: "github" });
+    expect(connected.settings.github.owner).toBe("acme");
+
+    writeFileSync(join(dir, "settings.json"), JSON.stringify(legacyFile(null)));
+    const fresh = makeService().getSettings();
+    expect(fresh.issue).toBeNull();
+    expect(fresh.settings.workspace).toEqual({ source: "local" });
+  });
+
+  it("다른 칸을 바꿔도 출처는 그대로고, 출처는 setWorkspaceSource 로만 바뀌어 파일에 남는다", () => {
+    writeFileSync(join(dir, "settings.json"), JSON.stringify(legacyFile("acme")));
+    const service = makeService();
+    service.updateSettings({ evidence: { retentionDays: 7 } });
+    // 조직을 지워도 GitHub 를 쓰던 사람이 말없이 로컬로 넘어가지 않는다
+    service.updateSettings({ github: { owner: null } });
+    expect(makeService().getSettings().settings).toMatchObject({ workspace: { source: "github" }, evidence: { retentionDays: 7 }, github: { owner: null } });
+
+    service.setWorkspaceSource("local");
+    expect(JSON.parse(readFileSync(join(dir, "settings.json"), "utf8")).workspace).toEqual({ source: "local" });
+    service.updateSettings({ github: { owner: "acme" } });
+    expect(makeService().getSettings().settings.workspace).toEqual({ source: "local" });
+  });
 });
 
 describe("비밀", () => {

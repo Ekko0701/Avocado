@@ -26,11 +26,12 @@ export function inProgressCount(branches: readonly WorkBranch[]): number {
   return branches.filter((b) => b.pending).length;
 }
 
-/** 작업 브랜치가 다루는 대상: TC id, 앱 설정, 폴더 구조 */
+/** 작업 브랜치가 다루는 대상: TC id, 앱 설정, 폴더 구조, 가져오기 */
 export function branchTarget(b: WorkBranch): string {
   if (b.tcId) return b.tcId;
   if (b.appSettings) return `앱 설정 · ${b.appSettings}`;
   if (/^qa\/[^/]+\/workspace\//.test(b.name)) return "폴더 구조";
+  if (/^qa\/[^/]+\/import\//.test(b.name)) return "가져오기";
   return "작업 브랜치";
 }
 

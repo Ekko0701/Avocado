@@ -1,6 +1,9 @@
 import type { IpcHandlers } from "@qa/shared";
 import { app, shell } from "electron";
+import { homedir } from "node:os";
+import { cliInfo } from "./cli/cli-info";
 import { isAllowedExternalUrl } from "./security";
+import type { EvidenceExportService } from "./evidence/export-service";
 import type { UploadService } from "./evidence/upload-service";
 import { createSettingsHandlers } from "./settings/settings-handlers";
 import type { SettingsService } from "./settings/settings-service";
@@ -8,13 +11,14 @@ import type { AppDatabase } from "./db/database";
 import { createSetupHandlers } from "./setup/setup-handlers";
 import type { SetupService } from "./setup/setup-service";
 import { createDeviceHandlers } from "./devices/device-handlers";
+import type { IosDeviceService } from "./devices/ios-device-service";
 import type { DeviceService } from "./devices/device-service";
 import { createBuildHandlers, type BuildPickers } from "./builds/build-handlers";
 import type { BuildService } from "./builds/build-service";
 import type { ProjectBuilds } from "./builds/project-builds";
 import { createRunHandlers, type RunPickers } from "./runs/run-handlers";
 import { createWorkspaceRunHandlers } from "./runs/workspace-run-handlers";
-import type { RunQueue } from "./runs/run-queue";
+import type { RunBatchDeps } from "./runs/run-batch";
 import type { RunService } from "./runs/run-service";
 import { createEvidenceHandlers } from "./evidence/evidence-handlers";
 import type { EvidenceService } from "./evidence/evidence-service";
@@ -42,10 +46,12 @@ export interface HandlerDeps {
   buildPickers: BuildPickers;
   projectBuilds: ProjectBuilds;
   runs: RunService;
+  iosDevice: IosDeviceService;
   runPickers: RunPickers;
-  runQueue: RunQueue;
+  runBatch: RunBatchDeps;
   evidence: EvidenceService;
   upload: UploadService;
+  exporter: EvidenceExportService;
   remote: RemoteProvider;
   workspace: WorkspaceService;
   agentJobs: AgentJobStore;
@@ -89,15 +95,16 @@ export function createHandlers(deps: HandlerDeps): IpcHandlers {
     ...createSettingsHandlers(deps.settings),
     "db:status": () => deps.db.status(),
     ...createSetupHandlers(deps.setup, deps.settings),
-    ...createDeviceHandlers(deps.devices),
+    ...createDeviceHandlers(deps.devices, deps.iosDevice),
     ...createBuildHandlers(deps.builds, deps.buildPickers, deps.projectBuilds),
     ...createRunHandlers(deps.runs, deps.runPickers),
-    ...createWorkspaceRunHandlers({ workspace: deps.workspace, builds: deps.builds, queue: deps.runQueue }),
-    ...createEvidenceHandlers(deps.evidence, deps.upload),
+    ...createWorkspaceRunHandlers(deps.runBatch),
+    ...createEvidenceHandlers(deps.evidence, deps.upload, deps.exporter),
     ...createRemoteHandlers(deps.remote, () => deps.settings.getSettings().settings),
     ...createWorkspaceHandlers(deps.workspace),
     ...createAgentHandlers(deps.agentJobs, deps.author, deps.judge, () => deps.settings.getSettings().settings),
     "claude:status": () => deps.claude.status(),
+    "cli:info": () => cliInfo({ packaged: app.isPackaged, resourcesPath: process.resourcesPath, home: homedir() }),
     "claude:connectDesktop": () => deps.claude.connectDesktop(),
     ...createUpdateHandlers(deps.update),
     "qajobs:list": () => deps.qaJobs.list(),

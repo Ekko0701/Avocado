@@ -2,10 +2,10 @@ import { z } from "zod";
 
 /** QA 기기 (PLAN 3.2 DeviceService, T-104). */
 export const DeviceSchema = z.strictObject({
-  /** iOS 는 UDID, Android 에뮬레이터는 AVD 이름, Android 실기기는 adb serial */
+  /** iOS 는 UDID(실기기는 하드웨어 UDID), Android 에뮬레이터는 AVD 이름, Android 실기기는 adb serial */
   id: z.string(),
   platform: z.enum(["ios", "android"]),
-  /** real: USB·무선 디버깅으로 연결한 Android 폰 (ADR 0030) */
+  /** real: USB·무선 디버깅으로 연결한 Android 폰(ADR 0030), 케이블·네트워크로 연결한 iPhone·iPad(ADR 0034) */
   kind: z.enum(["simulator", "emulator", "real"]),
   name: z.string(),
   osVersion: z.string(),
@@ -48,3 +48,29 @@ export const PrepareIosInputSchema = z.strictObject({ deviceType: z.string().min
 export const DeleteIosInputSchema = z.strictObject({ id: z.string().regex(/^[0-9A-F-]{36}$/i, "시뮬레이터 UDID 형식이 아니다") });
 export const PrepareAndroidInputSchema = z.strictObject({ avd: z.string().regex(/^[A-Za-z0-9._-]+$/).optional() });
 export const DeviceRefSchema = z.strictObject({ platform: z.enum(["ios", "android"]), id: z.string().min(1).max(128) });
+
+/** Apple 개발 팀 ID (인증서 OU) */
+export const AppleTeamIdSchema = z.string().regex(/^[A-Z0-9]{10}$/, "Apple 팀 ID 형식이 아니다");
+/** iOS 실기기 러너를 서명할 수 있는 팀: 이 Mac 키체인의 Apple Development 인증서에서 읽는다(ADR 0034) */
+export const IosSigningTeamSchema = z.strictObject({ id: AppleTeamIdSchema, name: z.string() });
+export type IosSigningTeam = z.infer<typeof IosSigningTeamSchema>;
+export const IosSigningTeamsSchema = z.array(IosSigningTeamSchema);
+
+/** iOS 실기기 준비 점검 하나 */
+export const IosDeviceCheckSchema = z.strictObject({
+  id: z.enum(["connected", "developerMode", "devToolsSecurity", "unlocked", "signingTeam", "tool", "runner"]),
+  label: z.string(),
+  ok: z.boolean(),
+  detail: z.string(),
+});
+export type IosDeviceCheck = z.infer<typeof IosDeviceCheckSchema>;
+export const IosDeviceReadinessSchema = z.strictObject({
+  deviceId: z.string(),
+  checks: z.array(IosDeviceCheckSchema),
+  ready: z.boolean(),
+});
+export type IosDeviceReadiness = z.infer<typeof IosDeviceReadinessSchema>;
+/** iPhone·iPad 하드웨어 UDID(00008160-001C79811EA80036, 예전 기기는 40자리 16진수) */
+export const IosPhysicalIdSchema = z.string().regex(/^(?:[0-9A-F]{8}-[0-9A-F]{16}|[0-9a-f]{40})$/i, "iPhone UDID 형식이 아니다");
+/** buildRunner: 점검 뒤 러너를 서명·빌드해 기기에 올린다(처음 한 번, 몇 분) */
+export const IosDeviceInputSchema = z.strictObject({ id: IosPhysicalIdSchema, buildRunner: z.boolean().default(false) });

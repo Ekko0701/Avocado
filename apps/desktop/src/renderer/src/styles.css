@@ -788,6 +788,10 @@ p.ok-text {
   background: color-mix(in srgb, var(--danger) 14%, transparent);
   color: var(--danger);
 }
+.badge.warn {
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: var(--warning);
+}
 button.badge.cell {
   cursor: pointer;
   padding: 0 8px;
@@ -3207,4 +3211,126 @@ hr.rule {
 .home-attention-table th,
 .home-attention-table td.num {
   white-space: nowrap;
+}
+
+/* 기기 › iPhone 점검: 사람이 터미널에서 실행할 명령 한 줄(ADR 0034) */
+.check-body code.command {
+  display: block;
+  margin-top: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--fill, rgba(0, 0, 0, 0.05));
+  font-size: 12px;
+  user-select: all;
+}
+
+/* 기기 준비의 탭 4개(iOS·Android·Android 폰·iPhone)는 좁은 칸 폭에 맞춰 나눠 갖는다(가로로 넘치지 않게) */
+[role="tablist"][aria-label="준비할 기기"] {
+  display: flex;
+  justify-self: stretch;
+  max-width: 100%;
+}
+[role="tablist"][aria-label="준비할 기기"] > button[role="tab"] {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 3px 6px;
+  white-space: nowrap;
+}
+
+/* ---- 워크스페이스 내보내기·가져오기(ADR 0036 결정 11) ---- */
+.ws-nav-rule {
+  width: auto;
+  height: 0;
+  margin: 4px 10px;
+  border: none;
+  border-top: 0.5px solid var(--separator);
+}
+.transfer .ws-head + .transfer-sub {
+  padding-top: 0;
+}
+.transfer .group-label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.transfer-note {
+  display: grid;
+  gap: 4px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--fill);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.transfer-note > strong {
+  font-size: 13px;
+}
+.transfer-source {
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.transfer-source .hint {
+  font-size: 12px;
+}
+.transfer-table td {
+  vertical-align: top;
+}
+.transfer-table .transfer-pick {
+  width: 28px;
+}
+.transfer-table th:nth-child(2) {
+  width: 36%;
+}
+.transfer-table td:nth-child(3) {
+  white-space: nowrap;
+}
+.transfer-note-cell {
+  font-size: 12px;
+}
+.transfer-note-cell select {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+}
+.transfer-compare-row td {
+  background: var(--surface);
+}
+.transfer-compare {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.transfer-compare + .transfer-compare {
+  margin-top: 10px;
+}
+.transfer-diff {
+  margin: 0;
+  max-height: 280px;
+  overflow: auto;
+  font-size: 11.5px;
+  line-height: 1.45;
+  white-space: pre;
+}
+.transfer-diff .diff-add {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+}
+.transfer-diff .diff-del {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.transfer-side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.transfer-done {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* 가져오기 PR 로 잠긴 테스트 케이스: 양식은 그대로 보이고 고치지 못한다 */
+fieldset.tc-fields {
+  display: contents;
 }

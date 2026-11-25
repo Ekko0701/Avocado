@@ -1,11 +1,14 @@
-import type { AgentProvider, AgentUsage, AuthorJob, Build, ClaudeConnection, Device, TestcaseSummary } from "@qa/shared";
+import type { AgentProvider, AgentUsage, AuthorJob, Build, ClaudeConnection, Device, TestcaseSummary, WorkspaceSourceKind } from "@qa/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authorSteps, failedReplayRun, stoppedTitle, type AuthorStep } from "../lib/author-steps";
 import { buildLabel } from "../lib/build-label";
-import { AUTHOR_PHASE_TEXT, elapsed } from "../lib/dashboard";
+import { authorPhaseText, elapsed } from "../lib/dashboard";
 import { errorMessage } from "../lib/errors";
 import { deviceLabel } from "../lib/device-label";
 import { TARGET_LABEL } from "../lib/results";
+import type { RunPreset } from "../components/RunSetup";
+import { useDevicePolling } from "../lib/use-device-polling";
+import { useWorkspaceSource } from "../lib/workspace-status";
 
 const JOB_STATUS: Record<string, string> = {
   queued: "대기",
@@ -21,16 +24,20 @@ type ResultTab = "draft" | "missing" | "questions" | "log";
 /** 진행 기록의 시각: "10:02:41" */
 const clock = (iso: string) => new Date(iso).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 const isRunning = (j: AuthorJob | null) => j !== null && (j.job.status === "queued" || j.job.status === "running");
-const INTRO: { title: string; body: string }[] = [
-  { title: "계정 값은 Claude 에게 보이지 않습니다.", body: "키 이름으로만 전달하고, 화면과 로그에 나온 값은 가려서 보냅니다." },
-  { title: "main 에는 바로 들어가지 않습니다.", body: "두 번 재생해 모두 통과한 플로우만 작업 브랜치에 커밋하고, PR 로 승인받습니다." },
-];
+const INTRO_SECRETS = { title: "계정 값은 Claude 에게 보이지 않습니다.", body: "키 이름으로만 전달하고, 화면과 로그에 나온 값은 가려서 보냅니다." };
+const INTRO: Record<WorkspaceSourceKind, { title: string; body: string }[]> = {
+  github: [INTRO_SECRETS, { title: "main 에는 바로 들어가지 않습니다.", body: "두 번 재생해 모두 통과한 플로우만 작업 브랜치에 커밋하고, PR 로 승인받습니다." }],
+  // 로컬 워크스페이스에는 승인 단계가 없다(ADR 0036 결정 4)
+  local: [INTRO_SECRETS, { title: "두 번 재생해 통과한 플로우만 저장합니다.", body: "만들면 로컬 워크스페이스에 저장하고 바로 실행할 수 있습니다." }],
+};
 
 /**
  * 플로우 만들기(PLAN 6.5): TC 를 골라 에이전트가 기기에서 플로우를 만들고, 앱이 2회 재생으로 확인한 뒤 작업 브랜치에 커밋한다.
  * 왼쪽은 만들 것·만들 곳, 오른쪽은 단계 표시줄과 지금 단계에 맞는 내용(요청 붙여 넣기 → 진행 → 결과)이다
  */
-export function AuthorPage(props: { onOpenResults?: (runId: string) => void }) {
+export function AuthorPage(props: { onOpenResults?: (runId: string) => void; onOpenRuns?: (preset: RunPreset) => void }) {
+  const source = useWorkspaceSource();
+  const local = source === "local";
   const [testcases, setTestcases] = useState<TestcaseSummary[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [builds, setBuilds] = useState<Build[]>([]);
@@ -47,6 +54,8 @@ export function AuthorPage(props: { onOpenResults?: (runId: string) => void }) {
   const [prMessage, setPrMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // 기기를 꽂거나 빼면 새로고침 없이 기기 고르기에 반영한다(실행 중인·연결된 기기만)
+  useDevicePolling((l) => setDevices(l.devices.filter((x) => x.state === "booted")));
   const reload = useCallback(async () => {
     const [tc, d, b, s, u, st, c] = await Promise.allSettled([
       window.qa.workspace.testcases(),
@@ -207,9 +216,13 @@ export function AuthorPage(props: { onOpenResults?: (runId: string) => void }) {
               ? "테스트 케이스를 고르면 이 타깃의 플로우가 이미 있는지 알려 줍니다."
               : !targets.includes(target)
                 ? `이 테스트 케이스는 ${TARGET_LABEL[target]} 타깃이 아닙니다.`
-                : hasFlow
-                  ? `${TARGET_LABEL[target]} 플로우가 이미 있습니다. 다시 만들면 작업 브랜치에 새로 커밋합니다.`
-                  : `${TARGET_LABEL[target]} 플로우가 아직 없습니다. 만들면 작업 브랜치에 커밋합니다.`}
+                : local
+                  ? hasFlow
+                    ? `${TARGET_LABEL[target]} 플로우가 이미 있습니다. 다시 만들면 로컬 워크스페이스에 새로 저장합니다.`
+                    : `${TARGET_LABEL[target]} 플로우가 아직 없습니다. 만들면 로컬 워크스페이스에 저장하고 바로 실행할 수 있습니다.`
+                  : hasFlow
+                    ? `${TARGET_LABEL[target]} 플로우가 이미 있습니다. 다시 만들면 작업 브랜치에 새로 커밋합니다.`
+                    : `${TARGET_LABEL[target]} 플로우가 아직 없습니다. 만들면 작업 브랜치에 커밋합니다.`}
           </p>
 
           <hr className="rule" />
@@ -281,11 +294,13 @@ export function AuthorPage(props: { onOpenResults?: (runId: string) => void }) {
         {job ? (
           <AuthorJobView
             job={job}
+            source={source}
             title={jobTitle}
             prMessage={prMessage}
             onRequestReview={() => void requestReview()}
             onRetry={retry}
             onOpenResults={props.onOpenResults}
+            onOpenRuns={props.onOpenRuns}
           />
         ) : (
           <section className="card author-progress" aria-label="플로우 만들기 진행" data-testid="author-intro">
@@ -293,7 +308,7 @@ export function AuthorPage(props: { onOpenResults?: (runId: string) => void }) {
               <h2>이렇게 진행됩니다</h2>
               <small className="hint">테스트 케이스와 기기를 고르고 시작하면 아래 순서로 진행합니다.</small>
             </div>
-            <Stepper steps={authorSteps(null, driver)} />
+            <Stepper steps={authorSteps(null, driver, source ?? "github")} />
             <div className="author-progress-body">
               <ul className="author-intro">
                 <li>
@@ -304,7 +319,7 @@ export function AuthorPage(props: { onOpenResults?: (runId: string) => void }) {
                       : "앱이 API 로 기기를 탐색해 플로우를 만듭니다. 비용은 설정의 상한 안에서 씁니다."}
                   </span>
                 </li>
-                {INTRO.map((i) => (
+                {INTRO[source ?? "github"].map((i) => (
                   <li key={i.title}>
                     <strong>{i.title}</strong>
                     <span className="hint">{i.body}</span>
@@ -384,8 +399,18 @@ function CopyRequest(props: { text: string; label: string; small?: boolean }) {
   );
 }
 
-function AuthorJobView(props: { job: AuthorJob; title: string | null; prMessage: string | null; onRequestReview: () => void; onRetry: () => void; onOpenResults?: (runId: string) => void }) {
+function AuthorJobView(props: {
+  job: AuthorJob;
+  source: WorkspaceSourceKind | null;
+  title: string | null;
+  prMessage: string | null;
+  onRequestReview: () => void;
+  onRetry: () => void;
+  onOpenResults?: (runId: string) => void;
+  onOpenRuns?: (preset: RunPreset) => void;
+}) {
   const { job } = props;
+  const local = props.source === "local";
   const s = job.job;
   const running = isRunning(job);
   const [picked, setPicked] = useState<ResultTab | null>(null);
@@ -428,7 +453,7 @@ function AuthorJobView(props: { job: AuthorJob; title: string | null; prMessage:
           {job.driver === "claude-app" ? (job.claudeClient ? ` · Claude 앱(${job.claudeClient})` : "") : ` · $${s.costUsd.toFixed(3)}`}
         </small>
       </div>
-      <Stepper steps={authorSteps(job, job.driver)} />
+      <Stepper steps={authorSteps(job, job.driver, props.source ?? "github")} />
 
       <div className="author-progress-body">
         {waiting && job.claudeRequest ? (
@@ -449,7 +474,7 @@ function AuthorJobView(props: { job: AuthorJob; title: string | null; prMessage:
         {running && !waiting ? (
           <div className="author-now" data-testid="author-now">
             <div className="author-now-title">
-              <strong>{AUTHOR_PHASE_TEXT[job.phase]}</strong>
+              <strong>{authorPhaseText(job.phase, props.source)}</strong>
               {job.phase === "exploring" && job.totalSteps > 0 ? (
                 <span className="hint">
                   스텝 {job.step} / {job.totalSteps}
@@ -470,7 +495,35 @@ function AuthorJobView(props: { job: AuthorJob; title: string | null; prMessage:
           </div>
         ) : null}
 
-        {job.result ? (
+        {job.result && local ? (
+          <div className="callout success" data-testid="author-result">
+            <div className="callout-text">
+              <strong>{job.result.unchanged ? "같은 플로우가 이미 저장돼 있어 새로 저장하지 않았습니다" : "플로우를 저장했습니다. 바로 실행할 수 있습니다"}</strong>
+              <span>
+                <code>{job.result.flowPath}</code> <span className="hint">({job.result.commit})</span>
+              </span>
+              <span className="hint">
+                재생 2번 모두 통과
+                {missing.length ? ` · 식별자 누락 ${missing.length}개` : ""}
+                {questions.length ? ` · 기획자 질문 ${questions.length}개` : ""}
+              </span>
+            </div>
+            <div className="row center">
+              {props.onOpenRuns ? (
+                <button type="button" onClick={() => props.onOpenRuns?.({ app: job.app, target: job.target, tcId: job.tcId })}>
+                  실행 화면에서 열기
+                </button>
+              ) : null}
+              {props.onOpenResults ? (
+                <button type="button" className="secondary" onClick={() => props.onOpenResults?.(job.result?.goldenRunId ?? "")}>
+                  골든 런 보기
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {job.result && !local ? (
           <div className="callout success" data-testid="author-result">
             <div className="callout-text">
               <strong>
@@ -512,13 +565,13 @@ function AuthorJobView(props: { job: AuthorJob; title: string | null; prMessage:
         {!running && !job.result ? (
           <div className="callout danger" data-testid="author-stopped">
             <div className="callout-text">
-              <strong>{stoppedTitle(job)}</strong>
+              <strong>{stoppedTitle(job, props.source ?? "github")}</strong>
               {s.error ? (
                 <span role="alert" className="error-text">
                   {s.error}
                 </span>
               ) : null}
-              {failedRun ? <span className="hint">한 번이라도 실패한 플로우는 커밋하지 않습니다. 실패한 재생의 캡처와 로그를 확인한 뒤 다시 만듭니다.</span> : null}
+              {failedRun ? <span className="hint">한 번이라도 실패한 플로우는 {local ? "저장" : "커밋"}하지 않습니다. 실패한 재생의 캡처와 로그를 확인한 뒤 다시 만듭니다.</span> : null}
             </div>
             <div className="row center">
               {failedRun && props.onOpenResults ? (

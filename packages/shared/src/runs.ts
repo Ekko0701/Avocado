@@ -105,5 +105,89 @@ export const StartFromWorkspaceInputSchema = z.strictObject({
 }).refine((v) => (v.tcId ? 1 : 0) + (v.tag ? 1 : 0) === 1, { message: "tcId 나 tag 중 하나만" });
 export type StartFromWorkspaceInput = z.infer<typeof StartFromWorkspaceInputSchema>;
 
-export const RunQueueStatusSchema = z.strictObject({ pending: z.array(z.string()), running: z.string().nullable(), errors: z.array(z.string()) });
+const TcIdSchema = z.string().regex(/^TC-\d{4,}$/);
+const TargetSchema = z.enum(["ios", "android"]);
+
+/**
+ * 실행 묶음(ADR 0035 결정 3). 실행 큐는 앱 전체에 하나이고 묶음도 한 번에 하나다.
+ * 조회·취소는 id 로만 해서 밖(CLI)에서 붙은 클라이언트가 남의 묶음을 읽거나 끄지 못하게 한다.
+ * origin 은 "app"(실행 화면) 또는 MCP 클라이언트 이름이다
+ */
+export const RunBatchItemSchema = z.strictObject({
+  tcId: TcIdSchema,
+  runId: z.string().nullable(),
+  status: z.union([z.enum(["pending"]), RunStatusSchema]),
+  failureMessage: z.string().nullable(),
+});
+export type RunBatchItem = z.infer<typeof RunBatchItemSchema>;
+export const RunBatchSchema = z.strictObject({
+  id: z.string(),
+  origin: z.string().min(1),
+  app: AppIdSchema,
+  target: TargetSchema,
+  deviceId: z.string(),
+  buildId: z.string().nullable(),
+  items: z.array(RunBatchItemSchema),
+  /** 골랐지만 이 타깃의 플로우가 없어 돌리지 않은 TC. 조용히 빼지 않는다 */
+  skipped: z.array(z.strictObject({ tcId: TcIdSchema, reason: z.enum(["no_flow"]) })),
+  state: z.enum(["running", "done"]),
+  errors: z.array(z.string()),
+});
+export type RunBatch = z.infer<typeof RunBatchSchema>;
+
+/** 실행 묶음을 시작하지 않은 이유. CLI 는 code 로 종료 코드를 정하고 message 를 그대로 보인다 */
+export const RunStartErrorCodeSchema = z.enum([
+  "unknown_app",
+  "unknown_testcase",
+  "no_flow",
+  "bad_build",
+  "device_ambiguous",
+  "device_not_ready",
+  "queue_busy",
+  "workspace_not_connected",
+  "caller_busy",
+]);
+export type RunStartErrorCode = z.infer<typeof RunStartErrorCodeSchema>;
+export const RunStartErrorSchema = z.strictObject({ code: RunStartErrorCodeSchema, message: z.string(), candidates: z.array(z.string()).optional() });
+export type RunStartError = z.infer<typeof RunStartErrorSchema>;
+
+/** MCP start_runs 의 입력. 기기·타깃을 빼면 main 이 준비된 기기가 하나일 때만 고른다(ADR 0035 결정 5) */
+export const StartRunsInputSchema = z
+  .strictObject({
+    app: AppIdSchema,
+    target: TargetSchema.optional(),
+    tcIds: z.array(TcIdSchema).min(1).max(200).optional(),
+    tag: z.string().min(1).max(60).optional(),
+    deviceId: z.string().min(1).optional(),
+    buildId: z.string().min(1).optional(),
+  })
+  .refine((v) => (v.tcIds ? 1 : 0) + (v.tag ? 1 : 0) === 1, { message: "tcIds 나 tag 중 하나만" });
+export type StartRunsInput = z.infer<typeof StartRunsInputSchema>;
+export const StartRunsResultSchema = z.union([z.strictObject({ batch: RunBatchSchema }), z.strictObject({ error: RunStartErrorSchema })]);
+export type StartRunsResult = z.infer<typeof StartRunsResultSchema>;
+export const RunsStatusInputSchema = z.strictObject({ batchId: z.string().min(1), waitSeconds: z.number().int().min(0).max(45).optional() });
+export const CancelRunsInputSchema = z.strictObject({ batchId: z.string().min(1) });
+
+/** run_options: 밖에서 실행을 고를 때 쓰는 목록 */
+export const RunOptionsSchema = z.strictObject({
+  appVersion: z.string(),
+  workspaceConnected: z.boolean(),
+  apps: z.array(z.strictObject({ app: AppIdSchema, testcases: z.array(z.strictObject({ id: TcIdSchema, title: z.string(), tags: z.array(z.string()), status: z.string(), flows: z.array(TargetSchema) })) })),
+  devices: z.array(z.strictObject({ id: z.string(), name: z.string(), platform: TargetSchema, kind: z.enum(["simulator", "emulator", "real"]) })),
+  builds: z.array(z.strictObject({ id: z.string(), app: AppIdSchema, target: TargetSchema, label: z.string(), createdAt: z.string() })),
+  busy: z.string().nullable(),
+});
+export type RunOptions = z.infer<typeof RunOptionsSchema>;
+
+/** avocado CLI 가 MCP 소켓에 붙을 때 쓰는 클라이언트 이름. 설정·툴바의 "연결된 Claude" 수에서 뺀다 */
+export const AVOCADO_CLI_CLIENT_NAME = "avocado-cli";
+
+/** 화면이 보는 차례 실행 상태. 지금 묶음(없으면 마지막 묶음)에서 계산한다 */
+export const RunQueueStatusSchema = z.strictObject({
+  pending: z.array(z.string()),
+  running: z.string().nullable(),
+  errors: z.array(z.string()),
+  batchId: z.string().nullable(),
+  origin: z.string().nullable(),
+});
 export type RunQueueStatus = z.infer<typeof RunQueueStatusSchema>;

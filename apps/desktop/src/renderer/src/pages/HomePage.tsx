@@ -1,9 +1,9 @@
-import type { AppInfo, AuthorJob, Build, Device, MyPullRequest, RunDetail, RunQueueStatus, RunSummary, SetupReport, WorkBranchList, WorkspaceStatus } from "@qa/shared";
+import type { AppInfo, AuthorJob, Build, Device, MyPullRequest, RunDetail, RunQueueStatus, RunSummary, SetupReport, WorkBranchList, WorkspaceSourceKind, WorkspaceStatus } from "@qa/shared";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { missingAccountValues } from "../lib/account-values";
 import {
   attention,
-  AUTHOR_PHASE_TEXT,
+  authorPhaseText,
   dailyCounts,
   elapsed,
   isActiveAuthor,
@@ -16,6 +16,7 @@ import { deviceLabel } from "../lib/device-label";
 import { errorMessage } from "../lib/errors";
 import { inProgressCount } from "../lib/git-state";
 import { onWorkspaceChanged } from "../lib/workspace-events";
+import { useWorkspaceSource } from "../lib/workspace-status";
 
 const RUN_STATUS: Record<RunSummary["status"], string> = { queued: "대기", running: "재생 중", passed: "통과", failed: "실패", error: "오류", canceled: "취소" };
 const badge = (s: RunSummary["status"]) => (s === "passed" ? "badge ok" : s === "failed" || s === "error" ? "badge bad" : s === "running" || s === "queued" ? "badge live" : "badge");
@@ -44,6 +45,9 @@ export function HomePage(props: { onNavigate: (to: HomeTarget) => void; onOpenRe
   const [ws, setWs] = useState<WorkspaceStatus | null>(null);
   const [branches, setBranches] = useState<WorkBranchList | null>(null);
   const [pulls, setPulls] = useState<MyPullRequest[] | null>(null);
+  /** 로컬 워크스페이스의 앱 수(환경 카드) */
+  const [appCount, setAppCount] = useState<number | null>(null);
+  const source = useWorkspaceSource();
   const [missing, setMissing] = useState<number | null>(null);
   const [devices, setDevices] = useState<Device[] | null>(null);
   const [builds, setBuilds] = useState<Build[] | null>(null);
@@ -83,6 +87,13 @@ export function HomePage(props: { onNavigate: (to: HomeTarget) => void; onOpenRe
         if (!s.connected) {
           setBranches(null);
           setPulls(null);
+          return;
+        }
+        if (s.source === "local") {
+          // 로컬에는 작업 브랜치와 PR 이 없다(ADR 0036). 환경 카드에는 앱 수를 보인다
+          setBranches(null);
+          setPulls(null);
+          window.qa.workspace.testcases().then((l) => setAppCount(l.apps.length), () => setAppCount(null));
           return;
         }
         window.qa.workspace.branches().then(setBranches, () => setBranches(null));
@@ -150,6 +161,7 @@ export function HomePage(props: { onNavigate: (to: HomeTarget) => void; onOpenRe
           details={details}
           queue={queue}
           author={isActiveAuthor(author) ? author : null}
+          source={source}
           now={now}
           onCancel={(id) => void cancel(id)}
           onClearQueue={() => void clearQueue()}
@@ -168,6 +180,7 @@ export function HomePage(props: { onNavigate: (to: HomeTarget) => void; onOpenRe
           ws={ws}
           inProgress={branches ? inProgressCount(branches.branches) : null}
           pulls={pulls}
+          appCount={appCount}
           missing={missing}
           setup={setup}
           onNavigate={props.onNavigate}
@@ -186,6 +199,7 @@ function LiveCard(props: {
   details: Record<string, RunDetail>;
   queue: RunQueueStatus | null;
   author: AuthorJob | null;
+  source: WorkspaceSourceKind | null;
   now: Date;
   onCancel: (runId: string) => void;
   onClearQueue: () => void;
@@ -259,7 +273,7 @@ function LiveCard(props: {
             <div className="home-live-body">
               <strong>{props.author.tcId}</strong>
               <span className="hint home-small">
-                {props.author.app} · {props.author.target} · {AUTHOR_PHASE_TEXT[props.author.phase]}
+                {props.author.app} · {props.author.target} · {authorPhaseText(props.author.phase, props.source)}
                 {props.author.step > 0 ? ` · 스텝 ${props.author.step}` : ""} · {elapsed(props.author.job.createdAt, props.now)}째
               </span>
             </div>
@@ -428,6 +442,7 @@ function EnvCard(props: {
   ws: WorkspaceStatus | null;
   inProgress: number | null;
   pulls: MyPullRequest[] | null;
+  appCount: number | null;
   missing: number | null;
   setup: SetupReport | null;
   onNavigate: (to: HomeTarget) => void;
@@ -451,19 +466,29 @@ function EnvCard(props: {
           value={required.length > 0 ? required.map((c) => `${c.label} ${c.detail}`).join(" · ") : warned.length > 0 ? warned.map((c) => c.label).join(" · ") : tools}
           action={required.length > 0 || warned.length > 0 ? go("setup", "설정 마법사 열기") : undefined}
         />
-        <EnvRow
-          testId="home-workspace"
-          label="워크스페이스"
-          tone={ws?.connected ? (ws.issues > 0 ? "warn" : "ok") : ws?.repo ? "warn" : "bad"}
-          value={
-            ws?.connected
-              ? `${ws.repo} · ${ws.branch}${sync.length > 0 ? ` · ${sync.join(" · ")}` : " · 원격과 같음"}`
-              : ws?.repo
-                ? `${ws.repo} 를 아직 연결하지 않았습니다`
-                : "설정에서 GitHub 조직을 정하면 연결할 수 있습니다"
-          }
-          action={go("workspace", "워크스페이스 열기")}
-        />
+        {ws?.source === "local" ? (
+          <EnvRow
+            testId="home-workspace"
+            label="워크스페이스"
+            tone={ws.issues > 0 ? "warn" : "ok"}
+            value={`이 Mac 의 로컬 워크스페이스${props.appCount === null ? "" : ` · 앱 ${props.appCount}개`}${ws.issues > 0 ? ` · 파일 문제 ${ws.issues}개` : ""}`}
+            action={go("workspace", "워크스페이스 열기")}
+          />
+        ) : (
+          <EnvRow
+            testId="home-workspace"
+            label="워크스페이스"
+            tone={ws?.connected ? (ws.issues > 0 ? "warn" : "ok") : ws?.repo ? "warn" : "bad"}
+            value={
+              ws?.connected
+                ? `${ws.repo} · ${ws.branch}${sync.length > 0 ? ` · ${sync.join(" · ")}` : " · 원격과 같음"}`
+                : ws?.repo
+                  ? `${ws.repo} 를 아직 연결하지 않았습니다`
+                  : "설정에서 GitHub 조직을 정하면 연결할 수 있습니다"
+            }
+            action={go("workspace", "워크스페이스 열기")}
+          />
+        )}
         <EnvRow
           testId="home-env-devices"
           label="기기"
@@ -478,7 +503,7 @@ function EnvCard(props: {
           value={builds === null ? "확인 중" : latest ? `${builds.length}개 · 최근 ${latest.app} ${latest.version} (${latest.buildNumber}) · ${shortDateTime(latest.createdAt)}` : "등록한 빌드가 없습니다"}
           action={go("builds", "빌드 열기")}
         />
-        {ws?.connected ? (
+        {ws?.connected && ws.source === "github" ? (
           <EnvRow
             testId="home-pulls"
             label="진행 중인 작업"

@@ -2,6 +2,7 @@ import {
   APP_SECRET_NAMES,
   applySettingsPatch,
   DEFAULT_SETTINGS,
+  migrateSettings,
   ProjectLinkSchema,
   SecretNameSchema,
   SecretValueSchema,
@@ -13,6 +14,7 @@ import {
   type Settings,
   type SettingsPatch,
   type SettingsState,
+  type WorkspaceSourceKind,
 } from "@qa/shared";
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
@@ -77,7 +79,7 @@ export class SettingsService {
 
   init(): void {
     mkdirSync(this.options.dir, { recursive: true, mode: 0o700 });
-    this.settings = this.loadFile(this.settingsPath, SettingsSchema, DEFAULT_SETTINGS, "설정");
+    this.settings = this.loadFile(this.settingsPath, SettingsSchema, DEFAULT_SETTINGS, "설정", migrateSettings);
     this.secrets = this.loadFile(this.secretsPath, SecretsFileSchema, EMPTY_SECRETS, "비밀");
   }
 
@@ -101,6 +103,14 @@ export class SettingsService {
     const others = Object.fromEntries(Object.entries(this.settings.projects).filter(([name]) => name !== app));
     const projects = link ? { ...others, [app]: { ...this.settings.projects[app], ios: ProjectLinkSchema.parse(link) } } : others;
     const next = SettingsSchema.parse({ ...this.settings, projects });
+    this.writeJson(this.settingsPath, next);
+    this.settings = next;
+    return next;
+  }
+
+  /** 워크스페이스의 출처(ADR 0036). 렌더러의 settings:update 로는 바꿀 수 없고 workspace:setSource 만 부른다 */
+  setWorkspaceSource(source: WorkspaceSourceKind): Settings {
+    const next = SettingsSchema.parse({ ...this.settings, workspace: { source } });
     this.writeJson(this.settingsPath, next);
     this.settings = next;
     return next;
@@ -165,12 +175,12 @@ export class SettingsService {
     return { name, stored: item !== undefined, updatedAt: item?.updatedAt ?? null };
   }
 
-  /** 파일이 없으면 기본값. 손상됐으면 원본을 백업하고 기본값으로 시작하며 그 사실을 issue 로 남긴다. */
-  private loadFile<T>(path: string, schema: z.ZodType<T>, fallback: T, label: string): T {
+  /** 파일이 없으면 기본값. 손상됐으면 원본을 백업하고 기본값으로 시작하며 그 사실을 issue 로 남긴다. migrate 는 예전 파일을 스키마 검사 앞에서 채운다 */
+  private loadFile<T>(path: string, schema: z.ZodType<T>, fallback: T, label: string, migrate: (raw: unknown) => unknown = (raw) => raw): T {
     if (!existsSync(path)) return fallback;
     let reason: string;
     try {
-      const parsed = schema.safeParse(JSON.parse(readFileSync(path, "utf8")));
+      const parsed = schema.safeParse(migrate(JSON.parse(readFileSync(path, "utf8"))));
       if (parsed.success) return parsed.data;
       reason = "형식 불일치";
     } catch {

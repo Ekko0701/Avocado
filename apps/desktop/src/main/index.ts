@@ -12,13 +12,18 @@ import { runCommand } from "./setup/command";
 import { ToolInstaller } from "./setup/installer";
 import { SetupService } from "./setup/setup-service";
 import { loadToolOverrides } from "./setup/tools";
+import { AgentDevice } from "./devices/agent-device";
 import { DeviceService } from "./devices/device-service";
+import { IosDeviceService } from "./devices/ios-device-service";
 import { spawnDetached } from "./devices/spawn";
 import { BuildService } from "./builds/build-service";
 import { ProjectBuilds } from "./builds/project-builds";
 import { runToLog } from "./process/run-to-log";
 import { RunService } from "./runs/run-service";
 import { RunQueue } from "./runs/run-queue";
+import { runActivity } from "./runs/activity";
+import { collectRunOptions, startRunBatch, type RunBatchDeps } from "./runs/run-batch";
+import { createRunPort } from "./claude/run-port";
 import { EvidenceService } from "./evidence/evidence-service";
 import { AskpassServer, GitHubProvider } from "@qa/remote";
 import { WorkspaceService } from "./workspace/workspace-service";
@@ -37,6 +42,7 @@ import { findClaudeDoorayToken, QaDooray } from "./qa/qa-dooray";
 import { createSquirrelInstaller } from "./update/native-updater";
 import { UpdateService } from "./update/update-service";
 import { UPDATE_RELEASE_REPO, UPDATE_SIGNER_TEAM_ID } from "./update/trust";
+import { EvidenceExportService } from "./evidence/export-service";
 import { UploadService } from "./evidence/upload-service";
 import { EvidenceRetention } from "./evidence/retention";
 import { rescrubEvidence } from "./evidence/rescrub";
@@ -47,6 +53,7 @@ import { createMaestroSyntaxCheck } from "./setup/maestro-syntax";
 import Anthropic from "@anthropic-ai/sdk";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { appendFileSync, mkdirSync } from "node:fs";
+import { userInfo } from "node:os";
 
 const devServerUrl = app.isPackaged ? undefined : process.env["ELECTRON_RENDERER_URL"];
 const rendererIndex = join(__dirname, "../renderer/index.html");
@@ -134,14 +141,33 @@ void app.whenReady().then(() => {
     run: runCommand,
     env: { HOME: app.getPath("home"), ANDROID_HOME: process.env["ANDROID_HOME"] },
   });
+  // iOS 실기기(agent-device, ADR 0034): 상태·러너 빌드는 앱 데이터 안에 둔다
+  const agentDevice = new AgentDevice({
+    entry: () => installer.agentDeviceEntry(),
+    nodeBin: process.execPath,
+    root: join(app.getPath("userData"), "agent-device"),
+    home: app.getPath("home"),
+    run: runCommand,
+    runToLog,
+  });
+  const iosDevice = new IosDeviceService({
+    run: runCommand,
+    agentDevice,
+    signingTeam: () => settings.getSettings().settings.devices.iosSigningTeam,
+    toolInstalled: () => installer.status("agent-device").installed,
+    installTool: async () => {
+      await installer.install("agent-device");
+    },
+  });
   const devices = new DeviceService({
+    iosPhysical: () => iosDevice.list(),
     run: runCommand,
     spawnDetached,
     androidHome: process.env["ANDROID_HOME"] || join(app.getPath("home"), "Library", "Android", "sdk"),
     locale: () => settings.getSettings().settings.devices.locale,
     logDir: join(app.getPath("userData"), "logs"),
     // 실행·플로우 만들기가 기기를 쓰는 동안에는 지우지 않는다(runs·author 는 아래에서 만든다)
-    busy: (): string | null => authorBusy() ?? (runs.activeCount() > 0 ? "플로우 실행이 진행 중이다" : null),
+    busy: (): string | null => authorBusy() ?? runBusy(),
   });
   const builds = new BuildService({
     db,
@@ -152,6 +178,8 @@ void app.whenReady().then(() => {
     androidHome: process.env["ANDROID_HOME"] || join(app.getPath("home"), "Library", "Android", "sdk"),
     home: app.getPath("home"),
   });
+  // 로컬 워크스페이스(ADR 0036): GitHub 저장소 없이 이 Mac 에서 혼자 쓴다
+  const localWorkspaceDir = join(app.getPath("userData"), "local-workspace");
   const pick = async (options: Electron.OpenDialogOptions): Promise<string | null> => {
     const window = BrowserWindow.getFocusedWindow();
     const result = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options);
@@ -183,6 +211,13 @@ void app.whenReady().then(() => {
   let onRunFinished: (runId: string) => void = () => undefined;
   const runs = new RunService({
     onFinished: (runId) => onRunFinished(runId),
+    iosDevice: {
+      agentDevice,
+      signingTeam: () => settings.getSettings().settings.devices.iosSigningTeam,
+      check: (id) => iosDevice.check(id, false),
+      isAppInstalled: (id, bundleId) => iosDevice.isAppInstalled(id, bundleId),
+      screenshot: (id, dest) => iosDevice.screenshot(id, dest),
+    },
     db,
     devices,
     builds,
@@ -198,11 +233,13 @@ void app.whenReady().then(() => {
         .filter((v): v is string => v !== null),
     evidenceRoot: join(app.getPath("userData"), "evidence"),
     // qa-jobs/flows: QA 수정 작업이 MCP 로 보낸 플로우를 적어 두는 곳
-    trustedFlowRoots: [join(app.getPath("userData"), "workspaces"), join(app.getPath("userData"), "qa-jobs", "flows")],
+    trustedFlowRoots: [join(app.getPath("userData"), "workspaces"), localWorkspaceDir, join(app.getPath("userData"), "qa-jobs", "flows")],
     home: app.getPath("home"),
     androidHome: process.env["ANDROID_HOME"] || join(app.getPath("home"), "Library", "Android", "sdk"),
     run: runCommand,
   });
+  const runQueue = new RunQueue(runs);
+  const runBusy = runActivity(runs, runQueue);
   const runPickers = {
     pickFlow: () => pick({ title: "실행할 Maestro 플로우 선택", properties: ["openFile"], filters: [{ name: "Maestro 플로우", extensions: ["yaml", "yml"] }] }),
   };
@@ -255,14 +292,38 @@ void app.whenReady().then(() => {
   let authorBusy: () => string | null = () => null;
   const workspace = new WorkspaceService({
     root: join(app.getPath("userData"), "workspaces"),
+    source: () => settings.getSettings().settings.workspace.source,
+    saveSource: (source) => void settings.setWorkspaceSource(source),
+    localDir: localWorkspaceDir,
+    localAuthor: userInfo().username,
     remote,
     github: () => settings.getSettings().settings.github,
     token: () => settings.getSecret("githubToken"),
     askpass: getAskpass,
     // 실행·플로우 만들기가 워크스페이스 파일을 쓰는 동안에는 작업 브랜치를 바꾸지 않는다
-    busy: (except) => (except !== "author" ? authorBusy() : null) ?? (runs.activeCount() > 0 ? "플로우 실행이 진행 중이다" : null),
+    busy: (except) => (except !== "author" ? authorBusy() : null) ?? runBusy(),
     checkFlowSyntax: createMaestroSyntaxCheck({ run: runCommand, maestroBin: () => installer.maestroBin(), javaHome: () => installer.javaHome(), home: app.getPath("home") }),
+    openFolder: (path) => shell.openPath(path),
+    pickImport: (from) =>
+      pick(
+        from === "file"
+          ? { title: "가져올 워크스페이스 zip 선택", properties: ["openFile"], filters: [{ name: "워크스페이스 zip", extensions: ["zip"] }] }
+          : { title: "가져올 워크스페이스 폴더 선택", properties: ["openDirectory"], message: "workspace.yaml 이 있는 폴더를 고릅니다" },
+      ),
+    pickExportPath: async (defaultName) => {
+      const window = BrowserWindow.getFocusedWindow();
+      const options: Electron.SaveDialogOptions = { title: "워크스페이스 내보내기", defaultPath: join(app.getPath("downloads"), defaultName), filters: [{ name: "zip", extensions: ["zip"] }] };
+      const result = window ? await dialog.showSaveDialog(window, options) : await dialog.showSaveDialog(options);
+      return result.canceled || !result.filePath ? null : result.filePath;
+    },
   });
+  if (workspace.sourceKind() === "local") {
+    // 미리 만들어 둔다. 실패하면 기록하고, 화면이 처음 부르는 workspace:status 가 같은 오류를 보여 준다
+    void workspace.ensureLocal().catch((error: unknown) => {
+      mkdirSync(logDir, { recursive: true });
+      appendFileSync(join(logDir, "workspace.log"), `${JSON.stringify({ at: new Date().toISOString(), service: "workspace", event: "ensure-local-failed", error: error instanceof Error ? error.message : String(error) })}\n`, { mode: 0o600 });
+    });
+  }
   const androidHome = process.env["ANDROID_HOME"] || join(app.getPath("home"), "Library", "Android", "sdk");
   const author = new AuthorService({
     jobs: agentJobs,
@@ -338,12 +399,34 @@ void app.whenReady().then(() => {
   });
   onRunFinished = (runId) => void judge.autoJudge(runId);
   authorBusy = () => author.busy();
+  // 실행 화면과 밖의 MCP 클라이언트가 같이 쓰는 실행 묶음 입구(ADR 0035)
+  const runBatch: RunBatchDeps = {
+    workspace,
+    builds,
+    devices,
+    queue: runQueue,
+    iosDeviceProblem: async (id) => {
+      try {
+        const failed = (await iosDevice.check(id, false)).checks.filter((c) => !c.ok);
+        return failed.length > 0 ? `iPhone 이 준비되지 않았다: ${failed.map((c) => `${c.label} — ${c.detail}`).join(" / ")}` : null;
+      } catch (error) {
+        return error instanceof Error ? error.message : String(error);
+      }
+    },
+    deviceBusy: (device) => (author.activeDeviceId() === device.id ? "플로우 만들기가 이 기기를 쓰고 있다. 끝난 뒤 시작한다" : null) ?? runs.deviceBusy(device),
+  };
   // 각자의 Claude 앱 연결(D17, ADR 0022): Claude 앱이 nc 로 이 소켓에 붙어 author 도구를 부른다
   const mcpPort = routeMcpPorts([
     { tools: () => AuthorService.mcpTools(), call: (connection, name, args, signal) => author.mcpCall(connection, name, args, signal) },
     { tools: () => JudgeService.mcpTools(), call: (connection, name, args) => judge.mcpCall(connection, name, args) },
     { tools: () => QaJobService.mcpTools(), call: (connection, name, args, signal) => qaJobs.mcpCall(connection, name, args, signal) },
     { tools: () => QaWatchService.mcpTools(), call: (_connection, name, args) => Promise.resolve(qaWatch.mcpCall(name, args)) },
+    createRunPort({
+      start: (input, origin) => startRunBatch(runBatch, input, origin),
+      options: () => collectRunOptions({ appVersion: app.getVersion(), workspace, devices, builds, busy: () => authorBusy() ?? runBusy() }),
+      queue: runQueue,
+      holdsJob: (connectionId) => author.holdsConnection(connectionId) || judge.holdsConnection(connectionId),
+    }),
   ]);
   const mcpHost = new McpSocketHost({
     socketPath: join(app.getPath("userData"), "mcp", "avocado.sock"),
@@ -366,17 +449,32 @@ void app.whenReady().then(() => {
   void mcpHost.start();
   app.on("will-quit", () => void mcpHost.close());
   const claude = new ClaudeConnectService({ host: mcpHost, home: app.getPath("home") });
+  const toJpeg = createSipsJpegConverter(runCommand, join(app.getPath("userData"), "tmp"));
+  // 앱 밖으로 나가는 증적에서 가릴 값: 키체인의 값 + 홈 폴더 경로(로그에 사용자 이름이 남는다, fixtures/README.md). 올리기와 내보내기가 같이 쓴다
+  const evidenceSecrets = (): string[] => [...allSecrets(), app.getPath("home")];
   const upload = new UploadService({
     db,
     runs,
     evidence,
     remote,
     uploadApproved: () => settings.getSettings().settings.policy.evidenceUploadApproved,
+    source: () => workspace.sourceKind(),
     github: () => settings.getSettings().settings.github,
-    // 키체인의 값 + 홈 폴더 경로(로그에 사용자 이름이 남는다, fixtures/README.md)
-    secrets: () => [...allSecrets(), app.getPath("home")],
-    toJpeg: createSipsJpegConverter(runCommand, join(app.getPath("userData"), "tmp")),
+    secrets: evidenceSecrets,
+    toJpeg,
     generator: `Avocado ${app.getVersion()}`,
+  });
+  // 증적 폴더로 내보내기(ADR 0036 결정 9). 게이트는 올리기와 같고, D11·출처는 보지 않는다
+  const exporter = new EvidenceExportService({
+    runs,
+    evidence,
+    secrets: evidenceSecrets,
+    toJpeg,
+    generator: `Avocado ${app.getVersion()}`,
+    pickFolder: () =>
+      pick({ title: "증적을 내보낼 폴더 선택", buttonLabel: "여기에 내보내기", defaultPath: app.getPath("downloads"), properties: ["openDirectory", "createDirectory"], message: "고른 폴더 안에 avocado-evidence- 로 시작하는 폴더를 만듭니다" }),
+    reveal: (path) => shell.showItemInFolder(path),
+    home: app.getPath("home"),
   });
   const update = new UpdateService({
     remote,
@@ -389,7 +487,7 @@ void app.whenReady().then(() => {
     showItemInFolder: (path) => shell.showItemInFolder(path),
     signerTeamId: UPDATE_SIGNER_TEAM_ID,
     installer: createSquirrelInstaller(),
-    busy: () => authorBusy() ?? (runs.activeCount() > 0 ? "플로우 실행이 진행 중이다" : null) ?? (builds.activity().running ? "빌드가 진행 중이다" : null),
+    busy: () => authorBusy() ?? runBusy() ?? (builds.activity().running ? "빌드가 진행 중이다" : null),
   });
   // 자동 E2E(패키징 안 된 앱의 테스트 데이터 폴더)에서는 주기 확인을 하지 않는다
   if (!testUserData) update.schedule();
@@ -407,7 +505,7 @@ void app.whenReady().then(() => {
   });
   registerIpcHandlers(
     ipcMain,
-    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, runPickers, runQueue: new RunQueue(runs), evidence, upload, remote, workspace, agentJobs, author, judge, claude, update, qaJobs, qaWatch, qaDooray, importDoorayToken: () => {
+    createHandlers({ settings, db, setup, devices, builds, buildPickers, projectBuilds, runs, iosDevice, runPickers, runBatch, evidence, upload, exporter, remote, workspace, agentJobs, author, judge, claude, update, qaJobs, qaWatch, qaDooray, importDoorayToken: () => {
       const token = findClaudeDoorayToken(join(app.getPath("home"), ".claude.json"));
       if (token) settings.setSecret(QA_WATCH_DOORAY_TOKEN_SECRET, token);
       return token !== null;

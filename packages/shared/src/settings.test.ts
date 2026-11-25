@@ -3,6 +3,7 @@ import {
   APP_SECRET_NAMES,
   applySettingsPatch,
   DEFAULT_SETTINGS,
+  migrateSettings,
   evidenceChoice,
   evidencePrefixOf,
   evidenceRepoOf,
@@ -75,6 +76,26 @@ describe("Settings", () => {
     const parsed = SettingsSchema.parse(legacy);
     expect(parsed.setup).toEqual({ completedAt: null });
     expect(SettingsPatchSchema.safeParse({ setup: { completedAt: "2026-10-21T00:00:00.000Z" } }).success).toBe(false);
+  });
+
+  it("워크스페이스 출처: 기본값이 없어 빠진 파일은 통과하지 못하고, migrateSettings 가 예전 파일을 채운다 (ADR 0036)", () => {
+    expect(DEFAULT_SETTINGS.workspace).toEqual({ source: "local" });
+    const without = (...keys: string[]) => Object.fromEntries(Object.entries(DEFAULT_SETTINGS).filter(([key]) => !keys.includes(key)));
+    const legacy = without("workspace");
+    expect(SettingsSchema.safeParse(legacy).success).toBe(false);
+    expect(SettingsSchema.parse(migrateSettings(legacy)).workspace).toEqual({ source: "local" });
+    const connected = { ...legacy, github: { ...DEFAULT_SETTINGS.github, owner: "acme" } };
+    expect(SettingsSchema.parse(migrateSettings(connected)).workspace).toEqual({ source: "github" });
+    // github 칸 자체가 없던 더 예전 파일도 로컬이다
+    expect(SettingsSchema.parse(migrateSettings(without("workspace", "github"))).workspace).toEqual({ source: "local" });
+    // 이미 정한 출처는 건드리지 않는다
+    expect(migrateSettings({ ...connected, workspace: { source: "local" } })).toMatchObject({ workspace: { source: "local" } });
+    // JSON 객체가 아니면 그대로 넘겨 스키마가 거절하게 둔다
+    expect(migrateSettings(null)).toBeNull();
+    expect(migrateSettings([])).toEqual([]);
+    // 출처는 부분 변경으로 바꾸지 못한다
+    expect(SettingsPatchSchema.safeParse({ workspace: { source: "github" } }).success).toBe(false);
+    expect(applySettingsPatch({ ...DEFAULT_SETTINGS, workspace: { source: "github" } }, { github: { owner: null } }).workspace).toEqual({ source: "github" });
   });
 
   it("범위를 벗어나거나 모르는 필드가 있는 패치를 거부한다", () => {

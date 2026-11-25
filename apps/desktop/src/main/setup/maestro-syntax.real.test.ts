@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { lintSubflow } from "@qa/workspace";
+import { defaultSubflows, lintSubflow, TargetSchema } from "@qa/workspace";
 import { runCommand } from "./command";
 import { createMaestroSyntaxCheck } from "./maestro-syntax";
 
@@ -20,6 +20,10 @@ describe.skipIf(!enabled)("Maestro check-syntax (실제 Maestro)", { timeout: 60
 
   it("규약에 맞는 서브플로우는 통과한다", async () => {
     await expect(check(`${head}- clearKeychain\n- launchApp:\n    clearState: true\n- extendedWaitUntil:\n    visible: "로그인"\n    timeout: 15000\n- runFlow: close-keyboard.yaml\n`)).resolves.toBeUndefined();
+  });
+
+  it.each(TargetSchema.options)("로컬 워크스페이스의 %s 기본 서브플로우는 통과한다(ADR 0036 결정 8)", async (target) => {
+    for (const file of defaultSubflows(target)) await expect(check(file.text), file.name).resolves.toBeUndefined();
   });
 
   it("없는 명령과 없는 옵션은 행·열과 함께 막는다", async () => {

@@ -21,7 +21,7 @@ export class InstallBusyError extends Error {
 }
 
 const ManifestSchema = z.strictObject({
-  id: z.enum(["jre", "maestro"]),
+  id: z.enum(["jre", "maestro", "agent-device"]),
   version: z.string(),
   sha256: z.string(),
   /** 설치 폴더 기준 상대 경로. jre 는 JAVA_HOME, maestro 는 실행 파일 */
@@ -91,6 +91,11 @@ export class ToolInstaller {
   /** 설치된 maestro 실행 파일. 없으면 null */
   maestroBin(): string | null {
     return this.status("maestro").path;
+  }
+
+  /** 설치된 agent-device 진입점(bin/agent-device.mjs). 없으면 null */
+  agentDeviceEntry(): string | null {
+    return this.status("agent-device").path;
   }
 
   async install(id: ToolId): Promise<ToolStatus> {
@@ -176,10 +181,14 @@ export class ToolInstaller {
   }
 }
 
-/** 압축 구조에서 진입점을 찾는다. jre: <top>/Contents/Home (bin/java 확인), maestro: maestro/bin/maestro */
+/** 압축 구조에서 진입점을 찾는다. jre: <top>/Contents/Home (bin/java 확인), maestro: maestro/bin/maestro, agent-device: package/bin/agent-device.mjs(npm 묶음) */
 function findEntry(id: ToolId, root: string): string | null {
   if (id === "maestro") {
     return existsSync(join(root, "maestro", "bin", "maestro")) ? join("maestro", "bin", "maestro") : null;
+  }
+  if (id === "agent-device") {
+    const entry = join("package", "bin", "agent-device.mjs");
+    return existsSync(join(root, entry)) ? entry : null;
   }
   for (const top of readdirSync(root)) {
     const home = join(top, "Contents", "Home");

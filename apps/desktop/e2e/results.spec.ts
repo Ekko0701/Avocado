@@ -1,7 +1,8 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { expect, test } from "@playwright/test";
-import { cpSync, mkdirSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { parseExecution } from "../../../packages/evidence/src/index";
@@ -234,6 +235,84 @@ test("증적 올리기: 정책 스위치가 켜져야 보이고, 미리보기·�
   } finally {
     await fake.close();
   }
+});
+
+test("증적 폴더로 내보내기: 로컬 워크스페이스·정책 꺼짐에서도 결과 화면에서 미리보기·개인정보 확인 뒤 고른 폴더에 보고서와 캡처가 생기고 비밀 값은 없다 (T-126)", async () => {
+  const target = mkdtempSync(join(tmpdir(), "qa-e2e-export-"));
+  const first = await launchApp({ workspaceSource: "local" });
+  const { userDataDir } = first;
+  await first.app.close();
+  seed(userDataDir, [{ id: "run-fail", fixture: "ios-fail", tcId: "TC-0101", flowName: "TC-0101 설정 검색", target: "ios", status: "failed", createdAt: "2026-10-22T01:00:00.000Z" }]);
+
+  const { app, page } = await launchApp({ userDataDir });
+  await page.evaluate(
+    async ({ id, pw }) => {
+      await window.qa.secrets.set({ name: "account:settings:QA_FIXTURE_ACCOUNT_ID", value: id });
+      await window.qa.secrets.set({ name: "account:settings:QA_FIXTURE_ACCOUNT_PW", value: pw });
+    },
+    { id: FAKE_ACCOUNT_ID, pw: FAKE_ACCOUNT_PW },
+  );
+  const settings = await page.evaluate(() => window.qa.settings.get());
+  expect(settings.settings.policy.evidenceUploadApproved).toBe(false);
+  expect(settings.settings.github.owner).toBeNull();
+  // 폴더 고르기 창과 Finder 는 main 에서 바꿔 끼운다(실제 창을 띄우지 않는다)
+  const pickFolder = (picked: string | null) =>
+    app.evaluate(({ dialog }, picked) => {
+      (dialog as unknown as { showOpenDialog: unknown }).showOpenDialog = () => Promise.resolve(picked ? { canceled: false, filePaths: [picked] } : { canceled: true, filePaths: [] });
+    }, picked);
+  await app.evaluate(({ shell }) => {
+    const revealed: string[] = [];
+    (globalThis as unknown as { revealed: string[] }).revealed = revealed;
+    (shell as unknown as { showItemInFolder: unknown }).showItemInFolder = (path: string) => revealed.push(path);
+  });
+
+  await page.getByRole("button", { name: "결과", exact: true }).click();
+  await page.getByTestId("results-run-run-fail").click();
+  const tabs = page.getByRole("tablist", { name: "증적" });
+  await expect(tabs.getByRole("tab", { name: "증적 올리기" })).toHaveCount(0);
+  await tabs.getByRole("tab", { name: "폴더로 내보내기" }).click();
+  const panel = page.getByTestId("evidence-export");
+  await panel.getByRole("button", { name: "요약 묶음 만들기" }).click();
+  const preview = panel.getByTestId("export-preview");
+  await expect(preview).toContainText("avocado-evidence-TC-0101-run-fail");
+  await expect(preview).toContainText("report.md");
+  await expect(preview.locator("img").first()).toBeVisible();
+  const exportButton = panel.getByRole("button", { name: "폴더로 내보내기…" });
+  await expect(exportButton).toBeDisabled();
+  expect(await page.evaluate(() => window.qa.evidence.export({ bundleId: "x", privacyConfirmed: false as unknown as true }).then(() => "ok", (e: unknown) => String(e)))).toContain("invalid-input");
+  await panel.getByLabel(/개인정보 확인함/).check();
+
+  // 고르기를 취소하면 아무것도 쓰지 않고 미리보기가 남는다
+  await pickFolder(null);
+  await exportButton.click();
+  await expect(panel.getByTestId("export-message")).toHaveText("폴더를 고르지 않아 내보내지 않았습니다");
+  expect(readdirSync(target)).toEqual([]);
+
+  await pickFolder(target);
+  await exportButton.click();
+  await expect(panel.getByTestId("export-record")).toContainText(join(target, "avocado-evidence-TC-0101-run-fail"));
+  const folder = join(target, "avocado-evidence-TC-0101-run-fail");
+  expect(readFileSync(join(folder, "report.md"), "utf8")).toContain("TC-0101");
+  const jpgs = readdirSync(join(folder, "screens")).filter((f) => f.endsWith(".jpg"));
+  expect(jpgs.length).toBeGreaterThan(0);
+  // 진짜 JPEG(sips 변환)
+  expect(readFileSync(join(folder, "screens", jpgs[0] ?? "")).subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))).toBe(true);
+  const written = readdirSync(folder, { recursive: true, withFileTypes: true })
+    .filter((e) => e.isFile())
+    .map((e) => readFileSync(join(e.parentPath, e.name)).toString("latin1"))
+    .join("\n");
+  for (const secret of [FAKE_ACCOUNT_ID, FAKE_ACCOUNT_PW]) expect(written).not.toContain(secret);
+
+  await panel.getByRole("button", { name: "Finder 에서 보기" }).click();
+  await expect.poll(() => app.evaluate(() => (globalThis as unknown as { revealed: string[] }).revealed)).toEqual([folder]);
+
+  // 같은 실행을 다시 내보내면 덮어쓰지 않고 -2 폴더가 생긴다
+  await panel.getByRole("button", { name: "요약 묶음 만들기" }).click();
+  await panel.getByLabel(/개인정보 확인함/).check();
+  await panel.getByRole("button", { name: "폴더로 내보내기…" }).click();
+  await expect(panel.getByTestId("export-record").first()).toContainText("avocado-evidence-TC-0101-run-fail-2");
+  expect(readdirSync(target).sort()).toEqual(["avocado-evidence-TC-0101-run-fail", "avocado-evidence-TC-0101-run-fail-2"]);
+  await app.close();
 });
 
 test("화면 판정(API 키 방식): 저장된 판정은 스텝 배지·상세로 보이고 실행 결과는 그대로다. 키가 없으면 판정하지 않는다 (T-115)", async () => {

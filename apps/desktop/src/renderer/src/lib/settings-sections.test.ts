@@ -18,7 +18,7 @@ const claude = (over: Partial<ClaudeConnection> = {}): ClaudeConnection => ({
 });
 const usage = (costUsd: number, monthlyBudgetUsd = 100): AgentUsage => ({ month: "2026-11", costUsd, monthlyBudgetUsd, jobs: 1, byType: [], recent: [] });
 const update = (over: Partial<UpdateStatus> = {}): UpdateStatus => ({ current: "0.1.18", source: "acme/app", latest: null, available: false, checkedAt: null, release: null, asset: null, error: null, downloaded: null, ...over }) as UpdateStatus;
-const none = { claude: null, usage: null, update: null };
+const none = { claude: null, usage: null, update: null, source: "github" as const, cli: null };
 
 describe("설정 구역 요약", () => {
   it("GitHub: 토큰 → 저장소 순으로 남은 일을 알리고, 다 되면 저장소 이름", () => {
@@ -54,7 +54,7 @@ describe("설정 구역 요약", () => {
   });
 
   it("증적·기기·앱 정보는 지금 값을 보인다", () => {
-    const s = settings({ evidence: { retentionDays: 14 }, policy: { evidenceUploadApproved: true }, devices: { locale: "en_US" } });
+    const s = settings({ evidence: { retentionDays: 14 }, policy: { evidenceUploadApproved: true }, devices: { locale: "en_US", iosSigningTeam: null } });
     const out = sectionSummaries({ settings: s, secrets: secrets(), ...none });
     expect(out.evidence).toEqual({ hint: "14일 보관 · 업로드 켜짐", dot: null });
     expect(out.devices).toEqual({ hint: "언어 en_US", dot: null });
@@ -62,5 +62,21 @@ describe("설정 구역 요약", () => {
     expect(sectionSummaries({ settings: s, secrets: secrets(), ...none, update: update() }).app).toEqual({ hint: "0.1.18", dot: null });
     expect(sectionSummaries({ settings: s, secrets: secrets(), ...none, update: update({ latest: "v0.1.18" }) }).app).toEqual({ hint: "0.1.18 · 최신 버전", dot: null });
     expect(sectionSummaries({ settings: s, secrets: secrets(), ...none, update: update({ latest: "v0.2.0", available: true }) }).app).toEqual({ hint: "0.1.18 · 새 버전 v0.2.0", dot: "waiting" });
+  });
+
+  it("로컬 워크스페이스: GitHub 는 할 일이 아니고 증적은 올리기를 말하지 않는다", () => {
+    const s = settings({ evidence: { retentionDays: 30 }, policy: { evidenceUploadApproved: true } });
+    const out = sectionSummaries({ settings: s, secrets: secrets(), ...none, source: "local" });
+    expect(out.github).toEqual({ hint: "쓰지 않음 · 로컬 워크스페이스", dot: null });
+    expect(out.evidence).toEqual({ hint: "30일 보관", dot: null });
+  });
+
+  it("터미널: 개발 실행은 pnpm avocado, 패키징한 앱은 연결 여부", () => {
+    const base = { available: true, scriptPath: "/Applications/Avocado.app/Contents/Resources/bin/avocado", linkPath: "~/.local/bin/avocado", linkCommand: "ln -sf …" };
+    const s = settings();
+    expect(sectionSummaries({ settings: s, secrets: secrets(), ...none }).terminal).toEqual({ hint: "avocado 명령", dot: null });
+    expect(sectionSummaries({ settings: s, secrets: secrets(), ...none, cli: { ...base, available: false, scriptPath: null, linkCommand: null, link: "none" } }).terminal).toEqual({ hint: "개발 실행 · pnpm avocado", dot: null });
+    expect(sectionSummaries({ settings: s, secrets: secrets(), ...none, cli: { ...base, link: "other" } }).terminal).toEqual({ hint: "avocado 명령 · 연결 전", dot: null });
+    expect(sectionSummaries({ settings: s, secrets: secrets(), ...none, cli: { ...base, link: "this" } }).terminal).toEqual({ hint: "avocado 명령 · 연결됨", dot: "on" });
   });
 });

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AppleTeamIdSchema } from "./devices";
 
 /**
  * 앱 설정(비밀 아님)과 비밀의 스키마 (PLAN 10.3, 12장 "설정").
@@ -77,6 +78,10 @@ export type ProjectLink = z.infer<typeof ProjectLinkSchema>;
 export const AgentProviderSchema = z.enum(["claude-app", "api"]);
 export type AgentProvider = z.infer<typeof AgentProviderSchema>;
 
+/** 워크스페이스의 출처(ADR 0036). local: 이 Mac 에서 혼자 쓰는 로컬 저장소, github: 연결한 GitHub 저장소 */
+export const WorkspaceSourceSchema = z.enum(["local", "github"]);
+export type WorkspaceSourceKind = z.infer<typeof WorkspaceSourceSchema>;
+
 export const SettingsSchema = z.strictObject({
   version: z.literal(1),
   evidence: z.strictObject({
@@ -97,6 +102,8 @@ export const SettingsSchema = z.strictObject({
   devices: z.strictObject({
     /** QA 기기 언어 (ADR 0001 발견 2) */
     locale: LocaleSchema,
+    /** iOS 실기기 러너를 서명할 Apple 팀 ID(ADR 0034). 정하기 전(null)에는 iOS 실기기를 쓰지 않는다 */
+    iosSigningTeam: AppleTeamIdSchema.nullable().default(null),
   }),
   policy: z.strictObject({
     /** 외부 GitHub 증적 업로드에 대한 조직 보안 승인 (D11). 꺼져 있으면 업로드 기능을 숨긴다. */
@@ -112,19 +119,37 @@ export const SettingsSchema = z.strictObject({
   github: z.preprocess(withoutLegacyAppRepo, GitHubSettingsSchema).default(DEFAULT_GITHUB_SETTINGS),
   /** 앱 → 플랫폼별 프로젝트 연결. 렌더러의 settings:update 로는 바꾸지 못하고 빌드 화면의 연결로만 바꾼다 */
   projects: z.record(z.string(), z.strictObject({ ios: ProjectLinkSchema.optional() })).default({}),
+  /**
+   * 워크스페이스의 출처(ADR 0036). 기본값을 두지 않는다: 두면 GitHub 를 쓰던 예전 파일이 말없이 로컬로 읽힌다.
+   * 이 칸이 없는 예전 파일은 migrateSettings 가 채운다. 렌더러의 settings:update 로는 바꾸지 못하고 workspace:setSource 로만 바꾼다
+   */
+  workspace: z.strictObject({ source: WorkspaceSourceSchema }),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
+
+const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
+
+/**
+ * 예전 settings.json 을 지금 모양으로 채운다. 스키마 검사 앞에서 부른다(ADR 0036 결정 1).
+ * workspace 가 없으면 GitHub 조직을 정해 둔 파일은 github, 아니면 local 로 본다
+ */
+export function migrateSettings(raw: unknown): unknown {
+  if (!isRecord(raw) || "workspace" in raw) return raw;
+  const owner = isRecord(raw["github"]) ? raw["github"]["owner"] : undefined;
+  return { ...raw, workspace: { source: typeof owner === "string" && owner !== "" ? "github" : "local" } };
+}
 
 export const DEFAULT_SETTINGS: Settings = {
   version: 1,
   evidence: { retentionDays: 30 },
   // 자동 화면 판정은 기본 끔(D15, ADR 0021). 결과 화면의 버튼으로 돈다
   agent: { monthlyBudgetUsd: 100, judgeSampleRate: 0, provider: "claude-app" },
-  devices: { locale: "ko_KR" },
+  devices: { locale: "ko_KR", iosSigningTeam: null },
   policy: { evidenceUploadApproved: false },
   setup: { completedAt: null },
   github: DEFAULT_GITHUB_SETTINGS,
   projects: {},
+  workspace: { source: "local" },
 };
 
 /**
@@ -132,12 +157,13 @@ export const DEFAULT_SETTINGS: Settings = {
  * (예: 월 상한만 저장했는데 방식이 Claude 앱으로 돌아감, 조직만 저장했는데 증적 저장소 이름이 지워짐)
  */
 const AgentPatchSchema = SettingsSchema.shape.agent.extend({ provider: AgentProviderSchema }).partial();
+const DevicesPatchSchema = SettingsSchema.shape.devices.extend({ iosSigningTeam: AppleTeamIdSchema.nullable() }).partial();
 const GitHubPatchSchema = GitHubSettingsSchema.extend({ evidenceRepo: RepoNameSchema.nullable(), evidenceOwner: GitHubOwnerSchema.nullable() }).partial();
 
 export const SettingsPatchSchema = z.strictObject({
   evidence: SettingsSchema.shape.evidence.partial().optional(),
   agent: AgentPatchSchema.optional(),
-  devices: SettingsSchema.shape.devices.partial().optional(),
+  devices: DevicesPatchSchema.optional(),
   policy: SettingsSchema.shape.policy.partial().optional(),
   github: GitHubPatchSchema.optional(),
 });

@@ -341,6 +341,11 @@ export class JudgeService {
     }
   }
 
+  /** 이 MCP 연결이 진행 중인 판정 작업을 맡고 있나(ADR 0035 결정 8) */
+  holdsConnection(connectionId: string): boolean {
+    return [...this.claude.values()].some((j) => j.phase !== "done" && j.claimedBy?.id === connectionId);
+  }
+
   /** MCP 연결이 끊기면 맡은 작업을 놓는다. 다른 대화가 attach_judge 로 이어받을 수 있다 */
   releaseConnection(connectionId: string): void {
     for (const job of this.claude.values()) {

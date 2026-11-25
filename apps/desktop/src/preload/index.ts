@@ -27,6 +27,8 @@ const api: QaApi = {
     shutdown: (input) => invoke("devices:shutdown", input),
     iosOptions: () => invoke("devices:iosOptions", undefined),
     deleteIos: (input) => invoke("devices:deleteIos", input),
+    iosSigningTeams: () => invoke("devices:iosSigningTeams", undefined),
+    checkIosDevice: (input) => invoke("devices:checkIosDevice", { buildRunner: false, ...input }),
   },
   builds: {
     list: () => invoke("builds:list", undefined),
@@ -60,6 +62,9 @@ const api: QaApi = {
     prepareUpload: (input) => invoke("evidence:prepareUpload", input),
     upload: (input) => invoke("evidence:upload", input),
     uploads: (input) => invoke("evidence:uploads", input),
+    prepareExport: (input) => invoke("evidence:prepareExport", input),
+    export: (input) => invoke("evidence:export", input),
+    revealExport: (input) => invoke("evidence:revealExport", input),
   },
   remote: {
     verify: () => invoke("remote:verify", undefined),
@@ -67,6 +72,8 @@ const api: QaApi = {
   },
   workspace: {
     status: () => invoke("workspace:status", undefined),
+    setSource: (input) => invoke("workspace:setSource", input),
+    reveal: () => invoke("workspace:reveal", undefined),
     myPulls: () => invoke("workspace:myPulls", undefined),
     connect: () => invoke("workspace:connect", undefined),
     sync: () => invoke("workspace:sync", undefined),
@@ -83,6 +90,11 @@ const api: QaApi = {
     saveSubflow: (input) => invoke("workspace:saveSubflow", input),
     migrateLayout: () => invoke("workspace:migrateLayout", undefined),
     history: (input) => invoke("workspace:history", input),
+    exportInfo: () => invoke("workspace:exportInfo", undefined),
+    export: () => invoke("workspace:export", undefined),
+    importPick: (input) => invoke("workspace:importPick", input),
+    importApply: (input) => invoke("workspace:importApply", input),
+    importCancel: (input) => invoke("workspace:importCancel", input),
   },
   agent: {
     usage: () => invoke("agent:usage", undefined),
@@ -110,6 +122,9 @@ const api: QaApi = {
     projects: () => invoke("qawatch:projects", undefined),
     importToken: () => invoke("qawatch:importToken", undefined),
     tags: (projectId) => invoke("qawatch:tags", projectId),
+  },
+  cli: {
+    info: () => invoke("cli:info", undefined),
   },
   update: {
     status: () => invoke("update:status", undefined),

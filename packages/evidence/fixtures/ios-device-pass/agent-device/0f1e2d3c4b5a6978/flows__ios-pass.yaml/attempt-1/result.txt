@@ -1,0 +1,7 @@
+file: /fixture/flows/ios-pass.yaml
+session: cwd:0000000000000000:ios:test:0f1e2d3c4b5a6978:1-ios-pass:attempt-1
+attempt: 1/1
+status: passed
+replayed: 5
+healed: 0
+copiedArtifacts: 01_search_typed.png

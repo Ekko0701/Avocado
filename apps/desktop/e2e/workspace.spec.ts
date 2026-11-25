@@ -134,15 +134,17 @@ test("워크스페이스에서 실행: TC·태그를 고르면 main 이 플로�
     await expect(panel.getByLabel("실행 기기")).toHaveCount(1);
     await expect(panel.getByLabel("실행 빌드")).toHaveCount(1);
 
-    // 화면을 우회한 요청: 없는 플로우는 main 이 거부하고, 기기가 없으면 차례 실행에 오류로 남는다
+    // 화면을 우회한 요청: 없는 플로우와 없는 기기는 차례 실행에 넣기 전에 main 이 거부한다(ADR 0035)
     expect(
       await page.evaluate(() => window.qa.runs.startFromWorkspace({ app: "demo", target: "android", tcId: "TC-0101", deviceId: "x", buildId: null }).then(() => "ok", (e: unknown) => String(e))),
     ).toContain("플로우가 없다");
     expect(
       await page.evaluate(() => window.qa.runs.startFromWorkspace({ app: "demo", target: "ios", tcId: "TC-0101", tag: "smoke", deviceId: "x", buildId: null } as never).then(() => "ok", (e: unknown) => String(e))),
     ).toContain("invalid-input");
-    await page.evaluate(() => window.qa.runs.startFromWorkspace({ app: "demo", target: "ios", tag: "smoke", deviceId: "no-device", buildId: null }));
-    await expect.poll(async () => (await page.evaluate(() => window.qa.runs.queue())).errors.join(" ")).toContain("TC-0101");
+    expect(
+      await page.evaluate(() => window.qa.runs.startFromWorkspace({ app: "demo", target: "ios", tag: "smoke", deviceId: "no-device", buildId: null }).then(() => "ok", (e: unknown) => String(e))),
+    ).toContain("기기를 찾지 못했다: no-device");
+    expect(await page.evaluate(() => window.qa.runs.queue())).toMatchObject({ running: null, pending: [], batchId: null });
     await app.close();
   } finally {
     await remote.close();

@@ -42,3 +42,12 @@ PoC 에서 쓴 실제 앱의 산출물에는 앱 화면, 화면 트리의 실제
 - `sips`가 다시 쓴 `ios-fail`의 실패 캡처는 한글 파일 이름이 NFD가 됐다(Maestro는 NFC로 쓴다). macOS 도구가 만들 수 있는 상황이라 그대로 두고, 파서의 NFC 정규화를 이 픽스처로 확인한다.
 
 다시 만들기: QA 시뮬레이터와 에뮬레이터를 켜고 `packages/evidence/scripts/record-fixtures.sh all`.
+
+## iOS 실기기(agent-device) 픽스처
+
+`ios-device-pass`, `ios-device-fail` 은 agent-device 0.21.33 으로 실제 iPhone(iOS 27.0.1)에서 `flows/ios-pass.yaml`·`ios-fail.yaml` 을 재생한 산출물이다(2026-11-12, ADR 0034). 캡처 이름에는 `.png` 를 붙였다(실기기에서는 확장자가 없으면 캡처가 실패한다).
+
+- 가짜 값은 `-e QA_FIXTURE_ACCOUNT_ID=fixture-account-7731` 이다. `inputText` 값은 산출물에 남지 않고, 선택자에 넣은 값만 `result.txt`·`failure.txt`·`console.log` 의 실패 메시지에 남는다.
+- 경로는 `/fixture` 로, 세션·실행 해시는 가짜 값으로 바꿨다. 진단 요청 로그(`*_attempt_1.ndjson`)는 기기 이름이 들어 있어 넣지 않았다.
+- `failure.png` 는 실패 뒤 `xcrun devicectl device capture screenshot` 으로 찍은 화면이다.
+- PNG 는 긴 변 160px 로 줄였다.

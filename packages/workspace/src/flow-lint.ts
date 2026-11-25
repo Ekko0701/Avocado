@@ -1,4 +1,4 @@
-import { isMap, isScalar, isSeq, LineCounter, parseAllDocuments, type Node } from "yaml";
+import { isAlias, isMap, isScalar, isSeq, LineCounter, parseAllDocuments, type Node } from "yaml";
 import type { LintIssue } from "./lint";
 
 /**
@@ -19,6 +19,9 @@ const SCREENSHOT_NAME = /^\d{2}_[a-z0-9_]+$/;
 const ASSERTIONS = new Set(["assertVisible", "extendedWaitUntil"]);
 // 코드를 실행하는 명령. 어디에 중첩돼 있어도(repeat·retry·runFlow.commands·onFlowStart) 쓰지 않는다
 const FORBIDDEN = new Set(["runScript", "evalScript"]);
+// 앱 id 를 받는 명령(maestro-orchestra 2.11.0 의 Yaml* 클래스). url 은 appId 의 별칭이다. 다른 앱을 띄우거나 지우지 못하게 ${APP_ID} 만 둔다
+const APP_COMMANDS = new Set(["launchApp", "stopApp", "killApp", "clearState", "setPermissions"]);
+const APP_ID_FIELDS = new Set(["appId", "url"]);
 // ${…} 는 JS 식으로 평가된다. 허용한 키 이름 하나만 쓸 수 있다(값을 가공·전송하는 식 금지)
 const ENV_EXPR = /\$\{([^}]*)\}/g;
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -167,6 +170,16 @@ export function lintCommandsYaml(text: string, ctx: { envKeys: readonly string[]
   if (issues.length > 0) return issues;
   const commands = docs.at(-1)?.contents;
   if (!isSeq(commands)) issues.push({ level: "error", rule: "flow-commands", message: "명령 목록이 아니다", line: null, step: null });
+  // 머리의 appId 는 인자 없는 launchApp·clearState 가 여는 앱이다. 모델이 머리를 보내면 이 앱으로만 둔다
+  const header = docs.length === 2 ? docs[0]?.contents : null;
+  if (header) {
+    const appId = isMap(header) ? header.get("appId", true) : null;
+    const value: unknown = isScalar(appId) ? appId.value : null;
+    if (value !== "${APP_ID}") {
+      const node = appId ?? header;
+      issues.push({ level: "error", rule: "flow-app-id", message: "머리의 appId 는 ${APP_ID} 로 둔다", line: node.range ? lines.linePos(node.range[0]).line : null, step: null });
+    }
+  }
   deepChecks(text, docs.map((d) => d.contents), { envKeys: ctx.envKeys, subflows: null }, lines, issues);
   return issues;
 }
@@ -190,9 +203,20 @@ function deepChecks(
     else if (!ctx.subflows.includes(file)) add("flow-subflow", `없는 서브플로우다: ${file}`, node);
   };
   for (const root of roots) {
-    walk(root ?? null, (node, key, parentKey) => {
+    walk(root ?? null, (node, key, parentKey, isKey) => {
+      // 앵커·별칭은 펼친 뒤의 모습이 이 검사와 다를 수 있어 풀지 않고 막는다. 맵 키도 같은 까닭으로 글자만 쓴다
+      if (isAlias(node) || node.anchor) add("flow-yaml-structure", "YAML 앵커(&)와 별칭(*)은 쓰지 않는다", node);
+      if (isKey && !isScalar(node)) add("flow-yaml-structure", "맵의 키는 글자 하나여야 한다", node);
       if (key !== null && FORBIDDEN.has(key)) add("flow-forbidden", `${key} 는 쓰지 않는다(코드 실행)`, node);
       if (key === null && isScalar(node) && typeof node.value === "string" && FORBIDDEN.has(node.value) && parentKey === "item") add("flow-forbidden", `${node.value} 는 쓰지 않는다(코드 실행)`, node);
+      if (key === "addMedia" || (key === null && parentKey === "item" && isScalar(node) && node.value === "addMedia")) add("flow-media", "addMedia 는 쓰지 않는다(이 Mac 의 파일을 기기에 올린다)", node);
+      if (key !== null && parentKey === null && APP_COMMANDS.has(key) && isScalar(node) && node.value !== null && node.value !== "${APP_ID}") {
+        add("flow-app-id", `${key} 의 앱 id 는 비우거나 \${APP_ID} 로 둔다: ${String(node.value)}`, node);
+      }
+      if (key !== null && parentKey !== null && APP_ID_FIELDS.has(key) && APP_COMMANDS.has(parentKey) && !(isScalar(node) && node.value === "${APP_ID}")) {
+        add("flow-app-id", `${parentKey}.${key} 는 \${APP_ID} 로만 둔다: ${isScalar(node) ? String(node.value) : "(목록·맵)"}`, node);
+      }
+      if (key === "APP_ID" && parentKey === "env") add("flow-app-id", "env 로 APP_ID 를 바꾸지 않는다", node);
       if (key === "point") add("flow-coordinates", "좌표 탭은 쓰지 않는다. 식별자가 없으면 식별자 누락으로 기록한다", node);
       if (key === "tapOn" && isScalar(node) && typeof node.value === "string" && COORDINATE_TEXT.test(node.value)) add("flow-coordinates", "좌표 탭은 쓰지 않는다", node);
       // Maestro 가 명령을 실행용으로 바꿀 때 내는 문법 오류(2.11.0 YamlFluentCommand). check-syntax 는 이 단계를 거치지 않아 통과시킨다
@@ -207,10 +231,13 @@ function deepChecks(
         add("flow-syntax", `${node.value} 는 이름만으로 쓸 수 없다. 조건이나 명령을 둔다(Maestro 문법 오류)`, node);
       }
       if (key === "runFlow" && isScalar(node) && typeof node.value === "string") checkSubflow(node.value, node);
-      if (key === "file" && parentKey === "runFlow" && isScalar(node) && typeof node.value === "string") checkSubflow(node.value, node);
+      if (key === "file" && (parentKey === "runFlow" || parentKey === "retry") && isScalar(node) && typeof node.value === "string") checkSubflow(node.value, node);
       if (key === "openLink") {
-        const link = isScalar(node) ? String(node.value) : isMap(node) ? String(node.get("link") ?? "") : "";
+        const linkNode = isMap(node) ? node.get("link", true) : node;
+        const link = isScalar(linkNode) ? String(linkNode.value) : "";
         if (/^\s*https?:/i.test(link)) add("flow-link", `웹 주소는 열지 않는다(앱 딥링크만): ${link}`, node);
+        // 다른 앱의 스킴(x-safari-https: 등)으로 계정 값을 밖에 보낼 수 있다
+        if (link.includes("${")) add("flow-link-env", `openLink 에는 \${…} 를 쓰지 않는다: ${link}`, node);
       }
       if (key === "takeScreenshot" || (key === "path" && parentKey === "takeScreenshot")) {
         const name = isScalar(node) ? String(node.value) : "";
@@ -226,13 +253,40 @@ function deepChecks(
   }
 }
 
-/** 모든 노드를 돈다. 맵의 값이면 key 에 키 이름, parentKey 에 그 맵을 값으로 가진 키(목록 항목이면 "item") */
-function walk(node: Node | null, visit: (node: Node, key: string | null, parentKey: string | null) => void, key: string | null = null, parentKey: string | null = null): void {
+/**
+ * 플로우가 runFlow·retry 의 file 로 부르는 경로(부르는 파일 기준 상대 경로, 나온 순서). YAML 오류가 있으면 빈 목록이다(린트가 거절한다).
+ * 가져오기가 따라오는 서브플로우를 찾을 때 쓴다(ADR 0036 결정 11)
+ */
+export function subflowRefs(text: string): string[] {
+  const docs = parseAllDocuments(text);
+  if (!Array.isArray(docs) || docs.some((d) => d.errors.length > 0)) return [];
+  const refs = new Set<string>();
+  for (const doc of docs) {
+    walk((doc.contents as Node | null) ?? null, (node, key, parentKey) => {
+      if (!isScalar(node) || typeof node.value !== "string") return;
+      if (key === "runFlow" || (key === "file" && (parentKey === "runFlow" || parentKey === "retry"))) refs.add(node.value);
+    });
+  }
+  return [...refs];
+}
+
+/**
+ * 모든 노드를 돈다. 맵의 값이면 key 에 키 이름, parentKey 에 그 맵을 값으로 가진 키(목록 항목이면 "item").
+ * 맵의 키 노드도 isKey 로 돈다
+ */
+function walk(
+  node: Node | null,
+  visit: (node: Node, key: string | null, parentKey: string | null, isKey: boolean) => void,
+  key: string | null = null,
+  parentKey: string | null = null,
+  isKey = false,
+): void {
   if (!node) return;
-  visit(node, key, parentKey);
+  visit(node, key, parentKey, isKey);
   if (isMap(node)) {
     for (const pair of node.items) {
       const k = isScalar(pair.key) ? String(pair.key.value) : null;
+      walk((pair.key as Node | null) ?? null, visit, null, null, true);
       walk((pair.value as Node | null) ?? null, visit, k, key);
     }
   } else if (isSeq(node)) {

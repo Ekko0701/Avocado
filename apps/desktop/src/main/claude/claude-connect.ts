@@ -1,4 +1,4 @@
-import type { ClaudeConnection } from "@qa/shared";
+import { AVOCADO_CLI_CLIENT_NAME, type ClaudeConnection } from "@qa/shared";
 import { addToClaudeDesktop, claudeCodeCommand, claudeDesktopConfigPath, desktopState, relayEntry } from "./claude-config";
 import type { McpSocketHostStatus } from "./socket-host";
 
@@ -14,7 +14,8 @@ export class ClaudeConnectService {
       listening: host.listening,
       socketPath: host.socketPath,
       error: host.error,
-      clients: host.clients,
+      // 터미널의 avocado CLI 는 Claude 가 아니다. 소켓에는 붙지만 연결된 Claude 로 세지 않는다
+      clients: host.clients.filter((c) => c.name !== AVOCADO_CLI_CLIENT_NAME),
       desktop: { configPath, state: desktopState(configPath, entry) },
       codeCommand: claudeCodeCommand(entry),
     };

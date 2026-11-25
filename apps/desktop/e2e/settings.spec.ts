@@ -231,3 +231,18 @@ test("테스트 계정 값: 워크스페이스 accounts.yaml 의 앱·키 이름
     await remote.close();
   }
 });
+
+test("터미널 구역: 개발 실행에는 번들 명령이 없어 pnpm avocado 를 안내한다 (T-122)", async () => {
+  const { app, page } = await launchApp();
+  try {
+    await page.getByRole("button", { name: "설정", exact: true }).click();
+    await expect(page.getByTestId("settings-nav-terminal")).toContainText("개발 실행 · pnpm avocado");
+    await page.getByTestId("settings-nav-terminal").click();
+    const section = page.getByTestId("terminal-section");
+    await expect(section.getByTestId("terminal-dev")).toContainText("pnpm avocado qa options");
+    await expect(section.getByTestId("terminal-link-command")).toHaveCount(0);
+    await expect(section).toContainText("avocado qa run --app demo --tag smoke --json");
+  } finally {
+    await app.close();
+  }
+});

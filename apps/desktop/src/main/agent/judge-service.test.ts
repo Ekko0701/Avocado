@@ -148,7 +148,7 @@ describe("화면 판정 (PLAN 6.7)", () => {
     expect(jobs.usage(100).recent[0]?.status).toBe("failed");
   });
 
-  it("자동 판정: 플로우 만들기 재생·키 없음·비율 0 이면 건너뛰고, 일반 실행이면 판정한다", async () => {
+  it("자동 판정: 플로우 만들기 재생·소켓 시작·키 없음·비율 0 이면 건너뛰고, 일반 실행이면 판정한다", async () => {
     const exec = execution();
     const n = selectCaptures(exec, { sampleRate: 0.3 }).length;
     const off = await setup([], exec, { rate: 0 });
@@ -158,6 +158,12 @@ describe("화면 판정 (PLAN 6.7)", () => {
     const author = await setup([], exec);
     await author.service.autoJudge("run-1");
     expect(author.logs[0]).toMatchObject({ skipped: "trigger author" });
+    // 소켓(CLI 등)으로 시작한 실행: API 키 방식·비율 1 이어도 Messages API 요청이 없다(ADR 0035 결정 7)
+    db.db.prepare("UPDATE run SET trigger = 'mcp' WHERE id = 'run-1'").run();
+    const viaSocket = await setup([verdict("pass")], exec, { rate: 1 });
+    await viaSocket.service.autoJudge("run-1");
+    expect(viaSocket.logs[0]).toMatchObject({ skipped: "trigger mcp" });
+    expect(api?.requests).toHaveLength(0);
     db.db.prepare("UPDATE run SET trigger = 'manual' WHERE id = 'run-1'").run();
     const on = await setup(Array.from({ length: n }, () => verdict("pass")), exec);
     await on.service.autoJudge("run-1");

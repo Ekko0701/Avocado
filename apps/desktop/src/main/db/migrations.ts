@@ -185,6 +185,31 @@ DROP TABLE build;
 ALTER TABLE build_v6 RENAME TO build;
 `;
 
+/**
+ * v7 (ADR 0035 결정 7): MCP 소켓(CLI 등)으로 시작한 실행(trigger = mcp). 자동 화면 판정에서 뺀다.
+ * run 은 execution 이 참조한다. CHECK 를 바꾸려고 테이블을 다시 만들므로 외래 키를 끄고 적용한다(foreignKeysOff)
+ */
+const V7_MCP_TRIGGER = `
+CREATE TABLE run_v7 (
+  id                   TEXT PRIMARY KEY,
+  workspace            TEXT NOT NULL,
+  workspace_commit     TEXT,
+  trigger              TEXT NOT NULL CHECK (trigger IN ('manual', 'author', 'schedule', 'mcp')),
+  status               TEXT NOT NULL CHECK (status IN ('queued', 'running', 'passed', 'failed', 'error', 'canceled')),
+  summary              TEXT,
+  created_at           TEXT NOT NULL,
+  started_at           TEXT,
+  finished_at          TEXT,
+  keep                 INTEGER NOT NULL DEFAULT 0 CHECK (keep IN (0, 1)),
+  evidence_removed_at  TEXT
+) STRICT;
+INSERT INTO run_v7 (id, workspace, workspace_commit, trigger, status, summary, created_at, started_at, finished_at, keep, evidence_removed_at)
+  SELECT id, workspace, workspace_commit, trigger, status, summary, created_at, started_at, finished_at, keep, evidence_removed_at FROM run;
+DROP TABLE run;
+ALTER TABLE run_v7 RENAME TO run;
+CREATE INDEX idx_run_created ON run (created_at);
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: "initial schema", up: V1_INITIAL },
   { version: 2, name: "run results", up: V2_RUN_RESULTS },
@@ -192,6 +217,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 4, name: "judgement reason", up: V4_JUDGEMENT_REASON },
   { version: 5, name: "evidence retention", up: V5_EVIDENCE_RETENTION },
   { version: 6, name: "project build", up: V6_PROJECT_BUILD, foreignKeysOff: true },
+  { version: 7, name: "mcp trigger", up: V7_MCP_TRIGGER, foreignKeysOff: true },
 ];
 
 /** 앱이 기대하는 테이블 목록(마이그레이션 기록 테이블 포함). 테스트와 상태 표시에 쓴다. */

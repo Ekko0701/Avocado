@@ -4,26 +4,32 @@ import {
   type AgentUsage,
   type AppInfo,
   type ClaudeConnection,
+  type CliInfo,
   type DbStatus,
+  type IosSigningTeam,
   type RemoteVerify,
   type SecretStatus,
   type SecretsList,
   type Settings,
   type SettingsState,
   type UpdateStatus,
+  type WorkspaceStatus,
 } from "@qa/shared";
 import { ClaudeConnectionPanel } from "../components/ClaudeConnectionPanel";
 import { GitHubRepoPicker } from "../components/GitHubRepoPicker";
 import { SecretRow } from "../components/SecretRow";
+import { TerminalSection } from "../components/TerminalSection";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { errorMessage } from "../lib/errors";
 import { sectionSummaries, SETTINGS_SECTIONS, type SettingsSectionId } from "../lib/settings-sections";
 import { notifyUpdateStatus, onUpdateStatus } from "../lib/update-events";
+import { notifyWorkspaceChanged } from "../lib/workspace-events";
+import { useWorkspaceStatus } from "../lib/workspace-status";
 
 /**
  * 설정: 왼쪽은 구역 목록(구역마다 지금 상태 한 줄), 오른쪽은 고른 구역 하나.
  * 구역은 하는 일에 따라 묶는다: GitHub(토큰·저장소·연결 확인), Claude(방식·연결, API 키 방식이면 키·상한·사용량),
- * 증적(로컬 보관·업로드 정책), 기기(언어), 앱 정보(버전·진단)
+ * 증적(로컬 보관·업로드 정책), 기기(언어·iPhone 러너 서명 팀), 터미널(avocado 명령을 PATH 에 걸기), 앱 정보(버전·진단)
  */
 export function SettingsPage() {
   const [state, setState] = useState<SettingsState | null>(null);
@@ -32,8 +38,20 @@ export function SettingsPage() {
   const [usage, setUsage] = useState<AgentUsage | null>(null);
   const [usageError, setUsageError] = useState<string | null>(null);
   const [update, setUpdate] = useState<UpdateStatus | null>(null);
+  const [cli, setCli] = useState<CliInfo | null>(null);
+  const [cliError, setCliError] = useState<string | null>(null);
+  const loadCli = useCallback(() => {
+    window.qa.cli.info().then(
+      (c) => {
+        setCli(c);
+        setCliError(null);
+      },
+      (e: unknown) => setCliError(errorMessage(e)),
+    );
+  }, []);
   const [section, setSection] = useState<SettingsSectionId>("github");
   const [error, setError] = useState<string | null>(null);
+  const { status: workspace } = useWorkspaceStatus();
 
   const reload = useCallback(async () => {
     try {
@@ -57,10 +75,11 @@ export function SettingsPage() {
 
   useEffect(() => {
     void reload();
+    loadCli();
     window.qa.update.status().then(setUpdate, () => undefined);
     // 배너에서 받기를 하면 이 화면도 맞춘다
     return onUpdateStatus(setUpdate);
-  }, [reload]);
+  }, [reload, loadCli]);
 
   if (error) {
     return (
@@ -73,7 +92,7 @@ export function SettingsPage() {
 
   const { settings } = state;
   const locked = !secrets.encryptionAvailable;
-  const summaries = sectionSummaries({ settings, secrets, claude, usage, update });
+  const summaries = sectionSummaries({ settings, secrets, claude, usage, update, source: workspace?.source ?? null, cli });
   const secret = (name: string): SecretStatus => secrets.items.find((i) => i.name === name) ?? { name, stored: false, updatedAt: null };
 
   return (
@@ -110,12 +129,16 @@ export function SettingsPage() {
           ))}
         </nav>
 
-        {section === "github" ? <GitHubSection settings={settings} token={secret("githubToken")} locked={locked} onSaved={reload} /> : null}
+        {section === "github" && workspace?.source === "local" ? <LocalGitHubSection status={workspace} token={secret("githubToken")} /> : null}
+        {section === "github" && workspace?.source !== "local" ? <GitHubSection settings={settings} status={workspace} token={secret("githubToken")} locked={locked} onSaved={reload} /> : null}
         {section === "claude" ? (
           <ClaudeSection key={`${settings.agent.provider}:${settings.agent.monthlyBudgetUsd}`} settings={settings} apiKey={secret("anthropicApiKey")} locked={locked} usage={usage} usageError={usageError} onSaved={reload} />
         ) : null}
-        {section === "evidence" ? <EvidenceSection key={String(settings.policy.evidenceUploadApproved)} settings={settings} onSaved={reload} onOpenGitHub={() => setSection("github")} /> : null}
+        {section === "evidence" ? (
+          <EvidenceSection key={String(settings.policy.evidenceUploadApproved)} settings={settings} local={workspace?.source === "local"} onSaved={reload} onOpenGitHub={() => setSection("github")} />
+        ) : null}
         {section === "devices" ? <DevicesSection settings={settings} onSaved={reload} /> : null}
+        {section === "terminal" ? <TerminalSection info={cli} error={cliError} onRefresh={loadCli} /> : null}
         {section === "app" ? <AppSection status={update} onStatus={setUpdate} /> : null}
       </div>
     </div>
@@ -131,7 +154,137 @@ function SectionHead(props: { id: string; title: string; children: ReactNode }) 
   );
 }
 
-function GitHubSection(props: { settings: Settings; token: SecretStatus; locked: boolean; onSaved: () => Promise<void> }) {
+/**
+ * GitHub 사용 체크(ADR 0036 결정 10). 바꾸기 전에 그 자리에서 확인한다: 두 출처는 폴더가 따로이고 내용을 옮기지 않는다.
+ * 확인하는 동안 체크는 고른 쪽으로 보이고, 취소하면 돌아간다
+ */
+function SourceToggle(props: { status: WorkspaceStatus; description: string }) {
+  const { setStatus } = useWorkspaceStatus();
+  const github = props.status.source === "github";
+  const [confirming, setConfirming] = useState(false);
+  const [counts, setCounts] = useState<{ testcases: number; flows: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (github) return;
+    window.qa.workspace.testcases().then(
+      (l) => setCounts({ testcases: l.testcases.length, flows: l.testcases.reduce((n, t) => n + t.flows.length, 0) }),
+      (e: unknown) => setMessage(`로컬 워크스페이스를 읽지 못했습니다: ${errorMessage(e)}`),
+    );
+  }, [github]);
+
+  async function apply() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      setStatus(await window.qa.workspace.setSource({ source: github ? "local" : "github" }));
+      notifyWorkspaceChanged();
+      setConfirming(false);
+    } catch (e) {
+      setMessage(`바꾸지 못했습니다: ${errorMessage(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const kept = counts ? `로컬 워크스페이스에 만든 테스트 케이스 ${counts.testcases}개와 플로우 ${counts.flows}개는` : "로컬 워크스페이스에 만든 테스트 케이스와 플로우는";
+  return (
+    <>
+      <label className="check">
+        <input type="checkbox" checked={github !== confirming} disabled={busy} aria-describedby="github-source-now" onChange={() => setConfirming((c) => !c)} />
+        GitHub 사용
+      </label>
+      <p id="github-source-now" className="hint">
+        {props.description}
+      </p>
+      {confirming ? (
+        <div role="alertdialog" className="callout" aria-labelledby="github-source-confirm-title" aria-describedby="github-source-confirm-desc" data-testid="github-source-confirm">
+          <div className="callout-text">
+            <strong id="github-source-confirm-title">{github ? "GitHub 사용을 끕니다" : "GitHub 사용을 켭니다"}</strong>
+            <span id="github-source-confirm-desc">
+              {github
+                ? "GitHub 워크스페이스는 이 Mac 에 그대로 남습니다. 테스트 케이스 화면에 이 Mac 의 로컬 워크스페이스 내용이 보입니다. 켜면 다시 보입니다."
+                : `테스트 케이스 화면에 GitHub 워크스페이스의 내용이 보입니다. ${kept} 옮겨지지 않고 이 Mac 에 그대로 남습니다. 끄면 다시 보입니다.`}
+            </span>
+          </div>
+          <div className="row">
+            <button type="button" className="small" disabled={busy} onClick={() => void apply()}>
+              {github ? "끄기" : "켜기"}
+            </button>
+            <button type="button" className="secondary small" disabled={busy} onClick={() => setConfirming(false)}>
+              취소
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {message ? (
+        <p role="alert" className="error">
+          {message}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/** GitHub 를 쓰지 않을 때(로컬 워크스페이스)의 GitHub 구역: 켜면 정하는 것과 지금 쓰는 폴더. 토큰·저장소 칸은 켜면 나온다 */
+function LocalGitHubSection(props: { status: WorkspaceStatus; token: SecretStatus }) {
+  const [message, setMessage] = useState<string | null>(null);
+  async function reveal() {
+    setMessage(null);
+    try {
+      await window.qa.workspace.reveal();
+    } catch (e) {
+      setMessage(`Finder 에서 열지 못했습니다: ${errorMessage(e)}`);
+    }
+  }
+  return (
+    <section className="card settings-detail" aria-labelledby="github-title">
+      <SectionHead id="github-title" title="GitHub">
+        테스트 케이스·플로우를 GitHub 저장소로 팀과 나눌지 정합니다.
+      </SectionHead>
+      <div className="settings-body">
+        <SourceToggle status={props.status} description="지금은 이 Mac 에서 혼자 쓰는 로컬 워크스페이스입니다. 팀과 같이 쓰려면 켭니다." />
+        <hr className="rule" />
+        <strong className="group-label">켜면 정하는 것</strong>
+        <ul className="checks" data-testid="github-when-on">
+          <li className="check">
+            <span className="badge">토큰</span>
+            <div className="check-body">
+              <strong>GitHub 토큰</strong>
+              <small className="hint">{props.token.stored ? "저장한 토큰이 있습니다. 켜면 그대로 씁니다" : "저장한 토큰이 없습니다. 켜면 여기에 넣는 칸이 나옵니다"}</small>
+            </div>
+          </li>
+          <li className="check">
+            <span className="badge">저장소</span>
+            <div className="check-body">
+              <strong>워크스페이스·증적 저장소</strong>
+              <small className="hint">켜면 저장소 목록 불러오기와 연결 확인이 나옵니다</small>
+            </div>
+          </li>
+        </ul>
+        <hr className="rule" />
+        <strong className="group-label">지금 쓰는 곳</strong>
+        <div className="row center" data-testid="github-local-location">
+          {props.status.location ? <code>{props.status.location}</code> : null}
+          <button type="button" className="secondary small" onClick={() => void reveal()}>
+            Finder 에서 열기
+          </button>
+        </div>
+        {message ? (
+          <p role="alert" className="error">
+            {message}
+          </p>
+        ) : null}
+      </div>
+      <div className="settings-foot" data-testid="settings-foot">
+        <small className="hint">체크를 바꾸면 바로 적용됩니다. 실행이나 플로우 만들기가 진행 중이면 끝난 뒤에 바꿉니다.</small>
+      </div>
+    </section>
+  );
+}
+
+function GitHubSection(props: { settings: Settings; status: WorkspaceStatus | null; token: SecretStatus; locked: boolean; onSaved: () => Promise<void> }) {
   const g = props.settings.github;
   const tokenStored = props.token.stored;
   const [owner, setOwner] = useState(g.owner ?? "");
@@ -179,6 +332,12 @@ function GitHubSection(props: { settings: Settings; token: SecretStatus; locked:
         테스트 케이스·플로우·증적 요약을 두는 저장소와 그 토큰입니다.
       </SectionHead>
       <div className="settings-body">
+        {props.status ? (
+          <>
+            <SourceToggle status={props.status} description="팀과 같이 쓰는 GitHub 워크스페이스입니다. 끄면 이 Mac 에서 혼자 쓰는 로컬 워크스페이스를 씁니다." />
+            <hr className="rule" />
+          </>
+        ) : null}
         <strong className="group-label">토큰</strong>
         <SecretRow status={props.token} label="GitHub 토큰" disabled={props.locked} onChanged={props.onSaved} />
         <p className="hint">값은 macOS 키체인 키로 암호화해 이 Mac 에만 저장하고 다시 표시하지 않습니다. git 에는 URL·설정 파일 대신 인증 도우미로만 넘깁니다.</p>
@@ -379,7 +538,7 @@ function Usage(props: { usage: AgentUsage }) {
   );
 }
 
-function EvidenceSection(props: { settings: Settings; onSaved: () => Promise<void>; onOpenGitHub: () => void }) {
+function EvidenceSection(props: { settings: Settings; local: boolean; onSaved: () => Promise<void>; onOpenGitHub: () => void }) {
   const { settings } = props;
   const [retentionDays, setRetentionDays] = useState(String(settings.evidence.retentionDays));
   // 클릭 즉시 반영하고, 저장에 실패하면 되돌린다
@@ -414,7 +573,7 @@ function EvidenceSection(props: { settings: Settings; onSaved: () => Promise<voi
   return (
     <form className="card settings-detail" onSubmit={save} aria-labelledby="evidence-title">
       <SectionHead id="evidence-title" title="증적">
-        캡처·로그를 이 Mac 에 얼마나 두고, 요약을 GitHub 에 올릴지 정합니다.
+        {props.local ? "캡처·로그를 이 Mac 에 얼마나 둘지 정합니다." : "캡처·로그를 이 Mac 에 얼마나 두고, 요약을 GitHub 에 올릴지 정합니다."}
       </SectionHead>
       <div className="settings-body">
         <strong className="group-label">이 Mac 에 보관</strong>
@@ -424,28 +583,33 @@ function EvidenceSection(props: { settings: Settings; onSaved: () => Promise<voi
         </label>
         <p className="hint">보관 기간이 지나면 이 Mac 의 캡처·로그를 지웁니다. 실행 기록은 남고, 결과 화면에서 "보관"을 켠 실행은 지우지 않습니다.</p>
 
-        <hr className="rule" />
-        <strong className="group-label">GitHub 에 올리기</strong>
-        <label className="check">
-          <input type="checkbox" checked={approved} onChange={(e) => void toggle(e.target.checked)} />
-          외부 GitHub 증적 업로드가 조직 보안 정책으로 승인됨 (D11)
-        </label>
-        <p className="hint">
-          꺼져 있으면 결과 화면에 "증적 올리기" 탭이 나오지 않습니다. 운영자가 보안 담당 확인 후에만 켭니다. 올리는 것은 비밀 값을 가린 요약 묶음이고, 원본과 영상은 올리지 않습니다.
-        </p>
-        {policyError ? (
-          <p role="alert" className="error">
-            {policyError}
-          </p>
-        ) : null}
-        <div className="row center" data-testid="evidence-target">
-          <span>
-            올라가는 곳: <strong>{target ? `${target.owner}/${target.repo}` : "GitHub 조직을 정하면 보입니다"}</strong>
-          </span>
-          <button type="button" className="secondary small" onClick={props.onOpenGitHub}>
-            GitHub 에서 바꾸기
-          </button>
-        </div>
+        {/* 로컬 워크스페이스에는 증적 올리기가 없다(ADR 0036). GitHub 사용을 켜면 나온다 */}
+        {props.local ? null : (
+          <>
+            <hr className="rule" />
+            <strong className="group-label">GitHub 에 올리기</strong>
+            <label className="check">
+              <input type="checkbox" checked={approved} onChange={(e) => void toggle(e.target.checked)} />
+              외부 GitHub 증적 업로드가 조직 보안 정책으로 승인됨 (D11)
+            </label>
+            <p className="hint">
+              꺼져 있으면 결과 화면에 "증적 올리기" 탭이 나오지 않습니다. 운영자가 보안 담당 확인 후에만 켭니다. 올리는 것은 비밀 값을 가린 요약 묶음이고, 원본과 영상은 올리지 않습니다.
+            </p>
+            {policyError ? (
+              <p role="alert" className="error">
+                {policyError}
+              </p>
+            ) : null}
+            <div className="row center" data-testid="evidence-target">
+              <span>
+                올라가는 곳: <strong>{target ? `${target.owner}/${target.repo}` : "GitHub 조직을 정하면 보입니다"}</strong>
+              </span>
+              <button type="button" className="secondary small" onClick={props.onOpenGitHub}>
+                GitHub 에서 바꾸기
+              </button>
+            </div>
+          </>
+        )}
       </div>
       <div className="settings-foot" data-testid="settings-foot">
         <button type="submit">저장</button>
@@ -461,12 +625,27 @@ function EvidenceSection(props: { settings: Settings; onSaved: () => Promise<voi
 
 function DevicesSection(props: { settings: Settings; onSaved: () => Promise<void> }) {
   const [locale, setLocale] = useState(props.settings.devices.locale);
+  const [team, setTeam] = useState(props.settings.devices.iosSigningTeam ?? "");
+  const [teams, setTeams] = useState<IosSigningTeam[] | null>(null);
+  const [teamsError, setTeamsError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const findTeams = useCallback(async () => {
+    setTeamsError(null);
+    try {
+      setTeams(await window.qa.devices.iosSigningTeams());
+    } catch (e) {
+      setTeamsError(errorMessage(e));
+    }
+  }, []);
+  useEffect(() => {
+    void findTeams();
+  }, [findTeams]);
 
   async function save(event: FormEvent) {
     event.preventDefault();
     try {
-      await window.qa.settings.update({ devices: { locale } });
+      await window.qa.settings.update({ devices: { locale, iosSigningTeam: team || null } });
       setMessage("저장했습니다");
       await props.onSaved();
     } catch (e) {
@@ -474,17 +653,46 @@ function DevicesSection(props: { settings: Settings; onSaved: () => Promise<void
     }
   }
 
+  // 저장한 팀이 키체인에 없어도 고른 값은 그대로 보인다
+  const options = teams ?? [];
+  const missing = team && teams && !teams.some((t) => t.id === team);
   return (
     <form className="card settings-detail" onSubmit={save} aria-labelledby="devices-title">
       <SectionHead id="devices-title" title="기기">
-        QA 기기를 준비할 때 쓰는 값입니다.
+        QA 기기의 언어와 iPhone 실기기 러너 서명을 정합니다.
       </SectionHead>
       <div className="settings-body">
+        <strong className="group-label">언어</strong>
         <label className="narrow">
           QA 기기 언어
           <input value={locale} onChange={(e) => setLocale(e.target.value)} placeholder="ko_KR" />
         </label>
-        <p className="hint">기기 화면에서 QA 기기를 준비할 때 이 언어로 맞춥니다. 예: ko_KR, en_US.</p>
+        <p className="hint">시뮬레이터·에뮬레이터를 준비할 때 이 언어로 맞춥니다. 예: ko_KR, en_US. 사람의 폰(Android 폰·iPhone)은 바꾸지 않습니다.</p>
+        <hr className="rule" />
+        <strong className="group-label">iPhone 실기기</strong>
+        <label className="narrow">
+          러너 서명 팀
+          <select aria-label="러너 서명 팀" value={team} onChange={(e) => setTeam(e.target.value)} data-testid="ios-signing-team">
+            <option value="">고르지 않음</option>
+            {options.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.id})
+              </option>
+            ))}
+            {missing ? <option value={team}>{team} (이 Mac 에 인증서 없음)</option> : null}
+          </select>
+        </label>
+        <p className="hint">
+          이 Mac 키체인의 Apple Development 인증서에서 찾은 팀입니다. 처음 준비할 때 이 팀으로 러너({team ? `dev.avocado.agentdevice.${team.toLowerCase()}.runner` : "dev.avocado.agentdevice.<팀>.runner"})를 서명해 iPhone 에 올립니다. 무료 개인 팀도 됩니다.
+        </p>
+        {teams && teams.length === 0 ? <p className="hint">Apple Development 인증서가 없습니다. Xcode → 설정 → 계정에서 Apple 계정을 넣고 인증서를 만듭니다.</p> : null}
+        {teamsError ? <p className="hint">팀을 찾지 못했습니다: {teamsError}</p> : null}
+        <p className="hint">조직 팀을 고르면 그 팀 계정에 러너 App ID 와 개발용 프로파일이 생길 수 있습니다. 개인 팀을 권합니다.</p>
+        <div className="row">
+          <button type="button" className="secondary" onClick={() => void findTeams()}>
+            팀 다시 찾기
+          </button>
+        </div>
       </div>
       <div className="settings-foot" data-testid="settings-foot">
         <button type="submit">저장</button>

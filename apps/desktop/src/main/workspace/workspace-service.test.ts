@@ -58,6 +58,10 @@ beforeAll(async () => {
   askpass = await AskpassServer.start();
   ws = new WorkspaceService({
     root: join(dir, "workspaces"),
+    source: () => "github",
+    saveSource: () => undefined,
+    localDir: join(dir, "local-workspace"),
+    localAuthor: "tester",
     remote: new GitHubProvider({ token: () => TOKEN, apiUrl: fake.url, webUrl: server.url }),
     github: () => ({ owner: "acme", workspaceRepo: "qa-workspace", evidenceRepoPrefix: "qa-evidence-", evidenceRepo: null, evidenceOwner: null }),
     token: () => TOKEN,
@@ -65,6 +69,7 @@ beforeAll(async () => {
     home,
     busy: () => busyReason,
     checkFlowSyntax,
+    openFolder: () => Promise.reject(new Error("GitHub 방식 시험은 폴더를 열지 않는다")),
   });
 });
 afterAll(async () => {
@@ -82,7 +87,7 @@ describe("워크스페이스", { timeout: 30_000 }, () => {
     expect(ws.accounts()).toEqual({ connected: false, apps: [] });
     const s = await ws.connect();
     expect(s).toMatchObject({ connected: true, branch: "main", onMain: true, dirty: [], ahead: 0, behind: 0, issues: 0 });
-    const list = ws.testcases();
+    const list = await ws.testcases();
     expect(list.issues).toEqual([]);
     expect(list.apps).toEqual([
       { app: "demo", name: "Demo", targets: ["ios"], accountRoles: ["signup"] },
@@ -220,14 +225,16 @@ describe("워크스페이스", { timeout: 30_000 }, () => {
     expect((await ws.status()).dirty).toEqual([]);
   });
 
-  it("실행할 플로우 찾기: TC 하나 또는 태그(active TC), 없는 플로우는 알린다", () => {
+  it("실행할 플로우 찾기: TC 여럿 또는 태그(active TC), 없는 TC 와 플로우가 없는 TC 를 가른다", () => {
     git(wsDir(), "checkout", "-q", "main");
-    const one = ws.flowsToRun({ app: "demo", target: "ios", tcId: "TC-0101" });
-    expect(one.appId).toBe("com.example.demo");
-    expect(one.flows).toEqual([{ tcId: "TC-0101", path: join(wsDir(), "apps/demo/flows/ios/TC-0101.yaml") }]);
-    expect(ws.flowsToRun({ app: "demo", target: "ios", tag: "smoke" }).flows.map((f) => f.tcId)).toEqual(["TC-0101"]);
-    expect(() => ws.flowsToRun({ app: "demo", target: "android", tcId: "TC-0101" })).toThrow("플로우가 없다");
-    expect(() => ws.flowsToRun({ app: "demo", target: "ios", tag: "nothing" })).toThrow("태그 nothing");
+    const one = ws.runPlan({ app: "demo", target: "ios", tcIds: ["TC-0101"] });
+    expect(one).toMatchObject({ known: true, appId: "com.example.demo", missing: [], noFlow: [] });
+    expect(one?.flows).toEqual([{ tcId: "TC-0101", path: join(wsDir(), "apps/demo/flows/ios/TC-0101.yaml"), envKeys: ["DEMO_TEST_PASSWORD"] }]);
+    expect(ws.runPlan({ app: "demo", target: "ios", tag: "smoke" })?.flows.map((f) => f.tcId)).toEqual(["TC-0101"]);
+    expect(ws.runPlan({ app: "demo", target: "android", tcIds: ["TC-0101", "TC-9999"] })).toMatchObject({ flows: [], noFlow: ["TC-0101"], missing: ["TC-9999"] });
+    expect(ws.runPlan({ app: "demo", target: "ios", tag: "nothing" })).toMatchObject({ flows: [], noFlow: [], missing: [] });
+    expect(ws.runPlan({ app: "nope", target: "ios", tcIds: ["TC-0101"] })).toMatchObject({ known: false, apps: expect.arrayContaining(["demo"]) as unknown });
+    expect(ws.appTargets("demo")).toContain("ios");
   });
 
   it("작업 브랜치는 TC 마다 따로: 다른 TC 의 작업 브랜치에 섞지 않는다", async () => {
@@ -354,7 +361,7 @@ describe("워크스페이스", { timeout: 30_000 }, () => {
     const accountsText = readFileSync(join(wsDir(), "apps", "demo", "accounts.yaml"), "utf8");
     expect(accountsText.startsWith("# 계정 역할")).toBe(true);
     expect(accountsText).toContain("keys: [DEMO_MEMBER_EMAIL, DEMO_MEMBER_PASSWORD]");
-    expect(ws.testcases().apps.find((a) => a.app === "demo")).toMatchObject({ targets: ["ios", "android"], accountRoles: ["signup", "member"] });
+    expect((await ws.testcases()).apps.find((a) => a.app === "demo")).toMatchObject({ targets: ["ios", "android"], accountRoles: ["signup", "member"] });
 
     // 다른 브랜치로 옮겨도 진행 중인 앱 설정 브랜치에서 읽고, 다시 저장하면 그 브랜치에 쌓는다
     await ws.checkout("main");
@@ -491,6 +498,10 @@ describe("폴더 구조 바꾸기 (ADR 0032)", { timeout: 30_000 }, () => {
     git(legacyBare, "config", "http.receivepack", "true");
     legacy = new WorkspaceService({
       root: join(dir, "workspaces"),
+      source: () => "github",
+      saveSource: () => undefined,
+      localDir: join(dir, "local-workspace"),
+      localAuthor: "tester",
       remote: new GitHubProvider({ token: () => TOKEN, apiUrl: fake.url, webUrl: server.url }),
       github: () => ({ owner: "acme", workspaceRepo: "qa-legacy", evidenceRepoPrefix: "qa-evidence-", evidenceRepo: null, evidenceOwner: null }),
       token: () => TOKEN,
@@ -498,14 +509,15 @@ describe("폴더 구조 바꾸기 (ADR 0032)", { timeout: 30_000 }, () => {
       home,
       busy: () => busyReason,
       checkFlowSyntax,
+      openFolder: () => Promise.reject(new Error("GitHub 방식 시험은 폴더를 열지 않는다")),
     });
   });
 
   it("예전 구조의 워크스페이스도 그대로 읽고 쓴다", async () => {
     expect(await legacy.connect()).toMatchObject({ connected: true, layout: 1, issues: 0 });
-    expect(legacy.testcases().testcases.map((t) => t.path)).toEqual(["testcases/demo/TC-0101.md", "testcases/sample/TC-0002.md"]);
+    expect((await legacy.testcases()).testcases.map((t) => t.path)).toEqual(["testcases/demo/TC-0101.md", "testcases/sample/TC-0002.md"]);
     expect(legacy.readTestcase("demo", "TC-0101").path).toBe("testcases/demo/TC-0101.md");
-    expect(legacy.flowsToRun({ app: "demo", target: "ios", tcId: "TC-0101" }).flows).toEqual([{ tcId: "TC-0101", path: join(legacyDir(), "flows/demo/ios/TC-0101.yaml") }]);
+    expect(legacy.runPlan({ app: "demo", target: "ios", tcIds: ["TC-0101"] })?.flows).toEqual([{ tcId: "TC-0101", path: join(legacyDir(), "flows/demo/ios/TC-0101.yaml"), envKeys: ["DEMO_TEST_PASSWORD"] }]);
     expect((await legacy.authorContext("demo", "TC-0101", "ios")).flowPath).toBe("flows/demo/ios/TC-0101.yaml");
     expect((await legacy.subflows("sample")).subflows.map((f) => f.path)).toEqual([
       "flows/sample/ios/common/close-keyboard.yaml",
@@ -556,7 +568,7 @@ describe("폴더 구조 바꾸기 (ADR 0032)", { timeout: 30_000 }, () => {
     expect(await legacy.status()).toMatchObject({ layout: 1, dirty: [], branch: "main", issues: 0 });
     expect(existsSync(join(legacyDir(), "testcases/demo/TC-0101.md"))).toBe(true);
     expect(existsSync(join(legacyDir(), "apps/demo/testcases"))).toBe(false);
-    expect(legacy.testcases().testcases).toHaveLength(2);
+    expect((await legacy.testcases()).testcases).toHaveLength(2);
   });
 
   it("바꾸기: git mv 로 옮겨 한 커밋으로 작업 브랜치에 두고, PR 로 올린다", async () => {
@@ -578,9 +590,9 @@ describe("폴더 구조 바꾸기 (ADR 0032)", { timeout: 30_000 }, () => {
     expect(readFileSync(join(legacyDir(), "CODEOWNERS"), "utf8")).toBe("# 플로우 승인 권한자\n/apps/*/flows/ @acme/qa-leads\n/apps/*/testcases/ @acme/qa-leads\n");
 
     // 새 경로로 읽고 쓴다
-    expect(legacy.testcases().testcases.map((t) => t.path)).toEqual(["apps/demo/testcases/TC-0101.md", "apps/sample/testcases/TC-0002.md"]);
-    expect(legacy.testcases().issues).toEqual([]);
-    expect(legacy.flowsToRun({ app: "demo", target: "ios", tcId: "TC-0101" }).flows[0]?.path).toBe(join(legacyDir(), "apps/demo/flows/ios/TC-0101.yaml"));
+    expect((await legacy.testcases()).testcases.map((t) => t.path)).toEqual(["apps/demo/testcases/TC-0101.md", "apps/sample/testcases/TC-0002.md"]);
+    expect((await legacy.testcases()).issues).toEqual([]);
+    expect(legacy.runPlan({ app: "demo", target: "ios", tcIds: ["TC-0101"] })?.flows[0]?.path).toBe(join(legacyDir(), "apps/demo/flows/ios/TC-0101.yaml"));
     expect((await legacy.authorContext("demo", "TC-0101", "ios")).metaPath).toBe("apps/demo/flows/ios/TC-0101.meta.yaml");
     // 이력은 옮기기 전 커밋까지 이어진다
     expect((await legacy.history("demo", "TC-0101")).map((h) => h.subject)).toEqual(["workspace: 폴더를 앱별로 모은다(schemaVersion 2)", "template"]);

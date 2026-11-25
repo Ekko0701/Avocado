@@ -1,9 +1,7 @@
 import type { UploadPreview, UploadRecord } from "@qa/shared";
 import { useEffect, useState } from "react";
 import { errorMessage, formatDateTime } from "../lib/errors";
-
-const KIND: Record<string, string> = { run_json: "메타", report: "보고서", screen: "화면 캡처", failure_screen: "실패 캡처", hierarchy: "뷰 계층", log: "로그 발췌" };
-const kb = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))}KB` : `${(n / 1024 / 1024).toFixed(1)}MB`);
+import { BundlePreview, kb, PrivacyCheck } from "./BundlePreview";
 
 /**
  * 증적 요약 묶음 올리기(PLAN 9.3·9.4). 정책 스위치(D11)가 꺼져 있으면 아무것도 보이지 않는다.
@@ -88,46 +86,14 @@ export function EvidenceUploadPanel(props: { runId: string; executionId: string;
         </button>
       </div>
       {preview ? (
-        <div className="stack" data-testid="upload-preview">
-          {preview.blocked ? (
-            <p role="alert" className="error">
-              묶음에 비밀 값이 남아 있어 올릴 수 없습니다: {preview.residue.map((r) => `${r.path}(${r.occurrences + r.patternMatches}곳${r.inPath ? ", 경로" : ""})`).join(", ")}
-            </p>
-          ) : null}
-          {preview.warnings.map((w) => (
-            <small key={w} className="warning">
-              {w}
-            </small>
-          ))}
-          <p className="hint">
-            {preview.repo} / {preview.root} · {preview.files.length}개 · {kb(preview.totalBytes)}
-          </p>
-          <ul className="checks">
-            {preview.files.map((f) => (
-              <li key={f.path}>
-                <code>{f.path}</code> <small className="hint">{KIND[f.kind] ?? f.kind} · {kb(f.bytes)}</small>
-              </li>
-            ))}
-          </ul>
-          {preview.thumbnails.length > 0 ? (
-            <div className="row">
-              {preview.thumbnails.map((t) => (
-                <img key={t.path} src={t.dataUrl} alt={t.path} title={t.path} style={{ maxHeight: 160, border: "1px solid var(--border)", borderRadius: 4 }} />
-              ))}
-            </div>
-          ) : null}
-          {!preview.blocked ? (
-            <div className="row">
-              <label className="check">
-                <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
-                개인정보 확인함 (캡처·뷰 계층·로그에 실제 사용자 정보가 없다)
-              </label>
-              <button type="button" disabled={!confirmed || busy} onClick={() => void upload()}>
-                업로드
-              </button>
-            </div>
-          ) : null}
-        </div>
+        <BundlePreview preview={preview} where={`${preview.repo} / ${preview.root}`} action="올릴" testId="upload-preview">
+          <div className="row">
+            <PrivacyCheck checked={confirmed} onChange={setConfirmed} />
+            <button type="button" disabled={!confirmed || busy} onClick={() => void upload()}>
+              업로드
+            </button>
+          </div>
+        </BundlePreview>
       ) : null}
       {message ? (
         <p role="status" className="hint" data-testid="upload-message">

@@ -34,7 +34,7 @@ test.afterAll(async () => {
 
 async function skipKeySteps(page: Page) {
   await page.getByRole("region", { name: "Claude 연결 단계" }).getByRole("button", { name: "다음" }).click();
-  await page.getByRole("region", { name: "GitHub 토큰 단계" }).getByRole("button", { name: "건너뛰기" }).click();
+  await page.getByRole("region", { name: "저장 위치 단계" }).getByRole("button", { name: "건너뛰기" }).click();
 }
 
 test("첫 실행에는 마법사가 뜨고, 도구 설치와 Maestro 확인 후 완료하면 다음부터 홈이 뜬다", async () => {
@@ -96,7 +96,7 @@ test("마법사의 GitHub·워크스페이스 단계: 토큰으로 볼 수 있�
     const { app, page } = await launchApp({ setupCompleted: false, toolsFile, env: remote.env });
     await page.getByRole("region", { name: "Claude 연결 단계" }).getByRole("button", { name: "다음" }).click();
     // 사용자처럼 마법사의 토큰 단계에서 저장한다(IPC 로 바로 넣으면 마법사가 이미 읽은 목록과 어긋난다)
-    const tokenStep = page.getByRole("region", { name: "GitHub 토큰 단계" });
+    const tokenStep = page.getByRole("region", { name: "저장 위치 단계" });
     await tokenStep.getByLabel("GitHub 토큰 입력").fill(token);
     await tokenStep.getByRole("button", { name: "저장" }).click();
     await expect(tokenStep.getByTestId("secret-status")).toHaveText("저장됨");
@@ -140,7 +140,7 @@ test("마법사 첫 단계는 Claude 연결: 기본은 내 Claude 앱이고, API
   await step.getByRole("radio", { name: /내 Claude 앱/ }).check();
   await expect(step.getByLabel("Anthropic API 키 입력")).toHaveCount(0);
   await step.getByRole("button", { name: "다음" }).click();
-  await expect(page.getByRole("region", { name: "GitHub 토큰 단계" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "저장 위치 단계" })).toBeVisible();
   // 지나온 단계는 단계 표시줄에서 눌러 돌아갈 수 있고, 단계마다 아래 줄에 "나중에 하기"가 있다
   const steps = page.getByRole("list", { name: "마법사 단계" });
   await expect(steps.getByRole("listitem").first()).toHaveAttribute("data-state", "done");

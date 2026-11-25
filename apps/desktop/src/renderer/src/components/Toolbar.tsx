@@ -1,16 +1,19 @@
-import type { ClaudeConnection, WorkspaceStatus } from "@qa/shared";
+import type { ClaudeConnection } from "@qa/shared";
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../lib/errors";
 import { inProgressCount } from "../lib/git-state";
 import { notifyWorkspaceChanged, onWorkspaceChanged } from "../lib/workspace-events";
+import { useWorkspaceStatus } from "../lib/workspace-status";
 import { Icon } from "./Icon";
 
 /**
  * 본문 위에 뜬 툴바(Liquid Glass). 바 자체는 투명하고 항목은 유리 캡슐이다. 왼쪽 동기화, 가운데 워크스페이스·브랜치, 오른쪽 Claude 연결 상태와 Git 상태 인스펙터 버튼.
+ * 로컬 워크스페이스에는 동기화·브랜치·Git 상태가 없다(ADR 0036). 왼쪽 칸은 비워 3칸 배치를 지킨다.
  * 본문은 툴바 밑으로 스크롤된다. 툴바 전체가 창 끌기 영역이고 버튼만 누를 수 있다. 상태는 8초마다, 창에 돌아올 때, 다른 화면이 바꿨다고 알릴 때 다시 읽는다.
  */
 export function Toolbar(props: { page: string | null; onNavigate: (page: "workspace" | "settings") => void; inspectorOpen: boolean; onToggleInspector: () => void }) {
-  const [ws, setWs] = useState<WorkspaceStatus | null>(null);
+  const { status: ws, setStatus: setWs, refresh: refreshStatus } = useWorkspaceStatus();
+  const local = ws?.source === "local";
   const [claude, setClaude] = useState<ClaudeConnection | null>(null);
   const [provider, setProvider] = useState<"api" | "claude-app" | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -19,7 +22,6 @@ export function Toolbar(props: { page: string | null; onNavigate: (page: "worksp
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
 
   const refresh = useCallback(() => {
-    window.qa.workspace.status().then(setWs, () => setWs(null));
     window.qa.claude.status().then(setClaude, () => setClaude(null));
     window.qa.settings.get().then((s) => setProvider(s.settings.agent.provider), () => undefined);
   }, []);
@@ -28,7 +30,7 @@ export function Toolbar(props: { page: string | null; onNavigate: (page: "worksp
   const refreshInProgress = useCallback(() => {
     window.qa.workspace
       .status()
-      .then((s) => (s.connected ? window.qa.workspace.branches().then((b) => inProgressCount(b.branches)) : 0))
+      .then((s) => (s.connected && s.source === "github" ? window.qa.workspace.branches().then((b) => inProgressCount(b.branches)) : 0))
       .then(setInProgress, () => setInProgress(0));
   }, []);
 
@@ -51,8 +53,9 @@ export function Toolbar(props: { page: string | null; onNavigate: (page: "worksp
   // 다른 화면으로 옮기면 바로 다시 읽는다(그 화면에서 연결·브랜치를 바꿨을 수 있다)
   useEffect(() => {
     refresh();
+    refreshStatus();
     refreshInProgress();
-  }, [props.page, refresh, refreshInProgress]);
+  }, [props.page, refresh, refreshStatus, refreshInProgress]);
 
   useEffect(() => {
     if (!message) return;
@@ -82,6 +85,27 @@ export function Toolbar(props: { page: string | null; onNavigate: (page: "worksp
   const claudeState = provider === "api" ? "api" : !claude ? "unknown" : !claude.listening ? "off" : claude.clients.length > 0 ? "on" : "waiting";
   const claudeText =
     claudeState === "api" ? "API 키 방식" : claudeState === "on" ? `Claude ${claude?.clients.length ?? 0}` : claudeState === "waiting" ? "Claude 대기" : claudeState === "off" ? "Claude 꺼짐" : "Claude";
+
+  if (local) {
+    return (
+      <header className="toolbar" aria-label="툴바">
+        <div aria-hidden="true" />
+        <button type="button" className="context glass capsule" data-testid="toolbar-workspace" aria-label="현재 워크스페이스: 이 Mac 의 로컬 워크스페이스" onClick={() => props.onNavigate("workspace")}>
+          <Icon name="laptop" size={16} />
+          <span className="context-text">
+            <strong>로컬 워크스페이스</strong>
+            <small>이 Mac · 혼자 쓰기</small>
+          </span>
+        </button>
+        <div className="toolbar-trail">
+          <button type="button" className="tool status glass capsule" aria-label={`Claude 연결 상태: ${claudeText}`} onClick={() => props.onNavigate("settings")}>
+            <span className={`dot ${claudeState}`} aria-hidden="true" />
+            <span>{claudeText}</span>
+          </button>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="toolbar" aria-label="툴바">

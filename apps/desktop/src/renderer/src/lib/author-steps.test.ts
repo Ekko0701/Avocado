@@ -22,11 +22,11 @@ const job = (over: Record<string, unknown> = {}, summary: Record<string, unknown
     result: null,
     ...over,
   });
-const states = (j: AuthorJob | null, driver: AuthorJob["driver"] = "claude-app") => authorSteps(j, driver).map((s) => `${s.label}:${s.state}:${s.sub}`);
+const states = (j: AuthorJob | null, driver: AuthorJob["driver"] = "claude-app") => authorSteps(j, driver, "github").map((s) => `${s.label}:${s.state}:${s.sub}`);
 
 describe("플로우 만들기 단계 표시줄", () => {
   it("시작 전에는 모두 대기이고, API 키 방식에는 Claude 에 요청 단계가 없다", () => {
-    expect(authorSteps(null, "claude-app").map((s) => [s.label, s.state])).toEqual([
+    expect(authorSteps(null, "claude-app", "github").map((s) => [s.label, s.state])).toEqual([
       ["준비", "pending"],
       ["Claude 에 요청", "pending"],
       ["기기 탐색", "pending"],
@@ -34,7 +34,7 @@ describe("플로우 만들기 단계 표시줄", () => {
       ["두 번 재생", "pending"],
       ["저장", "pending"],
     ]);
-    expect(authorSteps(null, "api").map((s) => s.label)).toEqual(["준비", "기기 탐색", "규약 검사", "두 번 재생", "저장"]);
+    expect(authorSteps(null, "api", "github").map((s) => s.label)).toEqual(["준비", "기기 탐색", "규약 검사", "두 번 재생", "저장"]);
   });
 
   it("진행 중: 앞 단계는 끝, 지금 단계는 진행(Claude 대기는 내 차례), 뒤는 대기", () => {
@@ -67,12 +67,12 @@ describe("플로우 만들기 단계 표시줄", () => {
       { status: "failed", error: "재생 2 실패" },
     );
     expect(states(failed).slice(3)).toEqual(["규약 검사:done:오류 없음", "두 번 재생:failed:2번 실패", "저장:pending:하지 않음"]);
-    expect(stoppedTitle(failed)).toBe("재생에서 실패해 저장하지 않았습니다");
+    expect(stoppedTitle(failed, "github")).toBe("재생에서 실패해 저장하지 않았습니다");
     expect(failedReplayRun(failed)).toBe("r2");
 
     const canceled = job({ phase: "done", stoppedAt: "waiting_claude" }, { status: "canceled" });
     expect(states(canceled).slice(0, 3)).toEqual(["준비:done:끝", "Claude 에 요청:failed:취소", "기기 탐색:pending:하지 않음"]);
-    expect(stoppedTitle(canceled)).toBe("Claude 에 요청 단계에서 취소했습니다");
+    expect(stoppedTitle(canceled, "github")).toBe("Claude 에 요청 단계에서 취소했습니다");
     expect(failedReplayRun(canceled)).toBeNull();
   });
 
@@ -85,6 +85,13 @@ describe("플로우 만들기 단계 표시줄", () => {
     const unknown = job({ phase: "done" }, { status: "failed" });
     expect(stoppedPhase(unknown)).toBeNull();
     expect(states(unknown).every((s) => s.includes(":pending:"))).toBe(true);
-    expect(stoppedTitle(unknown)).toBe("플로우를 만들지 못했습니다");
+    expect(stoppedTitle(unknown, "github")).toBe("플로우를 만들지 못했습니다");
+  });
+
+  it("로컬 워크스페이스에서는 저장 단계와 저장 실패에 작업 브랜치를 말하지 않는다", () => {
+    expect(authorSteps(null, "claude-app", "local").at(-1)).toMatchObject({ label: "저장", sub: "로컬 워크스페이스" });
+    const failed = job({ phase: "saving", stoppedAt: "saving" }, { status: "failed", finishedAt: "2026-11-10T01:05:00.000Z" });
+    expect(stoppedTitle(failed, "local")).toBe("로컬 워크스페이스에 저장하지 못했습니다");
+    expect(stoppedTitle(failed, "github")).toBe("작업 브랜치에 저장하지 못했습니다");
   });
 });

@@ -18,7 +18,8 @@ export const SetupCheckSchema = z.strictObject({
 });
 export type SetupCheck = z.infer<typeof SetupCheckSchema>;
 
-export const ToolIdSchema = z.enum(["jre", "maestro"]);
+/** agent-device: iOS 실기기 재생 엔진(ADR 0034). 설정 마법사가 아니라 iOS 실기기 준비에서 설치한다 */
+export const ToolIdSchema = z.enum(["jre", "maestro", "agent-device"]);
 export type ToolId = z.infer<typeof ToolIdSchema>;
 
 export const ToolStatusSchema = z.strictObject({

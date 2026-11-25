@@ -1,10 +1,11 @@
-import type { AgentUsage, ClaudeConnection, SecretsList, Settings, UpdateStatus } from "@qa/shared";
+import type { AgentUsage, ClaudeConnection, CliInfo, SecretsList, Settings, UpdateStatus, WorkspaceSourceKind } from "@qa/shared";
 
 export const SETTINGS_SECTIONS = [
   { id: "github", label: "GitHub" },
   { id: "claude", label: "Claude" },
   { id: "evidence", label: "증적" },
   { id: "devices", label: "기기" },
+  { id: "terminal", label: "터미널" },
   { id: "app", label: "앱 정보" },
 ] as const;
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"];
@@ -20,17 +21,22 @@ export interface SectionSummary {
 const stored = (secrets: SecretsList, name: string) => secrets.items.some((i) => i.name === name && i.stored);
 const usd = (value: number) => `$${value.toFixed(2)}`;
 
-/** 구역마다 지금 상태 한 줄. claude·usage·update 는 아직 못 읽었으면 null 이다 */
+/** 구역마다 지금 상태 한 줄. claude·usage·update·source·cli 는 아직 못 읽었으면 null 이다. 로컬 워크스페이스는 GitHub 에 할 일이 없다(ADR 0036) */
 export function sectionSummaries(input: {
   settings: Settings;
   secrets: SecretsList;
   claude: ClaudeConnection | null;
   usage: AgentUsage | null;
   update: UpdateStatus | null;
+  source: WorkspaceSourceKind | null;
+  cli: CliInfo | null;
 }): Record<SettingsSectionId, SectionSummary> {
-  const { settings, secrets, claude, usage, update } = input;
+  const { settings, secrets, claude, usage, update, source, cli } = input;
+  const local = source === "local";
   const g = settings.github;
-  const github: SectionSummary = !stored(secrets, "githubToken")
+  const github: SectionSummary = local
+    ? { hint: "쓰지 않음 · 로컬 워크스페이스", dot: null }
+    : !stored(secrets, "githubToken")
     ? { hint: "토큰을 넣지 않았습니다", dot: "waiting" }
     : !g.owner
       ? { hint: "저장소를 정하지 않았습니다", dot: "waiting" }
@@ -54,8 +60,15 @@ export function sectionSummaries(input: {
   return {
     github,
     claude: claudeSummary,
-    evidence: { hint: `${settings.evidence.retentionDays}일 보관 · 업로드 ${settings.policy.evidenceUploadApproved ? "켜짐" : "꺼짐"}`, dot: null },
-    devices: { hint: `언어 ${settings.devices.locale}`, dot: null },
+    evidence: { hint: local ? `${settings.evidence.retentionDays}일 보관` : `${settings.evidence.retentionDays}일 보관 · 업로드 ${settings.policy.evidenceUploadApproved ? "켜짐" : "꺼짐"}`, dot: null },
+    devices: { hint: `언어 ${settings.devices.locale}${settings.devices.iosSigningTeam ? ` · iPhone 서명 ${settings.devices.iosSigningTeam}` : ""}`, dot: null },
+    terminal: !cli
+      ? { hint: "avocado 명령", dot: null }
+      : !cli.available
+        ? { hint: "개발 실행 · pnpm avocado", dot: null }
+        : cli.link === "this"
+          ? { hint: "avocado 명령 · 연결됨", dot: "on" }
+          : { hint: "avocado 명령 · 연결 전", dot: null },
     app: {
       hint: !update ? "버전 확인 중" : update.available ? `${update.current} · 새 버전 ${update.latest ?? ""}`.trim() : update.latest ? `${update.current} · 최신 버전` : update.current,
       dot: update?.available ? "waiting" : null,

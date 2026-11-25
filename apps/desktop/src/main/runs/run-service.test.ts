@@ -286,6 +286,21 @@ describe("실행 전 확인", () => {
     expect((db.db.prepare("SELECT trigger FROM run WHERE id = ?").get(started.id) as { trigger: string }).trigger).toBe("author");
   });
 
+  it("역할이 없는 TC(envKeys 빈 목록)는 계정 값을 하나도 넘기지 않고, 계정 키를 쓰는 플로우는 시작하지 않는다", async () => {
+    writeFileSync(flowPath, "appId: ${APP_ID}\nname: TC-0002\ntags: [TC-0002]\n---\n- launchApp\n");
+    const m = fakeMaestro(["ios-pass"]);
+    const s = service(m.runner);
+    const run = await s.start({ app: "sample", flowPath, deviceId: UDID, buildId: BUILD.id }, { envKeys: [] });
+    await s.wait(run.id);
+    const args = m.calls[0]?.args ?? [];
+    expect(args.some((a) => a.startsWith("QA_FIXTURE_ACCOUNT_"))).toBe(false);
+    expect(s.summary(run.id).status).toBe("passed");
+
+    writeFileSync(flowPath, "appId: ${APP_ID}\nname: TC-0002\ntags: [TC-0002]\n---\n- inputText: ${QA_FIXTURE_ACCOUNT_ID}\n");
+    await expect(s.start({ app: "sample", flowPath, deviceId: UDID, buildId: BUILD.id }, { envKeys: [] })).rejects.toThrow("이 테스트 케이스의 계정 역할에 없는 키를 플로우가 쓴다: QA_FIXTURE_ACCOUNT_ID");
+    expect(m.calls).toHaveLength(1);
+  });
+
   it("플로우와 그 서브플로우가 쓰는 앱 계정 키에 값이 없거나 TC 역할에 없으면 maestro 를 띄우지 않고 거부한다", async () => {
     mkdirSync(join(dir, "flows", "common"));
     writeFileSync(join(dir, "flows", "common", "login.yaml"), "appId: ${APP_ID}\n---\n- inputText: ${QA_FIXTURE_ACCOUNT_PW}\n- inputText: ${MAESTRO_FILENAME}\n");

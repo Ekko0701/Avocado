@@ -5,9 +5,10 @@ import { z } from "zod";
 /**
  * 앱이 관리하는 도구의 고정 버전 (ADR 0006).
  * 버전을 올릴 때는 URL·SHA-256·크기를 공식 출처 두 곳(배포 API, 릴리스의 체크섬 파일)에서 교차 확인한다.
+ * agent-device(npm)는 내려받은 파일의 SHA-512·SHA-1 이 레지스트리의 dist.integrity·dist.shasum 과 같은지 확인하고 SHA-256 을 적는다(ADR 0034).
  */
 export const ToolDefinitionSchema = z.strictObject({
-  id: z.enum(["jre", "maestro"]),
+  id: z.enum(["jre", "maestro", "agent-device"]),
   version: z.string().min(1),
   url: z.url(),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -33,6 +34,15 @@ export const DEFAULT_TOOLS: Record<ToolId, ToolDefinition> = {
     sizeBytes: 314_886_578,
     archive: "zip",
   },
+  // 2026-10-27 출시(2주 규칙, ADR 0003). 의존성·설치 스크립트 없음. Electron 의 Node(ELECTRON_RUN_AS_NODE)로 돈다
+  "agent-device": {
+    id: "agent-device",
+    version: "0.21.33",
+    url: "https://registry.npmjs.org/agent-device/-/agent-device-0.21.33.tgz",
+    sha256: "1164c5c463a7a09bf8fc92dd49b270098d26717205ad07204998dcaca74219be",
+    sizeBytes: 1_687_153,
+    archive: "tar.gz",
+  },
 };
 
 /**
@@ -42,7 +52,7 @@ export const DEFAULT_TOOLS: Record<ToolId, ToolDefinition> = {
 export function loadToolOverrides(path: string | undefined): Record<ToolId, ToolDefinition> {
   if (!path) return DEFAULT_TOOLS;
   const parsed = z
-    .strictObject({ jre: ToolDefinitionSchema, maestro: ToolDefinitionSchema })
+    .strictObject({ jre: ToolDefinitionSchema, maestro: ToolDefinitionSchema, "agent-device": ToolDefinitionSchema.optional() })
     .parse(JSON.parse(readFileSync(path, "utf8")));
-  return parsed;
+  return { jre: parsed.jre, maestro: parsed.maestro, "agent-device": parsed["agent-device"] ?? DEFAULT_TOOLS["agent-device"] };
 }
