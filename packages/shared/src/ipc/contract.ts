@@ -298,6 +298,7 @@ export const ipcContract = {
   "update:download": { input: z.undefined(), output: UpdateStatusSchema },
   "update:install": { input: z.undefined(), output: UpdateStatusSchema },
   "qajobs:list": { input: z.undefined(), output: z.array(QaJobSchema) },
+  "qajobs:retry": { input: z.strictObject({ jobId: z.string().min(1), note: z.string().max(1000).optional() }), output: z.null() },
   "qawatch:get": { input: z.undefined(), output: QaWatchStateSchema },
   "qawatch:save": { input: QaWatchSettingsSchema, output: QaWatchStateSchema },
   "qawatch:pickFolder": { input: z.undefined(), output: z.string().nullable() },
@@ -489,6 +490,8 @@ export interface QaApi {
   qajobs: {
     /** 최근 작업부터 */
     list(): Promise<QaJob[]>;
+    /** 멈췄거나 실패한 작업의 티켓으로 Claude Code 를 다시 깨운다. note 는 멈추며 남긴 질문에 대한 사람의 답이다. 깨운 실행이 끝나기를 기다리지 않는다 */
+    retry(input: { jobId: string; note?: string }): Promise<null>;
   };
   /** QA 티켓 자동 처리 설정. 무엇을 언제 볼지와 사람 확인 없이 해도 되는 일을 정한다 */
   qawatch: {

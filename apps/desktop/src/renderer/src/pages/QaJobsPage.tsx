@@ -39,6 +39,8 @@ export function QaJobsPage(props: { onOpenResults: (runId: string) => void }) {
   const [jobs, setJobs] = useState<QaJob[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  /** 다시 시도할 때 전할 답. 작업 id 별 */
+  const [notes, setNotes] = useState<Record<string, string>>({});
 
   const reload = useCallback(() => {
     window.qa.qajobs.list().then(
@@ -97,6 +99,30 @@ export function QaJobsPage(props: { onOpenResults: (runId: string) => void }) {
                     {job.branch ? ` · ${job.branch}` : ""}
                   </small>
                   {job.events.length > 0 ? <small>{job.events.at(-1)?.message}</small> : null}
+                  {job.status === "stopped" || job.status === "failed" ? (
+                    <div className="row">
+                      <input
+                        type="text"
+                        aria-label="다시 시도할 때 전할 답"
+                        placeholder="멈추며 남긴 질문에 대한 답(선택). 예: 재생해도 된다, 그 방향으로 진행"
+                        maxLength={1000}
+                        style={{ flex: 1 }}
+                        value={notes[job.id] ?? ""}
+                        onChange={(e) => setNotes((n) => ({ ...n, [job.id]: e.target.value }))}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.qa.qajobs.retry({ jobId: job.id, note: notes[job.id]?.trim() || undefined }).then(
+                            () => setMessage(`${job.ticket}: Claude Code 를 다시 깨웠습니다. 새 작업으로 목록에 나타납니다.`),
+                            (e: unknown) => setMessage(errorMessage(e)),
+                          );
+                        }}
+                      >
+                        다시 시도
+                      </button>
+                    </div>
+                  ) : null}
                   {job.runs.length > 0 ? (
                     <div className="row">
                       {job.runs.map((r) => (

@@ -63,6 +63,8 @@ export interface HandlerDeps {
   qaWatch: QaWatchService;
   qaDooray: QaDooray;
   importDoorayToken: () => boolean;
+  /** 멈춘 QA 작업을 다시 시도한다. 할 수 없으면 이유를 던진다 */
+  retryQaJob: (jobId: string, note?: string) => void;
   /** main 의 폴더 선택 창. 취소하면 null */
   pickFolder: () => Promise<string | null>;
 }
@@ -108,6 +110,10 @@ export function createHandlers(deps: HandlerDeps): IpcHandlers {
     "claude:connectDesktop": () => deps.claude.connectDesktop(),
     ...createUpdateHandlers(deps.update),
     "qajobs:list": () => deps.qaJobs.list(),
+    "qajobs:retry": (input) => {
+      deps.retryQaJob(input.jobId, input.note);
+      return null;
+    },
     "qawatch:get": () => deps.qaWatch.get(),
     "qawatch:save": (settings) => deps.qaWatch.save(settings),
     "qawatch:pickFolder": () => deps.pickFolder(),

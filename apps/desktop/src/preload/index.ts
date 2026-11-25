@@ -114,6 +114,7 @@ const api: QaApi = {
   },
   qajobs: {
     list: () => invoke("qajobs:list", undefined),
+    retry: (input) => invoke("qajobs:retry", input),
   },
   qawatch: {
     get: () => invoke("qawatch:get", undefined),

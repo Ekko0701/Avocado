@@ -418,7 +418,7 @@ void app.whenReady().then(() => {
     jobs: qaJobStore,
     dooray: qaDooray,
     wake: (prompt, watchApp, watchSettings) => {
-      new Notification({ title: "Avocado", body: "새 QA 티켓을 찾아 Claude Code 가 처리를 시작한다" }).show();
+      new Notification({ title: "Avocado", body: "Claude Code 가 QA 티켓 처리를 시작한다" }).show();
       return wakeClaude(prompt, watchApp.repoPath, watchSettings.claudePermissionMode, join(app.getPath("userData"), "qa-jobs", "logs", `wake-${Date.now()}.log`));
     },
     log: (line) => {
@@ -540,7 +540,7 @@ void app.whenReady().then(() => {
       const token = findClaudeDoorayToken(join(app.getPath("home"), ".claude.json"));
       if (token) settings.setSecret(QA_WATCH_DOORAY_TOKEN_SECRET, token);
       return token !== null;
-    }, pickFolder: () => pick({ title: "고칠 앱의 저장소 폴더 선택", properties: ["openDirectory"] }) }),
+    }, retryQaJob: (jobId, note) => qaWatchPoller.retry(jobId, note), pickFolder: () => pick({ title: "고칠 앱의 저장소 폴더 선택", properties: ["openDirectory"] }) }),
     isAllowed,
   );
   createMainWindow();

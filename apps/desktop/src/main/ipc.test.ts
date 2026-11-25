@@ -248,6 +248,9 @@ const handlers: IpcHandlers = {
   "qajobs:list": () => {
     throw new Error("not used");
   },
+  "qajobs:retry": () => {
+    throw new Error("not used");
+  },
   "qawatch:get": () => {
     throw new Error("not used");
   },
