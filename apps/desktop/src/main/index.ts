@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, net, session, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, Notification, session, shell } from "electron";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { AppDatabase } from "./db/database";
@@ -38,6 +38,7 @@ import { buildSecretSet, redactText } from "@qa/evidence";
 import { QA_WATCH_DOORAY_TOKEN_SECRET } from "@qa/shared";
 import { QaJobStore } from "./qa/qa-job-store";
 import { QaWatchService } from "./qa/qa-watch-service";
+import { QaWatchPoller, wakeClaude } from "./qa/qa-watch-poller";
 import { findClaudeDoorayToken, QaDooray } from "./qa/qa-dooray";
 import { createSquirrelInstaller } from "./update/native-updater";
 import { UpdateService } from "./update/update-service";
@@ -397,6 +398,21 @@ void app.whenReady().then(() => {
     run: runCommand,
     redact: (text) => redactText(text, buildSecretSet(allSecrets())).text,
   });
+  const qaWatchPoller = new QaWatchPoller({
+    watch: qaWatch,
+    jobs: qaJobStore,
+    dooray: qaDooray,
+    wake: (prompt, watchApp, watchSettings) => {
+      new Notification({ title: "Avocado", body: "새 QA 티켓을 찾아 Claude Code 가 처리를 시작한다" }).show();
+      return wakeClaude(prompt, watchApp.repoPath, watchSettings.claudePermissionMode, join(app.getPath("userData"), "qa-jobs", "logs", `wake-${Date.now()}.log`));
+    },
+    log: (line) => {
+      mkdirSync(logDir, { recursive: true });
+      appendFileSync(join(logDir, "qa-watch.log"), `${JSON.stringify({ at: new Date().toISOString(), line })}\n`, { mode: 0o600 });
+    },
+  });
+  // 확인 간격(1분부터)은 qaWatch 가 가린다. 간격보다 촘촘히 깨워야 1분 간격이 한 번씩 밀리지 않는다
+  setInterval(() => void qaWatchPoller.tick(), 20_000).unref();
   onRunFinished = (runId) => void judge.autoJudge(runId);
   authorBusy = () => author.busy();
   // 실행 화면과 밖의 MCP 클라이언트가 같이 쓰는 실행 묶음 입구(ADR 0035)

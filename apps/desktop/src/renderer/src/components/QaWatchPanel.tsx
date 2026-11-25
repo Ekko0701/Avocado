@@ -1,4 +1,4 @@
-import { QA_WATCH_DOORAY_TOKEN_SECRET, type QaWatchApp, type QaWatchProject, type QaWatchSettings, type QaWatchState } from "@qa/shared";
+import { QA_WATCH_DOORAY_TOKEN_SECRET, QaWatchPermissionModeSchema, type QaWatchApp, type QaWatchProject, type QaWatchSettings, type QaWatchState } from "@qa/shared";
 import { useEffect, useState } from "react";
 import { errorMessage, formatDateTime } from "../lib/errors";
 
@@ -110,8 +110,7 @@ export function QaWatchPanel() {
     <section className="card stack" aria-label="자동 처리 설정">
       <h2>자동 처리 설정</h2>
       <p className="hint">
-        정한 태그가 붙은 티켓이 올라오면 Claude Code 가 알아서 처리합니다. 여기서는 무엇을 언제 볼지만 정합니다. 실제 확인은 Claude Code 의 예약 작업이 하고, 이 Mac 과 Claude
-        앱이 켜져 있을 때만 돕니다.
+        정한 태그가 붙은 티켓이 올라오면 Claude Code 가 알아서 처리합니다. 새 티켓 확인은 이 앱이 직접 하고, 새 티켓이 있을 때만 Claude Code 를 깨웁니다. 이 앱이 켜져 있을 때만 돕니다.
       </p>
       <label className="row">
         <input type="checkbox" checked={draft.enabled} onChange={(e) => patch({ enabled: e.target.checked })} /> 자동 처리 켜기
@@ -119,7 +118,7 @@ export function QaWatchPanel() {
       <div className="row">
         <label>
           확인 간격(분)
-          <input type="number" min={5} max={1440} value={draft.intervalMinutes} onChange={(e) => patch({ intervalMinutes: Number(e.target.value) })} />
+          <input type="number" min={1} max={1440} value={draft.intervalMinutes} onChange={(e) => patch({ intervalMinutes: Number(e.target.value) })} />
         </label>
         <label>
           시작 시
@@ -148,6 +147,24 @@ export function QaWatchPanel() {
       <label className="row">
         <input type="checkbox" checked={draft.autoComment} onChange={(e) => patch({ autoComment: e.target.checked })} /> 사람 확인 없이 티켓에 댓글 달기
       </label>
+      <label>
+        깨운 Claude Code 의 권한
+        <select
+          value={draft.claudePermissionMode ?? ""}
+          onChange={(e) => {
+            const rest = { ...draft };
+            delete rest.claudePermissionMode;
+            const mode = QaWatchPermissionModeSchema.safeParse(e.target.value);
+            setDraft(mode.success ? { ...rest, claudePermissionMode: mode.data } : rest);
+          }}
+        >
+          <option value="">Claude Code 설정 그대로</option>
+          <option value="acceptEdits">파일 수정은 묻지 않기 (acceptEdits)</option>
+          <option value="auto">알아서 판단 (auto)</option>
+          <option value="bypassPermissions">아무것도 묻지 않기 (bypassPermissions)</option>
+        </select>
+      </label>
+      <p className="hint">사람이 없어 권한을 물을 수 없습니다. 허용되지 않은 명령은 거절되고, 그 때문에 진행할 수 없으면 작업이 멈춥니다.</p>
       {!draft.autoMr ? <p className="hint">MR 올리기를 꺼 두면 수정과 기기 확인까지만 하고 멈춥니다. 작업 브랜치는 남습니다.</p> : null}
 
       <h3>두레이 연결</h3>

@@ -48,3 +48,25 @@ describe("findClaudeDoorayToken", () => {
     expect(findClaudeDoorayToken(file)).toBe("abc");
   });
 });
+
+describe("QaDooray.openTickets", () => {
+  it("프로젝트·태그·내 계정을 이름으로 찾아 열린 티켓을 조회하고, 찾은 id 는 다시 묻지 않는다", async () => {
+    const urls: string[] = [];
+    const dooray = new QaDooray({
+      token: () => "t",
+      fetch: (url) => {
+        urls.push(url.replace("https://api.dooray.com", ""));
+        if (url.includes("/members/me")) return Promise.resolve({ status: 200, json: () => Promise.resolve({ header: { isSuccessful: true }, result: { id: "77" } }) });
+        if (url.includes("/posts?")) return Promise.resolve(ok([{ id: "900", taskNumber: "앱-QA/9", subject: "제목" }, { id: 1 }]));
+        if (url.includes("/tags?")) return Promise.resolve(ok([{ id: "5", name: "자동수정" }]));
+        return Promise.resolve(ok([{ id: "10", code: "앱-QA" }]));
+      },
+    });
+    const watch = { project: "앱-QA", tag: "자동수정", scope: "assigned_to_me" as const };
+    expect(await dooray.openTickets(watch)).toEqual([{ ticket: "앱-QA/9", postId: "900" }]);
+    expect(urls[3]).toBe("/project/v1/projects/10/posts?tagIds=5&postWorkflowClasses=registered,working&order=createdAt&toMemberIds=77&size=100&page=0");
+    await dooray.openTickets(watch);
+    expect(urls).toHaveLength(5);
+    await expect(dooray.openTickets({ ...watch, tag: "없는 태그" })).rejects.toThrow("태그를 찾지 못했다");
+  });
+});

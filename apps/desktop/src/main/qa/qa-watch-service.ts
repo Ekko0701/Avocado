@@ -42,7 +42,7 @@ const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 
 /**
  * QA 티켓 자동 처리 설정과 "지금 확인할 때인가" 판단.
- * 간격·요일·시간대는 여기서 정한다. Claude Code 쪽 예약 작업은 자주 깨어나 qa_watch_next 를 부르기만 하면 된다.
+ * 간격·요일·시간대는 여기서 정한다. 앱의 확인(QaWatchPoller)과 Claude Code 의 qa_watch_next 가 같은 판단을 쓴다.
  */
 export class QaWatchService {
   private readonly now: () => Date;
@@ -115,12 +115,20 @@ export class QaWatchService {
     return null;
   }
 
-  private next(input: z.infer<typeof NextSchema>): string {
+  /** 지금 확인해도 되면 확인 시각을 적고 설정을 준다. 안 되면 이유를 준다 */
+  claim(force = false): { reason: string } | { settings: QaWatchSettings } {
     const now = this.now();
-    const reason = this.blocked(now, input.force === true);
-    if (reason) return `${reason} 지금은 아무것도 하지 않는다.`;
+    const reason = this.blocked(now, force);
+    if (reason) return { reason };
     const { settings } = this.state;
     this.write({ settings, lastCheckedAt: now.toISOString() });
+    return { settings };
+  }
+
+  private next(input: z.infer<typeof NextSchema>): string {
+    const claim = this.claim(input.force === true);
+    if ("reason" in claim) return `${claim.reason} 지금은 아무것도 하지 않는다.`;
+    const { settings } = claim;
     const handled = [...new Set(this.options.jobs.list().map((j) => j.ticket))];
     return [
       "지금 새 티켓을 확인한다. 아래 항목을 위에서부터 보고, 아직 다루지 않은 티켓 한 건만 처리한다.",

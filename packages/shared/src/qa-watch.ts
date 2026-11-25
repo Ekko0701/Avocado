@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * QA 티켓 자동 처리 설정(사이드 브랜치 side/qa-fix-monitor).
  * 이슈 트래커 프로젝트에 정한 태그가 붙은 티켓이 올라오면 Claude Code 가 알아서 처리하도록, 무엇을 언제 볼지 여기서 정한다.
- * 티켓은 주기적으로 깨어난 Claude Code 가 qa_watch_next 로 이 설정을 받아 조회한다. Avocado 는 설정 화면에서 고를 프로젝트·태그 목록만 읽어 온다.
+ * Avocado 가 확인 간격마다 이슈 트래커를 직접 조회하고, 아직 다루지 않은 티켓이 있을 때만 Claude Code 를 깨운다. 사람이 직접 시킬 때는 Claude Code 가 qa_watch_next 로 이 설정을 받는다.
  */
 
 /** 두레이 토큰을 넣어 두는 비밀 이름. main 브랜치의 앱도 읽을 수 있는 계정 비밀 형식을 쓴다 */
@@ -29,12 +29,15 @@ export const QaWatchAppSchema = z.strictObject({
 });
 export type QaWatchApp = z.infer<typeof QaWatchAppSchema>;
 
+export const QaWatchPermissionModeSchema = z.enum(["acceptEdits", "auto", "bypassPermissions"]);
+export type QaWatchPermissionMode = z.infer<typeof QaWatchPermissionModeSchema>;
+
 export const QaWatchSettingsSchema = z
   .strictObject({
     /** 자동 처리 전체를 켜고 끈다 */
     enabled: z.boolean(),
     /** 새 티켓을 확인하는 간격(분) */
-    intervalMinutes: z.number().int().min(5).max(1440),
+    intervalMinutes: z.number().int().min(1).max(1440),
     /** 확인하는 요일. 0(일) ~ 6(토) */
     days: z.array(z.number().int().min(0).max(6)).max(7),
     /** 확인을 시작하는 시(0~23)와 끝내는 시(1~24). 이 Mac 의 시각 기준 */
@@ -44,6 +47,8 @@ export const QaWatchSettingsSchema = z
     autoMr: z.boolean(),
     /** 사람 확인 없이 티켓에 댓글을 달아도 되는가 */
     autoComment: z.boolean(),
+    /** 깨운 Claude Code 에 넘길 권한 모드. 없으면 넘기지 않아 사용자의 Claude Code 설정을 그대로 따른다 */
+    claudePermissionMode: QaWatchPermissionModeSchema.optional(),
     apps: z.array(QaWatchAppSchema).max(20),
   })
   .refine((v) => v.startHour < v.endHour, { message: "시작 시각이 끝 시각보다 앞이어야 한다" });
