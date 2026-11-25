@@ -46,7 +46,7 @@ const SPEC = "## 기대값\n- 강좌함 탭을 누르면 수강 강좌 목록이
 const ANALYSIS = "## 원인\n- 탭 클릭 처리에서 화면 전환이 빠져 있었다";
 const VERDICT = "## 판정\n- 수정 후 캡처에서 수강 강좌 목록이 보인다. 기대값과 일치";
 
-function setup(result: RunSummary["status"] = "passed", opts: { flaky?: boolean; crash?: boolean } = {}) {
+function setup(result: RunSummary["status"] = "passed", opts: { flaky?: boolean; crash?: boolean; judge?: NonNullable<ConstructorParameters<typeof QaJobService>[0]["judge"]> } = {}) {
   const started: StartRunInput[] = [];
   const adbCalls: string[] = [];
   const run: CommandRunner = async (_file, args) => {
@@ -100,6 +100,7 @@ function setup(result: RunSummary["status"] = "passed", opts: { flaky?: boolean;
     adb: "/sdk/platform-tools/adb",
     run,
     redact: (text) => text.replaceAll("SECRET-VALUE", "***"),
+    judge: opts.judge,
     now: () => new Date(AT),
     newId: () => "job-1",
   });
@@ -249,6 +250,31 @@ describe("QA 수정 작업 도구", () => {
     const r = await call("qa_job_report", { jobId: "job-1", stage: "mr", message: "MR 을 올렸다", status: "succeeded", verification: "verified", mrUrl: "https://git.example.com/mr/1" });
     expect(r.isError).toBe(false);
     expect(service.list()[0]).toMatchObject({ status: "succeeded", verification: "verified", mrUrl: "https://git.example.com/mr/1" });
+  });
+
+  it("화면 판정을 다 내고 마지막 실행에 fail 이 없어야 verified 로 끝난다", async () => {
+    const judged: { stepIndex: number | null; verdict: "pass" | "fail" | "uncertain" }[] = [];
+    const startedJudge: string[] = [];
+    const { call, prepared } = setup("passed", {
+      judge: { captures: () => [0, 1], judged: () => judged, start: (runId) => (startedJudge.push(runId), 2) },
+    });
+    await prepared();
+    await call("qa_job_run_flow", { jobId: "job-1", label: "after", deviceId: "R58M123", app: "demo", flowYaml: FLOW });
+    await call("qa_job_save_artifact", { jobId: "job-1", kind: "verdict", content: VERDICT });
+    const done = { jobId: "job-1", stage: "mr", message: "MR 을 올렸다", status: "succeeded", verification: "verified" };
+
+    expect((await call("qa_job_report", done)).text).toContain("qa_job_judge");
+    const start = await call("qa_job_judge", { jobId: "job-1" });
+    expect(start.text).toContain("캡처 2장");
+    expect(startedJudge).toHaveLength(1);
+
+    judged.push({ stepIndex: 0, verdict: "pass" });
+    expect((await call("qa_job_report", done)).isError).toBe(true);
+    judged.push({ stepIndex: 1, verdict: "fail" });
+    expect((await call("qa_job_report", done)).text).toContain("fail");
+    judged[1] = { stepIndex: 1, verdict: "pass" };
+    expect((await call("qa_job_report", done)).isError).toBe(false);
+    expect((await call("qa_job_judge", { jobId: "job-1" })).text).toContain("모두 판정했다");
   });
 
   it("첫 시도에 실패하고 다시 돌려 통과했으면 verified_after_retry 로만 끝낼 수 있다", async () => {

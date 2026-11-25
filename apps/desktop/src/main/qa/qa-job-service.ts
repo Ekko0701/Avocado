@@ -49,6 +49,15 @@ export interface QaJobServiceOptions {
   run: CommandRunner;
   /** 로그를 파일에 쓰기 전에 비밀 값을 가린다 */
   redact: (text: string) => string;
+  /** 화면 판정(Claude 앱 방식). 없으면 판정 없이도 성공으로 끝낼 수 있다 */
+  judge?: {
+    /** 그 실행에서 판정할 캡처의 스텝 번호. 캡처가 없으면 빈 목록 */
+    captures(runId: string): number[];
+    /** 그 실행에 이미 낸 판정 */
+    judged(runId: string): { stepIndex: number | null; verdict: "pass" | "fail" | "uncertain" }[];
+    /** 판정 작업을 만들고 캡처 수를 돌려준다. 이어서 attach_judge 로 맡는다 */
+    start(runId: string): number;
+  };
   now?: () => Date;
   newId?: () => string;
 }
@@ -83,6 +92,7 @@ const RunFlowSchema = z.strictObject({
   flowYaml: z.string().min(1).max(100_000).describe("Maestro 플로우 전체(appId 머리, ---, 명령 목록). appId 는 실제 패키지 이름이어야 한다"),
 });
 const EmptySchema = z.strictObject({});
+const JudgeSchema = z.strictObject({ jobId: z.string().min(1) });
 
 function jsonSchema(schema: z.ZodType): McpToolDefinition["inputSchema"] {
   const out: Record<string, unknown> = { ...z.toJSONSchema(schema) };
@@ -114,6 +124,12 @@ const TOOLS: McpToolDefinition[] = [
     description:
       "Maestro 플로우를 기기에서 재생하고 끝날 때까지 기다린다. 결과로 통과 여부, 스텝별 상태, 캡처·녹화가 있는 폴더, 그동안의 앱 로그 파일을 받는다. before·after 는 spec 을 남긴 뒤에만 돌린다. 기기의 앱 데이터를 지우는 명령(clearState, clearKeychain)은 받지 않는다.",
     inputSchema: jsonSchema(RunFlowSchema),
+  },
+  {
+    name: "qa_job_judge",
+    description:
+      "통과한 수정 후 실행(after) 가운데 아직 화면 판정을 하지 않은 것 하나의 판정 작업을 시작한다. 이어서 attach_judge 를 부르고 캡처마다 판정을 낸다. 남은 실행이 없을 때까지 되풀이한다. 판정을 다 내야 verified 로 끝낼 수 있다.",
+    inputSchema: jsonSchema(JudgeSchema),
   },
 ];
 
@@ -155,6 +171,7 @@ export class QaJobService {
         EmptySchema.parse(args ?? {});
         return toMcpResult(await this.devices());
       }
+      if (name === "qa_job_judge") return toMcpResult(this.judge(JudgeSchema.parse(args ?? {})));
       if (name === "qa_job_run_flow") return toMcpResult(await this.runFlow(RunFlowSchema.parse(args ?? {}), signal));
       throw new QaJobError(`모르는 도구다: ${name}`);
     } catch (error) {
@@ -252,6 +269,38 @@ export class QaJobService {
       throw new QaJobError("verified 로 끝내려면 수정 후 실행(after)이 통과해야 한다. 통과한 실행이 없으면 unverified 나 not_run 으로 이유와 함께 알린다");
     }
     if (after.flaky && verification === "verified") throw new QaJobError("수정 후 실행이 첫 시도에 실패하고 다시 돌려 통과했다. verified_after_retry 로 알린다");
+    const port = this.options.judge;
+    if (!port) return;
+    if (this.unjudged(job).length > 0) throw new QaJobError("화면 판정을 하지 않은 수정 후 실행이 있다. qa_job_judge 를 부른다");
+    // 고친 뒤 다시 돌린 실행이 뒤에 붙으므로, 마지막 실행의 판정만 막는 기준으로 쓴다
+    if (port.judged(after.runId).some((j) => j.verdict === "fail")) {
+      throw new QaJobError("마지막 수정 후 실행에 화면 판정이 fail 인 캡처가 있다. 고쳐서 다시 돌리거나, unverified 로 이유와 함께 알린다");
+    }
+  }
+
+  /** 통과한 수정 후 실행 가운데 판정이 덜 끝난 것 */
+  private unjudged(job: QaJob): QaJob["runs"] {
+    const port = this.options.judge;
+    if (!port) return [];
+    return job.runs.filter((r) => {
+      if (r.label !== "after" || r.status !== "passed") return false;
+      const done = new Set(port.judged(r.runId).map((j) => j.stepIndex));
+      return port.captures(r.runId).some((step) => !done.has(step));
+    });
+  }
+
+  private judge(input: z.infer<typeof JudgeSchema>): string {
+    const port = this.options.judge;
+    if (!port) throw new QaJobError("이 앱에서는 화면 판정을 쓸 수 없다");
+    const pending = this.unjudged(this.job(input.jobId));
+    const next = pending[0];
+    if (!next) return "판정할 수정 후 실행이 없다. 통과한 실행은 모두 판정했다.";
+    const total = port.start(next.runId);
+    return [
+      `수정 후 실행(${next.deviceName}, ${next.at})의 캡처 ${total}장 판정을 시작했다.`,
+      "attach_judge 를 부르고, 받은 지시문대로 캡처마다 판정을 낸다. 기대 결과가 막연하게 적혀 있으면 spec 에 남긴 기대값을 기준으로 삼는다.",
+      pending.length > 1 ? `이 실행을 끝낸 뒤에도 판정할 실행이 ${pending.length - 1}개 남는다. qa_job_judge 를 다시 부른다.` : "이 실행이 마지막이다.",
+    ].join("\n");
   }
 
   private async devices(): Promise<string> {

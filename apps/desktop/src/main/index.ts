@@ -32,7 +32,7 @@ import { AuthorService } from "./agent/author-service";
 import { ClaudeConnectService } from "./claude/claude-connect";
 import { createAvocadoMcpServer, routeMcpPorts } from "./claude/mcp-server";
 import { McpSocketHost } from "./claude/socket-host";
-import { JudgeService } from "./agent/judge-service";
+import { JudgeService, selectCaptures } from "./agent/judge-service";
 import { QaJobService } from "./qa/qa-job-service";
 import { buildSecretSet, redactText } from "@qa/evidence";
 import { QA_WATCH_DOORAY_TOKEN_SECRET } from "@qa/shared";
@@ -397,6 +397,21 @@ void app.whenReady().then(() => {
     adb: join(androidHome, "platform-tools", "adb"),
     run: runCommand,
     redact: (text) => redactText(text, buildSecretSet(allSecrets())).text,
+    judge: {
+      captures: (runId) => {
+        const execution = runs.get(runId).executions.at(-1);
+        return execution ? selectCaptures(execution, { sampleRate: 1, all: true }).map((c) => c.stepIndex) : [];
+      },
+      judged: (runId) => {
+        const execution = runs.get(runId).executions.at(-1);
+        return execution ? judge.list(runId, execution.id) : [];
+      },
+      start: (runId) => {
+        const execution = runs.get(runId).executions.at(-1);
+        if (!execution) throw new Error(`실행 기록이 없다: ${runId}`);
+        return judge.startClaude(runId, execution.id).total;
+      },
+    },
   });
   const qaWatchPoller = new QaWatchPoller({
     watch: qaWatch,
