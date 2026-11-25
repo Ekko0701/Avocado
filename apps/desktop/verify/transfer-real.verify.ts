@@ -57,8 +57,9 @@ test("내보내기·가져오기: A 에서 설정 앱 테스트 케이스를 내
       const nav = a.page.getByRole("navigation", { name: "주 메뉴" });
       await nav.getByRole("button", { name: "워크스페이스", exact: true }).click();
       const first = a.page.getByRole("form", { name: "첫 앱 등록" });
-      await first.getByLabel("앱 id", { exact: true }).fill(APP);
       await first.getByLabel("앱 이름").fill("설정");
+      // 한글 이름은 앱 id 를 만들지 못해 칸이 열린다
+      await first.getByLabel("앱 id", { exact: true }).fill(APP);
       await first.getByLabel("iOS 앱 ID", { exact: true }).fill("com.apple.Preferences");
       await first.getByRole("button", { name: "앱 등록" }).click();
       await expect(a.page.getByTestId(`ws-nav-${APP}`)).toBeVisible();

@@ -64,8 +64,9 @@ test("로컬 워크스페이스: 마법사 → 설정 앱 등록 → 테스트 �
     await expect(env.getByTestId("check-tool-maestro").getByTestId("check-status")).toHaveText("정상", { timeout: 120_000 });
     await env.getByRole("button", { name: "다음" }).click();
     const first = page.getByRole("region", { name: "첫 앱 단계" });
-    await first.getByLabel("앱 id", { exact: true }).fill(APP);
     await first.getByLabel("앱 이름").fill("설정");
+    // 한글 이름은 앱 id 를 만들지 못해 칸이 열린다
+    await first.getByLabel("앱 id", { exact: true }).fill(APP);
     await first.getByLabel("iOS 앱 ID", { exact: true }).fill("com.apple.Preferences");
     await expect(first.getByTestId("first-app-subflows")).toContainText("common/launch-clean.yaml");
     await run.shot("wizard-first-app");

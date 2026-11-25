@@ -35,7 +35,7 @@ export const splitKeys = (keys: string) =>
 /** 입력하는 동안 보이는 앱 설정 형식 문제(저장할 때 main 이 다시 검사한다) */
 export function appFormProblems(form: { name: string; locale: string; targets: TargetChoices; roles: RoleRow[] }, newApp: { id: string; taken: boolean } | null): string[] {
   const out: string[] = [];
-  if (newApp && !APP_ID.test(newApp.id)) out.push("앱 ID 는 영문 소문자·숫자·하이픈만 씁니다");
+  if (newApp && !APP_ID.test(newApp.id)) out.push("폴더·CLI 이름(앱 id)은 영문 소문자·숫자·하이픈만 씁니다");
   if (newApp?.taken) out.push(`이미 있는 앱입니다: ${newApp.id}`);
   if (!form.name.trim()) out.push("앱 이름을 씁니다");
   if (form.locale.trim() && !LOCALE.test(form.locale.trim())) out.push("언어는 ko_KR 형식으로 쓰거나 비웁니다");
@@ -57,16 +57,40 @@ export function appFormProblems(form: { name: string; locale: string; targets: T
   return out;
 }
 
-/** 로컬 워크스페이스의 첫 앱 등록(마법사의 첫 앱 단계와 빈 워크스페이스 화면). 언어와 계정 역할은 나중에 앱 설정에서 정한다 */
-export interface FirstAppDraft {
-  id: string;
+/**
+ * 앱 이름에서 앱 id(폴더·테스트 케이스·CLI 이름)를 만든다. "Demo Dev" → "demo-dev", "Café" → "cafe".
+ * 영문으로 바꿀 수 없는 글자(한글 등)가 있으면 일부만 남겨 엉뚱한 id 가 되지 않게 "" 를 돌려준다. 그때는 사람이 직접 쓴다
+ */
+export function appIdFromName(name: string): string {
+  const latin = name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+  if ([...latin].some((c) => c.charCodeAt(0) > 0x7f)) return "";
+  return latin
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/, "");
+}
+
+/** 이름과 앱 id. idEdited 면 사람이 id 를 고쳤으니 이름을 바꿔도 id 를 다시 만들지 않는다 */
+export interface AppNameValue {
   name: string;
+  id: string;
+  idEdited: boolean;
+}
+
+export function withName(value: AppNameValue, name: string): AppNameValue {
+  return { ...value, name, id: value.idEdited ? value.id : appIdFromName(name) };
+}
+
+/** 로컬 워크스페이스의 첫 앱 등록(마법사의 첫 앱 단계와 빈 워크스페이스 화면). 언어와 계정 역할은 나중에 앱 설정에서 정한다 */
+export interface FirstAppDraft extends AppNameValue {
   targets: TargetChoices;
 }
 
 export function emptyFirstApp(): FirstAppDraft {
   const targets = Object.fromEntries(TARGETS.map((t) => [t.id, { on: t.id === "ios", appId: "" }])) as TargetChoices;
-  return { id: "", name: "", targets };
+  return { id: "", name: "", idEdited: false, targets };
 }
 
 export function firstAppProblems(draft: FirstAppDraft, existing: readonly string[]): string[] {

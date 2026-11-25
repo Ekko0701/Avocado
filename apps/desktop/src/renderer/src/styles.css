@@ -3334,3 +3334,14 @@ hr.rule {
 fieldset.tc-fields {
   display: contents;
 }
+
+/* 앱 이름 → 폴더·CLI 이름(앱 id). 이름 칸 아래 작은 줄 */
+.app-name-field {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+.app-name-field .row.center {
+  gap: 6px;
+  flex-wrap: wrap;
+}

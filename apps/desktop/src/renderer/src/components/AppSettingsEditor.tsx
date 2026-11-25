@@ -1,5 +1,6 @@
 import type { AccountRoleEdit, AppSettingsDoc, RequestReviewResult } from "@qa/shared";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { AppNameField } from "./AppNameField";
 import { appFormProblems, splitKeys, TARGETS, type RoleRow, type TargetChoice, type TargetChoices, type TargetId } from "../lib/app-form";
 import { errorMessage } from "../lib/errors";
 import { notifyWorkspaceChanged } from "../lib/workspace-events";
@@ -61,6 +62,7 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
   const setSelected = props.onSelect;
   const local = useWorkspaceSource() === "local";
   const [newId, setNewId] = useState("");
+  const [idEdited, setIdEdited] = useState(false);
   const [form, setForm] = useState<Form | null>(null);
   const [source, setSource] = useState<string | null>(null);
   const [summary, setSummary] = useState("");
@@ -84,6 +86,8 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
     setPr(null);
     if (selected === NEW_APP) {
       setForm(toForm(null));
+      setNewId("");
+      setIdEdited(false);
       return;
     }
     load(selected).catch((e: unknown) => setMessage(`앱 설정을 읽지 못했습니다: ${errorMessage(e)}`));
@@ -129,6 +133,7 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
       notifyWorkspaceChanged();
       if (creating) {
         setNewId("");
+        setIdEdited(false);
         setSelected(app);
       } else {
         await load(app);
@@ -174,12 +179,6 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
         </small>
       </div>
       <div className="ws-body">
-      {creating ? (
-        <label>
-          새 앱 ID
-          <input aria-label="새 앱 ID" value={newId} onChange={(e) => setNewId(e.target.value)} placeholder="예: my-app (영문 소문자·숫자·하이픈, 나중에 바꿀 수 없음)" />
-        </label>
-      ) : null}
       {source ? (
         <p className="hint" data-testid="app-settings-source">
           아직 머지되지 않은 작업 브랜치 <code>{source}</code> 의 내용입니다.
@@ -191,10 +190,21 @@ export function AppSettingsEditor(props: { apps: { app: string; name: string }[]
       ) : (
         <>
           <div className="grid">
-            <label>
-              이름
-              <input aria-label="앱 이름" value={form.name} onChange={(e) => patch({ name: e.target.value })} placeholder="예: My App" />
-            </label>
+            {creating ? (
+              <AppNameField
+                value={{ name: form.name, id: newId, idEdited }}
+                onChange={(next) => {
+                  patch({ name: next.name });
+                  setNewId(next.id);
+                  setIdEdited(next.idEdited);
+                }}
+              />
+            ) : (
+              <label>
+                이름
+                <input aria-label="앱 이름" value={form.name} onChange={(e) => patch({ name: e.target.value })} placeholder="예: My App" />
+              </label>
+            )}
             <label>
               언어
               <input aria-label="앱 언어" value={form.locale} onChange={(e) => patch({ locale: e.target.value })} placeholder="예: ko_KR (비우면 워크스페이스 기본값)" />

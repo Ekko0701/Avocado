@@ -58,7 +58,7 @@ test("workspace: 앱 목록과 탭", async () => {
     await run.shot("problems");
 
     await page.getByTestId("ws-nav-new").click();
-    await expect(settings.getByLabel("새 앱 ID")).toBeVisible();
+    await expect(settings.getByLabel("앱 이름")).toBeVisible();
     await page.waitForTimeout(300);
     await run.shot("new-app");
 

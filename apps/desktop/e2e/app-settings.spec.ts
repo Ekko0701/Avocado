@@ -65,10 +65,17 @@ test("앱 설정: 워크스페이스 화면에서 타깃·계정 역할을 고�
     await nav.getByRole("button", { name: "워크스페이스", exact: true }).click();
     await page.getByTestId("ws-nav-new").click();
     await expect(panel.getByRole("heading", { name: "새 앱" })).toBeVisible();
-    await panel.getByLabel("새 앱 ID").fill("demo");
+    // 이름에서 폴더·CLI 이름(앱 id)을 만든다. 이미 있는 앱이면 알린다
+    await expect(panel.getByLabel("앱 이름")).toHaveValue("");
+    await panel.getByLabel("앱 이름").fill("Demo");
     await expect(page.getByTestId("app-settings-problems")).toContainText("이미 있는 앱입니다: demo");
-    await panel.getByLabel("새 앱 ID").fill("notes");
+    // 바꾸기로 직접 고치면 이름을 바꿔도 따라가지 않고, 이름에서 다시 만들 수 있다
+    await panel.getByTestId("app-id-line").getByRole("button", { name: "바꾸기" }).click();
+    await panel.getByLabel("앱 id", { exact: true }).fill("notes-qa");
     await panel.getByLabel("앱 이름").fill("Notes");
+    await expect(panel.getByLabel("앱 id", { exact: true })).toHaveValue("notes-qa");
+    await panel.getByRole("button", { name: "이름에서 다시 만들기" }).click();
+    await expect(panel.getByTestId("app-id-line")).toContainText("notes");
     await panel.getByLabel("iOS 사용", { exact: true }).check();
     await panel.getByLabel("iOS 앱 ID", { exact: true }).fill("com.example.notes");
     await panel.getByLabel("변경 요약").fill("add notes app");

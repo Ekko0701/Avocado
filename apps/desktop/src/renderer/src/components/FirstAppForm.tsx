@@ -2,6 +2,7 @@ import { useState } from "react";
 import { defaultSubflowRows, emptyFirstApp, firstAppInput, firstAppProblems, type FirstAppDraft } from "../lib/app-form";
 import { errorMessage } from "../lib/errors";
 import { notifyWorkspaceChanged } from "../lib/workspace-events";
+import { AppNameField } from "./AppNameField";
 import { TargetFieldset } from "./AppSettingsEditor";
 
 /** 첫 앱 등록의 입력과 저장. 마법사의 첫 앱 단계와 빈 로컬 워크스페이스 화면이 같이 쓰고, 버튼 자리는 각자 둔다 */
@@ -39,16 +40,7 @@ export function FirstAppFields(props: { draft: FirstAppDraft; onChange: (next: F
   const touched = draft.id.trim() !== "" || draft.name.trim() !== "";
   return (
     <div className="stack" data-testid="first-app">
-      <div className="grid">
-        <label>
-          앱 id
-          <input aria-label="앱 id" value={draft.id} onChange={(e) => props.onChange({ ...draft, id: e.target.value })} placeholder="영문 소문자·숫자·- (예: my-app)" />
-        </label>
-        <label>
-          이름
-          <input aria-label="앱 이름" value={draft.name} onChange={(e) => props.onChange({ ...draft, name: e.target.value })} placeholder="예: My App" />
-        </label>
-      </div>
+      <AppNameField value={draft} onChange={(next) => props.onChange({ ...draft, ...next })} />
       <TargetFieldset targets={draft.targets} onChange={(id, next) => props.onChange({ ...draft, targets: { ...draft.targets, [id]: { ...draft.targets[id], ...next } } })} />
       {rows.length > 0 ? (
         <>

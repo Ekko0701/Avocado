@@ -62,8 +62,10 @@ test("GitHub 사용을 끄면 마법사 → 첫 앱 → 테스트 케이스 저�
     const first = page.getByRole("region", { name: "첫 앱 단계" });
     await expect(first.getByRole("heading", { name: "4. 첫 앱" })).toBeVisible();
     await expect(first.getByRole("button", { name: "건너뛰기" })).toBeEnabled();
-    await first.getByLabel("앱 id", { exact: true }).fill("notes");
+    // 이름만 쓰면 폴더·CLI 이름(앱 id)은 이름에서 만든다
     await first.getByLabel("앱 이름").fill("Notes");
+    await expect(first.getByTestId("app-id-line")).toContainText("notes");
+    await expect(first.getByLabel("앱 id", { exact: true })).toHaveCount(0);
     await expect(first.getByRole("button", { name: "앱 등록하고 다음" })).toBeDisabled();
     await first.getByLabel("iOS 앱 ID", { exact: true }).fill("com.example.notes");
     await expect(first.getByTestId("first-app-subflows")).toContainText("common/launch-clean.yaml");
